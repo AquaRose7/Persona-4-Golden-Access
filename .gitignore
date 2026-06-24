@@ -1,0 +1,131 @@
+# Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+
+# Decompiled game files (too large for git)
+decompiled/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+log.txt
+**/log.txt
+database/.txt
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local working files (not for distribution)
+forum-post.txt
+*.local.*
+
+# ── Share scope (added 2026-06-24): keep SOURCE + DOCS + small DATA only ──
+# Extracted game assets (copyright Atlus; ~2 GB)
+database/extract/
+# Release packaging — zips + bundled THIRD-PARTY mods (not ours to host)
+release/
+# Reverse-engineering dumps / staging
+ghidra_project/
+database/ghidra/*.txt
+database/ghidra/*.out
+database/dungeon_maps/
+# Memory snapshots + compiled-python scratch
+*.bin
+*.pyc
+__pycache__/
+# Backups & local notes
+*.bak
+database/audio_backup_*/
+my notes.txt
+database/my notes.txt
+# Screenshots / large media (mod icon kept via the negation)
+New folder/
+*.jpeg
+*.jpg
+*.png
+*.mp4
+!**/Preview.png
+# Abandoned / reference-only sub-projects
+P4GAccess/
+Accessibility-Mod-Template/
+
+# Daily/process planning scaffolding (not needed by collaborators)
+/plan.txt
+/plan_*.md
+/plan_overworld.md
+docs/superpowers/
+
+# Removed from the shared repo 2026-06-24 (kept locally, not published)
+database/legacy/
+**/Components/Navigation/legacy/
+database/walls/
+database/bugs.md
+database/changelog.txt
+database/controlor.txt
+database/newControlor.txt
+database/readme.txt
+database/session_*.md
+# Deleted scratch RE scripts (gone from disk too)
+database/disasm_shop*.py
+database/find_position_write*.py
+database/find_position_write_log.txt
+database/find_shop_*.py
+
+# AI-workflow / personal instruction files — kept LOCAL, never shared (machine paths, log process, session banners)
+CLAUDE.md
+# Template-derived cruft (not this project's) — deleted from disk too
+/CONTRIBUTING
+# Superseded early-era narrative notes
+database/findings.md
+database/progress.md
+database/resources.md
+
+# RE investigation scratch — our probes, but "how we found things", not shipped (kept local)
+database/frida/
+database/ghidra/
+# Third-party tool WRAPPERS — just wrap downloadable AtlusScriptLibrary / CriFsV2Lib; won't build standalone (kept local)
+database/tools/BfDecompiler/
+database/tools/BmdDecompiler/
+database/tools/CpkExtractor/
+
+# Outdated status doc (kept local)
+/project_status.md
+# Template CI + publish pipeline — auto-runs on push and tries to publish to Reloaded NuGet; not ours (kept local)
+p4g64.accessibility-master/.github/
+p4g64.accessibility-master/Publish.ps1
+p4g64.accessibility-master/changelog-template.hbs
+# Scratch one-off RE probes (not real data-generators; carry hardcoded local paths) (kept local)
+database/tools/find_shuffle_strings.py
+database/tools/find_rip_refs.py
+database/tools/probe_shadow.py
+database/tools/probe_field_table.py
+database/tools/ArcSurvey.py
+database/tools/diff_shufdump.py
+# Local agent settings (extra safety; *.local.* already matches settings.local.json)
+.claude/settings.local.json
+**/.claude/settings.local.json
+desktop.ini
+*.hbs
+
+# Outdated / retired-system docs — removed to avoid misleading a collaborator (kept local)
+database/NAVIGATION.md
+database/SPATIAL_AWARENESS.md
+database/DUNGEON_RESEARCH.md
+database/DUNGEON_TELEPORT.md

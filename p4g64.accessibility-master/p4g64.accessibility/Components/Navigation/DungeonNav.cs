@@ -1,0 +1,1159 @@
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using DavyKager;
+using static p4g64.accessibility.Utils;
+
+namespace p4g64.accessibility.Components.Navigation;
+
+/// <summary>
+/// Unified dungeon "search" browser — the overworld NavigationAssist browse
+/// model, applied to dungeon contents.
+///
+///   <c>-</c> / <c>=</c>   cycle CATEGORY: Doors · Chests · Shadows · Exits.
+///                         In the LOBBY only (TV-world hub, major == 20) a 5th
+///                         category, Interactables, lists the save point + named
+///                         NPCs from the master table. It is HIDDEN inside dungeon
+///                         floors, where that table is all false readings.
+///   <c>[</c> / <c>]</c>   step through that category's entries, nearest → far,
+///                         one at a time
+///   <c>\</c>              act on the current selection
+///
+/// The menu is <b>live</b>: every <c>[</c>/<c>]</c> step re-reads the world from
+/// the player's CURRENT position, so distances/directions update as you move —
+/// no need to re-select the category to refresh.
+///
+/// <c>\</c> behaviour — REVERTED to the original (user call, 2026-06-11, after
+/// two briefing iterations missed the mark):
+/// - <b>Exits</b> → instant ±1 floor teleport (story-safe; BIT-flag →
+///   field.flow → CALL_DUNGEON).
+/// - <b>Doors / Chests / Shadows</b> → re-announce the selection.
+///
+/// <c>Backspace</c> → auto-walk to the selection
+/// (<see cref="AutoWalk.AutoWalker"/>); Backspace again cancels. Shadows are
+/// blocked until the stealth approach (P4) ships.
+///
+/// ### Data sources
+/// - <b>Shadows</b>: enemy actor array <c>0x140EC2E90</c> (16 × 0x7C0; actor at
+///   <c>+0x58</c>; XZ at <c>actor+0x360/+0x368</c>). Exact positions.
+/// - <b>Doors / Chests</b>: the engine scene-actor list (scene root
+///   <c>*(0x140AA8098)</c> → <c>+0x08</c> → head <c>+0x50</c>, walk <c>+0x150</c>;
+///   ACTIVE nodes via <c>+0x28 &amp; 2</c>; xform <c>+0x168</c> → XZ
+///   <c>+0x360/+0x368</c>). A node is split into door vs chest by the float at
+///   <c>+0x430</c> (doors ≈ 0.3; see <see cref="ClassifyKind"/> — first
+///   calibration, the <c>[ActiveNodes]</c> log carries the real values).
+///
+/// Active on any dungeon floor (<c>major &gt;= 20</c> excluding battle 240 / 250+).
+/// </summary>
+internal class DungeonNav
+{
+    private const int PollMs = 50;
+
+    private const int VK_OEM_MINUS = 0xBD;   // -
+    private const int VK_OEM_PLUS  = 0xBB;   // =
+    private const int VK_OEM_4     = 0xDB;   // [
+    private const int VK_OEM_6     = 0xDD;   // ]
+    private const int VK_OEM_5     = 0xDC;   // \
+    private const int VK_BACK      = 0x08;   // Backspace = auto-walk
+
+    private enum Cat { Doors, Chests, Shadows, Exits, Places, Events }
+    // Places (the interactable master table) is LOBBY-ONLY. Inside real dungeon
+    // floors that table is full of false/garbage rows (user 2026-06-18: "trashy,
+    // a lot of false readings"), so the category is hidden there — you only browse
+    // Interactables in the TV-world hub ("Entrance", major == 20) to talk to /
+    // walk to the NPCs and save point. Dungeon floors are major >= 21.
+    private static readonly Cat[] DungeonCategories =
+        { Cat.Doors, Cat.Chests, Cat.Shadows, Cat.Exits };
+    private static readonly Cat[] LobbyCategories =
+        { Cat.Doors, Cat.Chests, Cat.Shadows, Cat.Exits, Cat.Places };
+    private static bool InLobby() => FieldTracker.CurrentMajor == 20;
+    // Location-aware: every call site uses Categories.Length / Categories[i].
+    // "Events" is appended ONLY when the current floor has recorded marks — that
+    // presence check IS the "scripted floor" gate, so procedural floors are
+    // untouched and the category count matches today's everywhere else.
+    private static Cat[] Categories
+    {
+        get
+        {
+            var baseCats = InLobby() ? LobbyCategories : DungeonCategories;
+            if (!HasEventMarks()) return baseCats;
+            var l = new List<Cat>(baseCats) { Cat.Events };
+            return l.ToArray();
+        }
+    }
+    private static string CatName(Cat c) => c switch
+    {
+        Cat.Doors => "Doors", Cat.Chests => "Chests",
+        Cat.Shadows => "Shadows", Cat.Exits => "Stairs",
+        Cat.Places => "Interactables", Cat.Events => "Events", _ => c.ToString()
+    };
+
+    // ── Shadow actor array (Ghidra) ──
+    private static readonly nint ShadowArray = unchecked((nint)0x140EC2E90L);
+    private static readonly nint FloorGatePtr = unchecked((nint)0x1411AB2F0L);
+    private const int SLOT_COUNT = 16, SLOT_STRIDE = 0x7C0;
+    private const int OFF_ACTIVE1 = 0x48, OFF_ACTOR = 0x58, OFF_ACTIVE2 = 0x60;
+    private const int OFF_ACTOR_X = 0x360, OFF_ACTOR_Z = 0x368;
+    // Shadow actor forward vector (found 2026-06-03 by velocity correlation):
+    // x at +0x350, z at +0x358 — the matrix forward row just before position.
+    private const int OFF_ACTOR_FX = 0x350, OFF_ACTOR_FZ = 0x358;
+    // 3D dungeon world scale ≈ 250u per walking step (see dungeon_3d_scale_and_shadows).
+    private const float WorldPerStep = 250f;
+
+    // ── Chest / treasure array (Ghidra: FLD_FUNCTION_0039's array, flagged
+    // "treasure/gimmick" in door_actor_investigation.md) ──
+    // 8 entries × 0x190; active = *(int*)(e+0x00) != 0; XZ inline at +0x170/+0x178.
+    private static readonly nint ChestArray = unchecked((nint)0x15E4375C0L);
+    private const int CHEST_COUNT = 8, CHEST_STRIDE = 0x190;
+    private const int OFF_CHEST_ACTIVE = 0x00, OFF_CHEST_STATE = 0x08;
+    private const int OFF_CHEST_X = 0x170, OFF_CHEST_Z = 0x178;
+
+    // ── Door / interactable scene-actors (Ghidra, corrected by live probe) ──
+    private static readonly nint SceneRootPtr = unchecked((nint)0x140AA8098L);
+    private const int OFF_SCENE       = 0x08;
+    private const int OFF_LIST_HEAD   = 0x50;
+    private const int OFF_NODE_NEXT   = 0x150;
+    private const int OFF_NODE_ACTIVE = 0x28;     // byte, &2 = active/near
+    private const int OFF_NODE_XFORM  = 0x168;
+    private const int OFF_NODE_RADIUS = 0x430;    // float; doors ≈ 0.3 (type discriminator)
+    private const float DedupUnits = 150f;        // merge an object's paired nodes
+    private const float DoorRadius = 0.3f;
+    private const float DoorRadiusTol = 0.08f;
+
+    // ── Interactable master table (Ghidra: thunk_FUN_16ac1a140; see
+    // memory/interactable_master_table.md) — the source for the lobby's save
+    // point, dungeon ENTRANCES, and NPCs, which the scene-actor door/chest
+    // enumeration above does NOT surface. One 8-byte pointer per CATEGORY;
+    // each heads a linked list (next at +0xFC0). World XZ at +0x360/+0x368
+    // (same convention as wall/scene actors). id at +0x406, flags at +0x408.
+    // cat=1 id=0x0001 is the gaze cursor (tracks player facing) — filtered.
+    // Categories ≥ 16 carry garbage/system rows — not enumerated. This is the
+    // "Places" data source: in the lobby the user browses it to find + walk to
+    // the castle entrance / save point. We log the full table on Places-select
+    // so we can map cat/id → friendly names afterward.
+    private static readonly nint MasterTablePtr = unchecked((nint)0x146248560L);
+    private const int MT_MAX_CAT = 16;            // observed real interactables live in 0..15
+    private const int MT_MAX_PER_CAT = 64;        // linked-list walk guard
+    private const int OFF_MT_X = 0x360, OFF_MT_Z = 0x368;
+    private const int OFF_MT_ID = 0x406, OFF_MT_FLAGS = 0x408, OFF_MT_NEXT = 0xFC0;
+    private const float MtPosCeiling = 1e6f;      // world fits in ~±20k; bigger = noise
+    private const float PlaceDedupUnits = 200f;   // merge co-located place rows
+    // Template / room-marker rows (the evenly-spaced grid + (0,0) anchors that
+    // flood cat 4/6) all set this flag bit; real interactables — NPCs and the
+    // lobby's fixed objects (save point / dungeon entrance, e.g. cat=4 id=0x0066
+    // at (-523,525), flags 0x?4091118) — do NOT. Filtering on the flag instead
+    // of on the category keeps the standout fixed objects while dropping the
+    // grid noise. (Lobby dump 2026-06-17.)
+    private const uint MT_MARKER_FLAG = 0x01000000u;
+    // Generic "person present here" mirror id — duplicates each NPC + the player
+    // at a separate cat (4); the real NPC carries a distinct id in cat 5.
+    private const short MT_PERSON_MIRROR_ID = 0x07D0;
+
+    // ── Event marks (hand-recorded named points on SCRIPTED/fixed floors) ──
+    // Keyed by floor "major_minor" (verified 2026-06-24: scripted floors get a
+    // distinct key — Castle 2F = 23_3, vs the 40_0 procedural template). Universal
+    // (fixed geometry + ASLR off): record once, bundle, works for every player.
+    // Loaded ModDir-first via Utils.DataPath.
+    private sealed class EventMark
+    {
+        public float X { get; set; }
+        public float Z { get; set; }
+        public string Label { get; set; } = "Mark";
+    }
+    private static readonly Dictionary<string, List<EventMark>> _marks = new();
+    private static readonly object _marksLock = new();
+
+    private static string FloorKey() => $"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}";
+
+    private static bool HasEventMarks()
+    {
+        lock (_marksLock)
+            return _marks.TryGetValue(FloorKey(), out var l) && l.Count > 0;
+    }
+
+    private static string MarksWritePath()
+    {
+        var cwd = Environment.CurrentDirectory;
+        foreach (var b in new[] { System.IO.Path.Combine(cwd, "Persona 4 golden", "database"),
+                                  System.IO.Path.Combine(cwd, "database") })
+            if (System.IO.Directory.Exists(b)) return System.IO.Path.Combine(b, "dungeon_waypoints.json");
+        return System.IO.Path.Combine(Utils.ModDir ?? "", "dungeon_waypoints.json");
+    }
+
+    private static void LoadMarks()
+    {
+        try
+        {
+            string p = DataPath("dungeon_waypoints.json");
+            if (!System.IO.File.Exists(p)) { Log("[EventMarks] no file (0 marks)"); return; }
+            var d = JsonSerializer.Deserialize<Dictionary<string, List<EventMark>>>(System.IO.File.ReadAllText(p));
+            int total = 0;
+            if (d != null)
+                lock (_marksLock)
+                {
+                    _marks.Clear();
+                    foreach (var kv in d) { _marks[kv.Key] = kv.Value ?? new(); total += _marks[kv.Key].Count; }
+                }
+            Log($"[EventMarks] loaded {total} mark(s) across {_marks.Count} floor(s)");
+        }
+        catch (Exception e) { Log($"[EventMarks] load failed: {e.Message}"); }
+    }
+
+    private static void SaveMarks()
+    {
+        try
+        {
+            Dictionary<string, List<EventMark>> snap;
+            lock (_marksLock) snap = new(_marks);
+            System.IO.File.WriteAllText(MarksWritePath(),
+                JsonSerializer.Serialize(snap, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception e) { Log($"[EventMarks] save failed: {e.Message}"); }
+    }
+
+    // ── Floor teleport (folded in from DungeonStepNav) ──
+    private const ushort SC_F = 0x21;
+    private static readonly unsafe byte** _flagBitmapPtr = (byte**)0x1451FF7A0L;
+    private static readonly (int major, int minor, string name, int flagId)[] _floors =
+    {
+        (23, 1, "Yukiko's Castle, Gate", 6707),
+        (40, 0, "Yukiko's Castle 1F",    6708),
+        (23, 3, "Yukiko's Castle 2F",    6709),
+    };
+
+    private enum Kind { Door, Chest }
+
+    private struct Entry
+    {
+        public string Say;
+        public float Dist;
+        public int FloorDir;   // 0 = not a floor; -1 / +1 = previous / next floor
+        public string Label;   // short noun for the route briefing ("Chest", "Stairs")
+        public bool HasPos;    // TX/TZ valid → entry is routable
+        public float TX, TZ;   // world target for the route briefing / auto-walk
+        public float NX, NZ;   // door normal (walk-through direction); (0,0) = none
+    }
+
+    private readonly Thread _thread;
+    private volatile bool _stopped;
+    private bool _minusWas, _plusWas, _lbWas, _rbWas, _bsWas;
+
+    private int _catIndex = -1;      // -1 = nothing selected yet this visit
+    private bool _inDungeonLast;
+    private bool _inLobbyLast;
+    private List<Entry> _entries = new();
+    private int _cursor;
+    private bool _bkWas;
+    private bool _f8Was;   // TEMP: door-cell mapper (F8) — remove after we map the doorway
+
+    public DungeonNav()
+    {
+        LoadMarks();
+        _thread = new Thread(PollLoop) { IsBackground = true, Name = "DungeonNav" };
+        _thread.Start();
+        Log("[DungeonNav] ready (-/= category Doors/Chests/Shadows/Exits [+Interactables in lobby only], [ ] step entries live, \\ act, Backspace walk)");
+    }
+
+    public void Stop() => _stopped = true;
+
+    private void PollLoop()
+    {
+        while (!_stopped)
+        {
+            Thread.Sleep(PollMs);
+            try { Tick(); }
+            catch (Exception ex) { Log($"[DungeonNav] poll error: {ex.GetType().Name}: {ex.Message}"); }
+        }
+    }
+
+    private void Tick()
+    {
+        if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
+        bool inDungeon = InDungeon();
+        if (inDungeon != _inDungeonLast)
+        {
+            _catIndex = -1;
+            _entries = new();
+            _cursor = 0;
+            _inDungeonLast = inDungeon;
+        }
+        if (!inDungeon) return;
+
+        // Places (Interactables) is lobby-only; crossing the lobby↔floor boundary
+        // changes the active category set's size, so reset the selection to avoid a
+        // stale out-of-range index.
+        bool lobby = InLobby();
+        if (lobby != _inLobbyLast) { _catIndex = -1; _entries = new(); _cursor = 0; _inLobbyLast = lobby; }
+
+        bool minus = IsKeyDown(VK_OEM_MINUS);
+        if (minus && !_minusWas) CycleCategory(-1);
+        _minusWas = minus;
+
+        bool plus = IsKeyDown(VK_OEM_PLUS);
+        if (plus && !_plusWas) CycleCategory(+1);
+        _plusWas = plus;
+
+        bool shift = IsKeyDown(0x10);   // Shift = speech-history modifier (HistoryKeys); don't step entries
+
+        bool lb = IsKeyDown(VK_OEM_4);
+        if (lb && !_lbWas && !shift) StepEntry(-1);
+        _lbWas = lb;
+
+        bool rb = IsKeyDown(VK_OEM_6);
+        if (rb && !_rbWas && !shift) StepEntry(+1);
+        _rbWas = rb;
+
+        bool bs = IsKeyDown(VK_OEM_5);
+        if (bs && !_bsWas) Act();
+        _bsWas = bs;
+
+        // Backspace: cancel a running walk; else if the H cursor is on, walk to
+        // the cursor cell (mark & walk — lets the player go anywhere they've
+        // mapped, not just a door/chest); else auto-walk the browser selection.
+        bool bk = IsKeyDown(VK_BACK);
+        if (bk && !_bkWas)
+        {
+            if (AutoWalk.AutoWalker.IsActive) AutoWalk.AutoWalker.Cancel();
+            else if (DungeonCursor.IsActive
+                     && DungeonCursor.TryGetMarkTarget(out float mwx, out float mwz, out bool mUnexplored))
+            {
+                AutoWalk.AutoWalker.Start(mUnexplored ? "Unmapped marker" : "Marker", mwx, mwz);
+                DungeonCursor.Deactivate();   // cursor's job is done; re-press H to remap at the new spot
+            }
+            else StartWalk();
+        }
+        _bkWas = bk;
+
+        // TEMP: F8 dumps the minimap cell grid around the player (walkable vs wall) + the
+        // nearest door, so we can map a doorway's real walkable gap by hand. Remove after.
+        bool f8 = IsKeyDown(0x77);
+        if (f8 && !_f8Was) DoorCellMap();
+        _f8Was = f8;
+
+        // Event-mark DEV/setup keys are intentionally UNBOUND (the marks we need are already
+        // recorded + bundled, so nothing here should write the file during normal play). To
+        // author more marks later, re-add a bool _f7Was/_f6Was field and this poll block:
+        //   bool ctrl = IsKeyDown(0x11);   // dev guard so a player can't trigger a write by accident
+        //   bool f7 = IsKeyDown(0x76); if (f7 && !_f7Was && ctrl) { if (shift) UndoMark(); else RecordMark(); } _f7Was = f7;
+        //   bool f6 = IsKeyDown(0x75); if (f6 && !_f6Was && ctrl) PromoteSelectionToEvents(); _f6Was = f6;
+        // The RecordMark / UndoMark / PromoteSelectionToEvents methods are kept below, ready to wire.
+    }
+
+    private static bool InDungeon()
+    {
+        int major = FieldTracker.CurrentMajor;
+        return major >= 20 && major != 240 && major < 250;
+    }
+
+    // TEMP (door-cell mapper): dump the minimap cell grid around the player + the nearest
+    // door, so we can SEE a doorway's real walkable gap vs the frame and aim the through at
+    // the gap. Press F8 in the gap, then at the frame edges, then send the log. Remove after.
+    private void DoorCellMap()
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) { Log("[DoorMap] player pos unavailable"); return; }
+        MinimapTracker.WorldToCell(px, pz, out int pr, out int pc);
+        int pflag = MinimapTracker.ReadCell(pr, pc, out var pcell) ? pcell.Flag : -1;
+
+        float ddx = 0, ddz = 0, best = float.MaxValue; bool haveDoor = false;
+        foreach (var (x, z) in Doors())
+        { float d = (x - px) * (x - px) + (z - pz) * (z - pz); if (d < best) { best = d; ddx = x; ddz = z; haveDoor = true; } }
+        int dr = -1, dc = -1, dflag = -1;
+        if (haveDoor && MinimapTracker.WorldToCell(ddx, ddz, out dr, out dc))
+            dflag = MinimapTracker.ReadCell(dr, dc, out var dcell) ? dcell.Flag : -1;
+
+        Log($"[DoorMap] === player=({px:F0},{pz:F0}) cell=({pr},{pc}) flag={pflag} | nearestDoor=({ddx:F0},{ddz:F0}) cell=({dr},{dc}) flag={dflag} d={(haveDoor ? MathF.Sqrt(best) : -1):F0} ===");
+        Log("[DoorMap] grid rows pr-3..pr+3 x cols pc-3..pc+3 (.=unexpl o=walk #=wall ?=oob, P=player D=door):");
+        for (int r = pr - 3; r <= pr + 3; r++)
+        {
+            string line = "[DoorMap] ";
+            for (int c = pc - 3; c <= pc + 3; c++)
+            {
+                char ch;
+                if (r == pr && c == pc) ch = 'P';
+                else if (r == dr && c == dc) ch = 'D';
+                else if (!MinimapTracker.ReadCell(r, c, out var cc)) ch = '?';
+                else ch = cc.Flag == 0 ? '.' : cc.Flag == 1 ? 'o' : cc.Flag == 2 ? '#' : 'x';
+                line += ch; line += ' ';
+            }
+            Log(line);
+        }
+    }
+
+    private void CycleCategory(int dir)
+    {
+        int n = Categories.Length;
+        _catIndex = _catIndex < 0 ? (dir > 0 ? 0 : n - 1) : (_catIndex + dir + n) % n;
+        _cursor = 0;
+        Cat cat = Categories[_catIndex];
+        _entries = BuildCategory(cat);
+        Log($"[DungeonNav] category → {cat} entries={_entries.Count}");
+        if (cat == Cat.Chests) LogChestArray();
+        if (cat == Cat.Places) LogMasterTable();
+
+        string name = CatName(cat);
+        if (_entries.Count == 0)
+        {
+            Speech.Say(cat switch
+            {
+                Cat.Doors => "Doors: none nearby.",
+                Cat.Chests => "Chests: none nearby.",
+                Cat.Shadows => "Shadows: none nearby.",
+                Cat.Exits => "Stairs: none found on this floor.",
+                Cat.Places => "Interactables: none nearby.",
+                Cat.Events => "Events: none on this floor.",
+                _ => $"{name}: none."
+            }, true);
+            return;
+        }
+        Speech.Say($"{name}: {_entries.Count}. {_entries[0].Say}.", true);
+        WinBeep(1100, 30);
+    }
+
+    private void StepEntry(int dir)
+    {
+        if (_catIndex < 0)
+        {
+            Speech.Say("Pick a category with minus or equals first.", true);
+            return;
+        }
+        // LIVE: rebuild from the current player position every step.
+        Cat cat = Categories[_catIndex];
+        _entries = BuildCategory(cat);
+
+        if (_entries.Count == 0)
+        {
+            Speech.Say($"{CatName(cat)}: none nearby.", true);
+            return;
+        }
+
+        int next = _cursor + dir;
+        if (next < 0) { Speech.Say("First. ", false); next = 0; }
+        else if (next >= _entries.Count) { Speech.Say("Last. ", false); next = _entries.Count - 1; }
+        _cursor = next;
+
+        Speech.Say($"{_cursor + 1} of {_entries.Count}: {_entries[_cursor].Say}.", true);
+        WinBeep(1000, 25);
+    }
+
+    // Reverted to pre-auto-walk behaviour (user call 2026-06-11): \ teleports
+    // on Exits and re-announces everything else. Walking moved to Backspace.
+    private void Act()
+    {
+        if (_catIndex < 0) { Speech.Say("Pick a category first.", true); return; }
+        Cat cat = Categories[_catIndex];
+        // Refresh so we act on a current selection.
+        _entries = BuildCategory(cat);
+        if (_entries.Count == 0) { Speech.Say("Nothing selected.", true); return; }
+        if (_cursor >= _entries.Count) _cursor = _entries.Count - 1;
+
+        var e = _entries[_cursor];
+        // \ only re-announces the selection (the stairs brief); Backspace walks/travels there.
+        Speech.Say($"{e.Say}. Backspace walks there.", true);
+    }
+
+    private void StartWalk()
+    {
+        if (_catIndex < 0) { Speech.Say("Pick a category first.", true); return; }
+        Cat cat = Categories[_catIndex];
+        _entries = BuildCategory(cat);
+        if (_entries.Count == 0) { Speech.Say("Nothing selected.", true); return; }
+        if (_cursor >= _entries.Count) _cursor = _entries.Count - 1;
+
+        var e = _entries[_cursor];
+        if (cat == Cat.Shadows)
+        {
+            // Original position-gated hunt (user call 2026-06-23 to restore, same as chests):
+            // the player walks close themselves; Backspace strikes when already behind it (the
+            // browser announces each shadow's facing). The explore/travel version is retired.
+            if (!e.HasPos) { Speech.Say("No shadow position.", true); return; }
+            AutoWalk.AutoWalker.StartHunt(e.TX, e.TZ);
+            return;
+        }
+        if (cat == Cat.Exits)   // Stairs: full travel (explore + route + open doors)
+        {
+            AutoWalk.AutoWalker.TravelToStairs();
+            return;
+        }
+        if (!e.HasPos)
+        {
+            Speech.Say("No position to walk to.", true);
+            return;
+        }
+
+        // Chests use the original one-shot walker (the explore/travel version hugged walls
+        // on the coarse minimap — user call 2026-06-23 to restore the old chest hunter).
+
+        // Doors: target the door's RAW XZ. The minimap cell is ~5 steps wide
+        // but a doorway is narrow, so snapping to a walkable cell centre lands
+        // BESIDE the door on the wall (live 2026-06-11: 13900,12000 snapped to
+        // 14067,11667 — the next cell over). AutoWalker's door-push handles
+        // the narrow final approach (walk straight in + tap open, no
+        // wall-blocked abort).
+        AutoWalk.AutoWalker.Start(e.Label, e.TX, e.TZ);
+    }
+
+    // ── Event marks (record / undo) ──
+
+    // F7: drop a generic ("Mark") event point at the player's current spot on this
+    // floor. The label is named later by hand (Claude edits dungeon_waypoints.json).
+    private void RecordMark()
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) { Speech.Say("Position unavailable.", true); return; }
+        string key = FloorKey();
+        lock (_marksLock)
+        {
+            if (!_marks.TryGetValue(key, out var l)) { l = new(); _marks[key] = l; }
+            l.Add(new EventMark { X = px, Z = pz, Label = "Mark" });
+        }
+        SaveMarks();
+        Speech.Say("Recorded a mark on this floor.", true);
+        Log($"[EventMarks] RECORD floor={key} pos=({px:F0},{pz:F0})");
+    }
+
+    // F6: copy the CURRENTLY-SELECTED browser entry (a detected door / chest / stairs)
+    // into Events as a permanent named mark for this floor. Lets us capture an existing
+    // door's exact coords (e.g. Castle 5F's event door) without standing on it. Label is
+    // the entry's generic noun ("Door") until renamed by hand.
+    private void PromoteSelectionToEvents()
+    {
+        if (_catIndex < 0) { Speech.Say("Pick a category and an entry first.", true); return; }
+        Cat cat = Categories[_catIndex];
+        if (cat == Cat.Events) { Speech.Say("That is already an event mark.", true); return; }
+        _entries = BuildCategory(cat);
+        if (_entries.Count == 0) { Speech.Say("Nothing selected.", true); return; }
+        if (_cursor >= _entries.Count) _cursor = _entries.Count - 1;
+        var e = _entries[_cursor];
+        if (!e.HasPos) { Speech.Say("That entry has no position to save.", true); return; }
+        string key = FloorKey();
+        lock (_marksLock)
+        {
+            if (!_marks.TryGetValue(key, out var l)) { l = new(); _marks[key] = l; }
+            l.Add(new EventMark { X = e.TX, Z = e.TZ, Label = e.Label });
+        }
+        SaveMarks();
+        Speech.Say($"Added {e.Label} to events on this floor.", true);
+        Log($"[EventMarks] PROMOTE floor={key} label={e.Label} pos=({e.TX:F0},{e.TZ:F0})");
+    }
+
+    // Shift+F7: remove the most-recently recorded mark on this floor (recording by ear).
+    private void UndoMark()
+    {
+        string key = FloorKey();
+        bool removed = false;
+        lock (_marksLock)
+            if (_marks.TryGetValue(key, out var l) && l.Count > 0)
+            {
+                l.RemoveAt(l.Count - 1);
+                if (l.Count == 0) _marks.Remove(key);
+                removed = true;
+            }
+        if (removed) { SaveMarks(); Speech.Say("Removed the last mark.", true); Log($"[EventMarks] UNDO floor={key}"); }
+        else Speech.Say("No marks to remove.", true);
+    }
+
+    // ── Category builders ──
+
+    private List<Entry> BuildCategory(Cat cat) => cat switch
+    {
+        Cat.Doors => BuildInteractableEntries(Kind.Door, "Door"),
+        // Chests from the dedicated treasure array (not the noisy scene singles).
+        Cat.Chests => BuildChestEntries(),
+        Cat.Shadows => BuildShadowEntries(),
+        Cat.Exits => BuildExitEntries(),
+        Cat.Places => BuildPlaceEntries(),
+        Cat.Events => BuildEventEntries(),
+        _ => new()
+    };
+
+    // Event marks for the CURRENT floor, nearest-first, as routable entries. The
+    // label is whatever was authored ("Stairs", "Event door"); Backspace walks
+    // there via the generic AutoWalker.Start path in StartWalk (HasPos = true).
+    private List<Entry> BuildEventEntries()
+    {
+        var list = new List<Entry>();
+        List<EventMark> marks;
+        lock (_marksLock) marks = _marks.TryGetValue(FloorKey(), out var l) ? new List<EventMark>(l) : new();
+        if (marks.Count == 0) return list;
+
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        bool havePos = !float.IsNaN(px) && !float.IsNaN(pz);
+        if (havePos)
+            marks.Sort((a, b) =>
+            {
+                float da = (a.X - px) * (a.X - px) + (a.Z - pz) * (a.Z - pz);
+                float db = (b.X - px) * (b.X - px) + (b.Z - pz) * (b.Z - pz);
+                return da.CompareTo(db);
+            });
+
+        foreach (var m in marks)
+        {
+            float dist = havePos ? MathF.Sqrt((m.X - px) * (m.X - px) + (m.Z - pz) * (m.Z - pz)) : 0;
+            int steps = AutoWalk.RouteSpeech.StepsFromUnits(dist);
+            list.Add(new Entry
+            {
+                Say = $"{m.Label}, {steps} step{(steps == 1 ? "" : "s")}",
+                Dist = dist, FloorDir = 0, Label = m.Label,
+                HasPos = true, TX = m.X, TZ = m.Z
+            });
+        }
+        return list;
+    }
+
+    // STAIRS category (rebuilt 2026-06-17 — replaces the old teleport-based
+    // "Exits"). Every entry is an actual stairs POSITION you auto-walk to with
+    // Backspace; the floor transitions on contact (no teleport). Stair source:
+    //   • mapped floors  → the minimap stairs sprite (GridRouter).
+    //   • scripted / no-grid floors (e.g. Yukiko 2F) → the scene-actor pairs
+    //     (same source as Doors — these floors have no real doors, only the
+    //     forward/back stairs). The floor-teleport machinery is kept but
+    //     UNBOUND (see TeleportFloor + database/DUNGEON_TELEPORT.md).
+    private List<Entry> BuildExitEntries()
+    {
+        var list = new List<Entry>();
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        bool havePos = !float.IsNaN(px) && !float.IsNaN(pz);
+
+        var pts = new List<(float x, float z)>();
+        if (AutoWalk.GridRouter.HasGrid())
+        {
+            if (havePos && AutoWalk.GridRouter.FindNearestStairs(px, pz, out float sx, out float sz))
+                pts.Add((sx, sz));
+        }
+        else
+        {
+            // No minimap grid: the stairs are the scene-actor pairs.
+            pts.AddRange(Doors());
+        }
+
+        // De-dupe co-located hits, then sort nearest-first.
+        var uniq = new List<(float x, float z)>();
+        foreach (var p in pts)
+        {
+            bool dup = false;
+            foreach (var u in uniq)
+                if (MathF.Abs(u.x - p.x) < DedupUnits && MathF.Abs(u.z - p.z) < DedupUnits) { dup = true; break; }
+            if (!dup) uniq.Add(p);
+        }
+        if (havePos)
+            uniq.Sort((a, b) =>
+            {
+                float da = (a.x - px) * (a.x - px) + (a.z - pz) * (a.z - pz);
+                float db = (b.x - px) * (b.x - px) + (b.z - pz) * (b.z - pz);
+                return da.CompareTo(db);
+            });
+
+        for (int i = 0; i < uniq.Count; i++)
+        {
+            var (x, z) = uniq[i];
+            float dist = havePos ? MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz)) : 0;
+            int steps = AutoWalk.RouteSpeech.StepsFromUnits(dist);
+            string say = uniq.Count > 1 ? $"Stairs {i + 1}, {steps} steps" : $"Stairs, {steps} steps";
+            list.Add(new Entry { Say = say, Dist = dist, FloorDir = 0,
+                                 Label = "Stairs", HasPos = true, TX = x, TZ = z });
+        }
+        return list;
+    }
+
+    private List<Entry> BuildChestEntries()
+    {
+        var list = new List<Entry>();
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return list;
+
+        foreach (var (x, z) in EnumerateChests())
+        {
+            float dx = x - px, dz = z - pz;
+            float dist = MathF.Sqrt(dx * dx + dz * dz);
+            int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
+            string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
+            list.Add(new Entry { Say = $"Chest {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
+                                 Label = "Chest", HasPos = true, TX = x, TZ = z });
+        }
+        list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+        return list;
+    }
+
+    private List<Entry> BuildShadowEntries()
+    {
+        var list = new List<Entry>();
+        if (!ReadFloorGate()) return list;
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return list;
+
+        foreach (var (x, z, sfx, sfz) in EnumerateShadows())
+        {
+            float dx = x - px, dz = z - pz;
+            float dist = MathF.Sqrt(dx * dx + dz * dz);
+            int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
+            string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
+            // Shadow forward · (player − shadow): >0 faces you (danger), <0 faces
+            // away (hit it from behind for the advantage). (px−x, pz−z) = dx,dz.
+            string face = "";
+            if (sfx != 0 || sfz != 0)
+            {
+                // Shadow forward · (shadow → player). >0 ⇒ it's looking at you
+                // (danger / face-to-face); <0 ⇒ facing away (hit from behind for
+                // the advantage). dx,dz = shadow − player, so → player = −dx,−dz.
+                float fdot = sfx * (-dx) + sfz * (-dz);
+                face = fdot > 0 ? ", facing you" : ", facing away";
+            }
+            list.Add(new Entry { Say = $"Shadow {dir}, {steps} step{(steps == 1 ? "" : "s")}{face}", Dist = dist,
+                                 Label = "Shadow", HasPos = true, TX = x, TZ = z });
+        }
+        list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+        return list;
+    }
+
+    private List<Entry> BuildInteractableEntries(Kind want, string noun)
+    {
+        var list = new List<Entry>();
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return list;
+
+        foreach (var (x, z, kind, count, nx, nz) in EnumerateInteractables())
+        {
+            if (kind != want) continue;
+            float dx = x - px, dz = z - pz;
+            float dist = MathF.Sqrt(dx * dx + dz * dz);
+            int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
+            string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
+            list.Add(new Entry { Say = $"{noun} {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
+                                 Label = noun, HasPos = true, TX = x, TZ = z, NX = nx, NZ = nz });
+        }
+        list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+        return list;
+    }
+
+    /// <summary>
+    /// Places = the interactable master table (save point, dungeon ENTRANCES,
+    /// NPCs in the lobby) — the data the scene-actor door/chest pass misses.
+    /// Generic for now ("Object N steps DIR"); the diagnostic log on selection
+    /// captures cat/id so we can assign friendly names (Yukiko's Castle, Save
+    /// Point, NPC names) next. Every entry is auto-walkable via Backspace.
+    /// </summary>
+    private List<Entry> BuildPlaceEntries()
+    {
+        var list = new List<Entry>();
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return list;
+
+        foreach (var (x, z, cat, id, node) in EnumeratePlaces())
+        {
+            float dx = x - px, dz = z - pz;
+            float dist = MathF.Sqrt(dx * dx + dz * dz);
+            // Skip the player's own node (it sits exactly at the player — e.g.
+            // the lobby's cat=9 id=0x0102 read at d=0). Not a walk target.
+            if (dist < 120f) continue;
+            int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
+            string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
+            string label = PlaceLabel(cat, id, node);
+            list.Add(new Entry { Say = $"{label} {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
+                                 Label = label, HasPos = true, TX = x, TZ = z });
+        }
+        list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+        return list;
+    }
+
+    // cat=5 master-table id → display name for lobby NPCs. The live model-path
+    // resolver returns nothing on these nodes (verified 2026-06-17), so names
+    // are bound by id. Filled from the user's id→name report.
+    private static readonly Dictionary<int, string> PlaceNpcNames = new()
+    {
+        // Yukiko's Castle lobby NPCs, user-mapped 2026-06-17. Teddie = the
+        // dungeon entrance (talk to him to go in).
+        [0x00C8] = "Yosuke",   // 200
+        [0x0320] = "Teddie",   // 800
+        [0x012C] = "Chie",     // 300
+    };
+
+    /// <summary>
+    /// Friendly label for a Places entry. Try the live NPC model-path resolver
+    /// first; it doesn't resolve on master-table nodes, so for people
+    /// (cat=5) fall back to the id→name bind table — and, until that's filled,
+    /// SPEAK the id ("Person 300") so the user can map id→name by walking to
+    /// each. cat=4 (surviving the marker filter) = the save point
+    /// (user-confirmed 2026-06-17; talking to Teddie here enters the dungeon).
+    /// </summary>
+    private static string PlaceLabel(int cat, short id, nint node)
+    {
+        string? npc = OverworldNav.ResolveNpcModelName(node);
+        if (!string.IsNullOrEmpty(npc)) return npc;
+        if (cat == 5)
+            return PlaceNpcNames.TryGetValue(id, out var nm) ? nm : $"Person {(ushort)id}";
+        if (cat == 4) return "Save point";
+        return "Interactable";
+    }
+
+    // ── Raw enumerations ──
+
+    // Shared with DungeonCursor so the grid cursor reads the same accurate data.
+    internal static List<(float x, float z)> Doors()
+    {
+        var outp = new List<(float, float)>();
+        foreach (var (x, z, kind, _, _, _) in EnumerateInteractables())
+            if (kind == Kind.Door) outp.Add((x, z));
+        return outp;
+    }
+    internal static List<(float x, float z)> Chests() => EnumerateChests();
+    internal static List<(float x, float z)> Shadows()
+    {
+        var outp = new List<(float x, float z)>();
+        if (!ReadFloorGate()) return outp;
+        foreach (var (x, z, _, _) in EnumerateShadows()) outp.Add((x, z));
+        return outp;
+    }
+    /// <summary>Shadows with their forward vector (fx,fz) for facing checks.</summary>
+    internal static List<(float x, float z, float fx, float fz)> ShadowsWithFacing()
+        => ReadFloorGate() ? EnumerateShadows() : new();
+
+    private static unsafe List<(float x, float z)> EnumerateChests()
+    {
+        var outp = new List<(float, float)>();
+        for (int i = 0; i < CHEST_COUNT; i++)
+        {
+            nint e = ChestArray + i * CHEST_STRIDE;
+            if (!IsReadable(e + OFF_CHEST_Z, 4)) continue;
+            if (*(int*)(e + OFF_CHEST_ACTIVE) == 0) continue;
+            // +0x08 state: 0 = unopened. It flips when the chest is opened, so
+            // skip those — an opened chest must not keep showing in nav/beacon.
+            if (*(int*)(e + OFF_CHEST_STATE) == 1) continue;
+            float x = *(float*)(e + OFF_CHEST_X), z = *(float*)(e + OFF_CHEST_Z);
+            if (float.IsFinite(x) && float.IsFinite(z) && (x != 0 || z != 0)) outp.Add((x, z));
+        }
+        return outp;
+    }
+
+    private static unsafe void LogChestArray()
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < CHEST_COUNT; i++)
+        {
+            nint e = ChestArray + i * CHEST_STRIDE;
+            if (!IsReadable(e + OFF_CHEST_Z, 4)) { sb.Append($" [{i} unreadable]"); continue; }
+            int act = *(int*)(e + OFF_CHEST_ACTIVE);
+            int st = *(int*)(e + OFF_CHEST_STATE);
+            int b04 = *(int*)(e + 0x04), b0c = *(int*)(e + 0x0C), b10 = *(int*)(e + 0x10);
+            float x = *(float*)(e + OFF_CHEST_X), z = *(float*)(e + OFF_CHEST_Z);
+            sb.Append($" [{i} act={act} st={st} +4={b04} +C={b0c} +10={b10} @({x:F0},{z:F0})]");
+        }
+        Log($"[ChestArray]{sb}");
+    }
+
+    private static unsafe List<(float x, float z, float fx, float fz)> EnumerateShadows()
+    {
+        var outp = new List<(float, float, float, float)>();
+        for (int i = 0; i < SLOT_COUNT; i++)
+        {
+            nint e = ShadowArray + i * SLOT_STRIDE;
+            if (!IsReadable(e + OFF_ACTIVE2, 8)) continue;
+            if (*(nint*)(e + OFF_ACTIVE1) == 0 || *(nint*)(e + OFF_ACTIVE2) == 0) continue;
+            nint actor = *(nint*)(e + OFF_ACTOR);
+            if (actor == 0 || !IsReadable(actor + OFF_ACTOR_Z, 4)) continue;
+            float x = *(float*)(actor + OFF_ACTOR_X), z = *(float*)(actor + OFF_ACTOR_Z);
+            if (!float.IsFinite(x) || !float.IsFinite(z)) continue;
+            float fx = 0f, fz = 0f;
+            if (IsReadable(actor + OFF_ACTOR_FZ, 4))
+            {
+                fx = *(float*)(actor + OFF_ACTOR_FX);
+                fz = *(float*)(actor + OFF_ACTOR_FZ);
+                if (!float.IsFinite(fx) || !float.IsFinite(fz)) { fx = 0f; fz = 0f; }
+            }
+            outp.Add((x, z, fx, fz));
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// Walk the scene-actor list, cluster ACTIVE interactable nodes by position,
+    /// and classify each cluster: <b>a door is two co-located actors</b> (its
+    /// leaves/frame), <b>a chest is one</b>. Verified: confirmed doors always
+    /// appear as pairs; chests as singles. Returns one entry per cluster at its
+    /// centroid.
+    /// </summary>
+    private static unsafe List<(float x, float z, Kind kind, int count, float nx, float nz)> EnumerateInteractables()
+    {
+        // 1. Collect every active node's position (no dedup yet).
+        var raw = new List<(float x, float z)>();
+        if (IsReadable(SceneRootPtr, 8))
+        {
+            nint sceneRoot = *(nint*)SceneRootPtr;
+            if (sceneRoot != 0 && IsReadable(sceneRoot + OFF_SCENE, 8))
+            {
+                nint scene = *(nint*)(sceneRoot + OFF_SCENE);
+                if (scene != 0 && IsReadable(scene + OFF_LIST_HEAD, 8))
+                {
+                    nint node = *(nint*)(scene + OFF_LIST_HEAD);
+                    int guard = 0;
+                    while (node != 0 && guard++ < 4096)
+                    {
+                        if (!IsReadable(node + OFF_NODE_ACTIVE, 1)) break;
+                        if ((*(byte*)(node + OFF_NODE_ACTIVE) & 2) != 0 && IsReadable(node + OFF_NODE_XFORM, 8))
+                        {
+                            nint xf = *(nint*)(node + OFF_NODE_XFORM);
+                            if (xf != 0 && IsReadable(xf + OFF_ACTOR_Z, 4))
+                            {
+                                float x = *(float*)(xf + OFF_ACTOR_X), z = *(float*)(xf + OFF_ACTOR_Z);
+                                if (float.IsFinite(x) && float.IsFinite(z)) raw.Add((x, z));
+                            }
+                        }
+                        if (!IsReadable(node + OFF_NODE_NEXT, 8)) break;
+                        node = *(nint*)(node + OFF_NODE_NEXT);
+                    }
+                }
+            }
+        }
+
+        // 2. Cluster co-located nodes and count members. Keep the first two
+        // member positions per cluster — a door's pair spans its frame, so
+        // (m2 − m1) is the door's in-wall AXIS and its perpendicular is the
+        // door NORMAL (the direction you walk through it). Auto-walk stages
+        // its approach in front of the door along that normal.
+        var sumX = new List<float>(); var sumZ = new List<float>(); var cnt = new List<int>();
+        var m1x = new List<float>(); var m1z = new List<float>();
+        var m2x = new List<float>(); var m2z = new List<float>();
+        foreach (var (x, z) in raw)
+        {
+            int idx = -1;
+            for (int i = 0; i < cnt.Count; i++)
+                if (MathF.Abs(sumX[i] / cnt[i] - x) < DedupUnits && MathF.Abs(sumZ[i] / cnt[i] - z) < DedupUnits)
+                { idx = i; break; }
+            if (idx < 0)
+            {
+                sumX.Add(x); sumZ.Add(z); cnt.Add(1);
+                m1x.Add(x); m1z.Add(z); m2x.Add(float.NaN); m2z.Add(float.NaN);
+            }
+            else
+            {
+                sumX[idx] += x; sumZ[idx] += z; cnt[idx]++;
+                if (float.IsNaN(m2x[idx])) { m2x[idx] = x; m2z[idx] = z; }
+            }
+        }
+
+        // 3. Classify: 2+ co-located actors = door, 1 = chest. Door normal
+        // from the pair axis (zero when degenerate).
+        var outp = new List<(float, float, Kind, int, float, float)>();
+        for (int i = 0; i < cnt.Count; i++)
+        {
+            float nx = 0, nz = 0;
+            if (cnt[i] >= 2 && !float.IsNaN(m2x[i]))
+            {
+                float ax = m2x[i] - m1x[i], az = m2z[i] - m1z[i];
+                float m = MathF.Sqrt(ax * ax + az * az);
+                if (m > 1f) { nx = -az / m; nz = ax / m; }
+            }
+            outp.Add((sumX[i] / cnt[i], sumZ[i] / cnt[i], cnt[i] >= 2 ? Kind.Door : Kind.Chest, cnt[i], nx, nz));
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// Walk the interactable master table (0x146248560) and return every real
+    /// interactable's world XZ + (cat,id). Each category is a linked list; we
+    /// walk cats 0..15 (≥16 = garbage). Filters: the cat=1 id=0x0001 gaze
+    /// cursor, the non-actionable marker cats (<see cref="PlaceSkipCats"/>),
+    /// zero / non-finite / out-of-range positions, and co-located duplicates.
+    /// Read-only, bounded, every dereference IsReadable-guarded — the same
+    /// crash-safe pattern as <see cref="EnumerateInteractables"/> and
+    /// FieldTracker's master-table dump.
+    /// </summary>
+    private static unsafe List<(float x, float z, int cat, short id, nint node)> EnumeratePlaces()
+    {
+        var outp = new List<(float, float, int, short, nint)>();
+        if (!IsReadable(MasterTablePtr, MT_MAX_CAT * 8)) return outp;
+
+        for (int cat = 0; cat < MT_MAX_CAT; cat++)
+        {
+            nint head = *(nint*)(MasterTablePtr + cat * 8);
+            if ((ulong)head <= 0x10000UL || !IsReadable(head, 0x1000)) continue;
+
+            nint cur = head;
+            int guard = 0;
+            while (cur != 0 && guard++ < MT_MAX_PER_CAT && IsReadable(cur, 0x1000))
+            {
+                short id = *(short*)(cur + OFF_MT_ID);
+                uint flags = *(uint*)(cur + OFF_MT_FLAGS);
+                float x = *(float*)(cur + OFF_MT_X), z = *(float*)(cur + OFF_MT_Z);
+
+                bool isGaze = cat == 1 && id == 0x0001;          // player-facing cursor, not a place
+                bool isMarker = (flags & MT_MARKER_FLAG) != 0;   // template / room-grid row
+                // id 0x07D0 (2000) is a generic "person present here" mirror —
+                // the SAME id appears at every NPC's spot AND the player. It's
+                // enumerated before the real NPC (distinct-id cat=5 row) and,
+                // co-located, deduped it out — so every NPC collapsed to its
+                // cat=4 label "Save point" (live 2026-06-17). Skip the mirror;
+                // the distinct-id row is the real, name-bearing NPC.
+                bool isMirror = id == MT_PERSON_MIRROR_ID;
+                bool posOk = float.IsFinite(x) && float.IsFinite(z)
+                    && (x != 0f || z != 0f)
+                    && MathF.Abs(x) < MtPosCeiling && MathF.Abs(z) < MtPosCeiling;
+                if (!isGaze && !isMarker && !isMirror && posOk)
+                {
+                    bool dup = false;
+                    foreach (var (ex, ez, _, _, _) in outp)
+                        if (MathF.Abs(ex - x) < PlaceDedupUnits && MathF.Abs(ez - z) < PlaceDedupUnits) { dup = true; break; }
+                    if (!dup) outp.Add((x, z, cat, id, cur));
+                }
+
+                if (!IsReadable(cur + OFF_MT_NEXT, 8)) break;
+                cur = *(nint*)(cur + OFF_MT_NEXT);
+            }
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// Diagnostic: dump every master-table category/id/flags/position relative
+    /// to the player. Logged once per Places-select so we can map the lobby's
+    /// rows to friendly names (entrance, save point, NPCs) in a follow-up.
+    /// </summary>
+    private static unsafe void LogMasterTable()
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        Log($"[Places] === master-table dump  major={FieldTracker.CurrentMajor}/{FieldTracker.CurrentMinor}  player=({px:F0},{pz:F0}) ===");
+        if (!IsReadable(MasterTablePtr, MT_MAX_CAT * 8)) { Log("[Places]   table unreadable"); return; }
+
+        int total = 0;
+        for (int cat = 0; cat < MT_MAX_CAT; cat++)
+        {
+            nint head = *(nint*)(MasterTablePtr + cat * 8);
+            if ((ulong)head <= 0x10000UL || !IsReadable(head, 0x1000)) continue;
+            nint cur = head;
+            int guard = 0;
+            while (cur != 0 && guard++ < MT_MAX_PER_CAT && IsReadable(cur, 0x1000))
+            {
+                short id = *(short*)(cur + OFF_MT_ID);
+                uint flags = *(uint*)(cur + OFF_MT_FLAGS);
+                float x = *(float*)(cur + OFF_MT_X), z = *(float*)(cur + OFF_MT_Z);
+                float d = (!float.IsNaN(px) && !float.IsNaN(pz)) ? MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz)) : float.NaN;
+                bool skipped = (flags & MT_MARKER_FLAG) != 0 || (cat == 1 && id == 0x0001);
+                string npc = skipped ? "" : (OverworldNav.ResolveNpcModelName(cur) ?? "");
+                Log($"[Places]   cat={cat,2} id=0x{(ushort)id:X4} flags=0x{flags:X8} pos=({x:F0},{z:F0}) d={d:F0}{(skipped ? " [skipped]" : "")}{(npc.Length > 0 ? $" npc={npc}" : "")}");
+                total++;
+                if (!IsReadable(cur + OFF_MT_NEXT, 8)) break;
+                cur = *(nint*)(cur + OFF_MT_NEXT);
+            }
+        }
+        Log($"[Places]   total rows dumped: {total}");
+    }
+
+    private static unsafe bool ReadFloorGate()
+        => IsReadable(FloorGatePtr, 8) && *(nint*)FloorGatePtr != 0;
+
+    // ── Floor teleport ──
+
+    private static int CurrentFloorIndex()
+    {
+        int major = FieldTracker.CurrentMajor, minor = FieldTracker.CurrentMinor;
+        for (int i = 0; i < _floors.Length; i++)
+            if (_floors[i].major == major && _floors[i].minor == minor) return i;
+        return -1;
+    }
+
+    private void TeleportFloor(int dir)
+    {
+        int cur = CurrentFloorIndex();
+        int t = cur + dir;
+        if (cur < 0 || t < 0 || t >= _floors.Length)
+        {
+            Speech.Say(cur < 0 ? "Floor jump not available here."
+                                : $"No {(dir > 0 ? "next" : "previous")} floor.", true);
+            return;
+        }
+        var target = _floors[t];
+        Log($"[DungeonNav] teleport → {target.name} (flag {target.flagId})");
+        Speech.Say($"Teleporting to {target.name}.", true);
+        new Thread(() => TeleportSequence(target)) { IsBackground = true, Name = "DungeonNavTeleport" }.Start();
+    }
+
+    private void TeleportSequence((int major, int minor, string name, int flagId) target)
+    {
+        try
+        {
+            if (!SetFlagBit(target.flagId, true))
+            {
+                Speech.Say("Teleport not ready, try again.", true);
+                Log("[DungeonNav] flag bitmap pointer not initialised; aborted.");
+                return;
+            }
+            int waited = 0;
+            while (IsKeyDown(VK_OEM_5) && waited < 600) { Thread.Sleep(20); waited += 20; }
+            Thread.Sleep(120);
+
+            keybd_event(0, (byte)SC_F, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+            Thread.Sleep(40);
+            keybd_event(0, (byte)SC_F, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+
+            Thread.Sleep(3500);
+            Log($"[DungeonNav] arrived on {FieldTracker.CurrentMajor}/{FieldTracker.CurrentMinor} for {target.name}.");
+        }
+        catch (Exception ex) { Log($"[DungeonNav] teleport error: {ex.Message}"); }
+    }
+
+    private static unsafe bool SetFlagBit(int bitId, bool value)
+    {
+        if (!IsReadable((nint)_flagBitmapPtr, 8)) return false;
+        byte* bitmap = *_flagBitmapPtr;
+        if (bitmap == null) return false;
+        nint dwordAddr = (nint)(bitmap + (bitId >> 5) * 4);
+        if (!IsReadable(dwordAddr, 4)) return false;
+        uint mask = 1u << (bitId & 31);
+        uint* word = (uint*)dwordAddr;
+        if (value) *word |= mask; else *word &= ~mask;
+        return true;
+    }
+
+    // ── direction helpers ──
+
+    // 8-way compass direction to a target offset (dx = east+, dz = north+). Matches
+    // the H-cursor's fixed-compass frame (+Z north, +X east) so the browser and the
+    // cursor speak the SAME directions — no more relative "ahead/left/right".
+    private static string WorldDirection(float dx, float dz)
+    {
+        float adx = MathF.Abs(dx), adz = MathF.Abs(dz);
+        if (adx < 1e-4f && adz < 1e-4f) return "here";
+        string ns = dz > 0 ? "north" : "south";
+        string ew = dx > 0 ? "east" : "west";
+        if (adz > adx * 2f) return ns;        // mostly north/south
+        if (adx > adz * 2f) return ew;        // mostly east/west
+        return ns + ew;                       // diagonal: northeast / southwest / …
+    }
+
+    // ── plumbing ──
+
+    private static void WinBeep(uint freq, uint ms) { try { Beep(freq, ms); } catch { } }
+    [DllImport("kernel32.dll")] private static extern bool Beep(uint dwFreq, uint dwDuration);
+
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    private const uint KEYEVENTF_SCANCODE = 0x0008;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+
+    [DllImport("kernel32.dll")]
+    private static extern unsafe nint VirtualQuery(nint lpAddress, byte* lpBuffer, nint dwLength);
+
+    private static unsafe bool IsReadable(nint addr, int size)
+    {
+        if (addr == 0) return false;
+        ulong a = (ulong)addr;
+        if (a < 0x10000UL || a > 0x00007FFFFFFFFFFFUL) return false;
+        const int MBI_SIZE = 48;
+        const int OFF_STATE = 32;
+        const int OFF_PROTECT = 36;
+        const uint MEM_COMMIT = 0x1000;
+        const uint PAGE_NOACCESS = 0x01;
+        const uint PAGE_GUARD = 0x100;
+        byte* buf = stackalloc byte[MBI_SIZE];
+        if (VirtualQuery(addr, buf, MBI_SIZE) == 0) return false;
+        uint state = *(uint*)(buf + OFF_STATE);
+        uint protect = *(uint*)(buf + OFF_PROTECT);
+        if (state != MEM_COMMIT) return false;
+        if ((protect & PAGE_NOACCESS) != 0) return false;
+        if ((protect & PAGE_GUARD) != 0) return false;
+        return true;
+    }
+}

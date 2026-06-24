@@ -1,0 +1,74 @@
+// Teleport routing softhook — one BIT flag per overworld destination.
+//
+// C# arms exactly one gate by setting a bit in the 6700-range before
+// synthesising F. The softhook runs at the start of order_party, checks
+// each gate in turn, consumes (BIT_OFF) the set one, and calls
+// CALL_FIELD_SAFE to reload the target area at the chosen entry point.
+//
+// Physical F press leaves all gate bits 0, so the hook is a pure no-op
+// and the vanilla sub-menu opens normally.
+//
+// SLOTS:
+//   6700-6706 = known overworld destinations (Shopping District)
+//   6707      = Yukiko's Castle, Gate           (CALL_FIELD_SAFE 23, 1)
+//   6708      = Yukiko's Castle 1F              (CALL_FIELD_SAFE 40, 0)
+//   6709      = Yukiko's Castle 2F              (CALL_FIELD_SAFE 23, 3)
+//   6710      = calibration trigger (entry-point discovery for new targets)
+//   6720-6723 = calibration entry index (4-bit binary)
+//
+// CALL_DUNGEON-based slots (6900-6909) DELETED 2026-05-08 — that approach
+// never worked from dungeon context (BIT_CHK didn't see C# writes).
+// Switched to CALL_FIELD_SAFE which IS proven to work from overworld;
+// limits dungeon teleport to specifically-known (major, minor) pairs but
+// at least it's reliable for the 3 areas the user has access to.
+//
+// History note (2026-05-07): we had also written diagnostic BITs in 6770/
+// 6780-6787/6790/6791 and dungeon-floor handlers in 6800/6801, plus
+// variant-name hook probes (dungeon_order_hook etc.). All of that was
+// removed because it (a) tripped vanilla game flags with their own
+// hardcoded behaviour, causing random teleports, and (b) appeared to
+// break the F-key interact path entirely. If you re-introduce diagnostic
+// BIT writes, keep them OUT of any range that vanilla game logic might
+// read — pick something like 7900+ where customSubMenu and vanilla don't
+// touch.
+
+void order_party_softhook()
+{
+    // ── Calibration: teleport to entry N of the CURRENT area ──
+    if (BIT_CHK(6710))
+    {
+        BIT_OFF(6710);
+        int entry = 0;
+        if (BIT_CHK(6720)) { BIT_OFF(6720); entry = entry + 1; }
+        if (BIT_CHK(6721)) { BIT_OFF(6721); entry = entry + 2; }
+        if (BIT_CHK(6722)) { BIT_OFF(6722); entry = entry + 4; }
+        if (BIT_CHK(6723)) { BIT_OFF(6723); entry = entry + 8; }
+        CALL_FIELD_SAFE(GET_FIELD_MAJOR(), GET_FIELD_MINOR(), entry, 0);
+        return;
+    }
+
+    // ── Known overworld destinations (Shopping District South 8/2) ──
+    if (BIT_CHK(6700)) { BIT_OFF(6700); CALL_FIELD_SAFE(8, 2, 2, 0); return; }  // Daidara
+    if (BIT_CHK(6701)) { BIT_OFF(6701); CALL_FIELD_SAFE(8, 2, 5, 0); return; }  // Save Point
+    if (BIT_CHK(6702)) { BIT_OFF(6702); CALL_FIELD_SAFE(8, 2, 0, 0); return; }  // Junes Road
+    if (BIT_CHK(6703)) { BIT_OFF(6703); CALL_FIELD_SAFE(8, 2, 1, 0); return; }  // Shopping N
+    if (BIT_CHK(6704)) { BIT_OFF(6704); CALL_FIELD_SAFE(8, 2, 0, 0); return; }  // Samegawa
+    if (BIT_CHK(6705)) { BIT_OFF(6705); CALL_FIELD_SAFE(8, 2, 3, 0); return; }  // Pharmacy
+    if (BIT_CHK(6706)) { BIT_OFF(6706); CALL_FIELD_SAFE(8, 2, 7, 0); return; }  // Bookstore
+
+    // ── Yukiko's Castle floors the user has unlocked ──
+    //
+    // CALL_DUNGEON (not CALL_FIELD_SAFE) — dungeon areas need the dungeon-
+    // mode state set up properly, otherwise the player loads with NaN
+    // position (we tried CALL_FIELD_SAFE first; player was at the area
+    // but couldn't move).
+    //
+    // The first arg is customSubMenu's "floor ID" convention:
+    //   5 = Yukiko entrance (Gate), mode 1 = entrance variant
+    //   6 = Yukiko 1F, mode 0 = normal floor
+    //   7 = Yukiko 2F (this floor is in customSubMenu's special list for
+    //       reasons unknown — boss approach? — but mode 0 should work).
+    if (BIT_CHK(6707)) { BIT_OFF(6707); CALL_DUNGEON(5, 1); return; }   // Yukiko Gate
+    if (BIT_CHK(6708)) { BIT_OFF(6708); CALL_DUNGEON(6, 0); return; }   // Yukiko 1F
+    if (BIT_CHK(6709)) { BIT_OFF(6709); CALL_DUNGEON(7, 0); return; }   // Yukiko 2F
+}

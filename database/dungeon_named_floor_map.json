@@ -1,0 +1,636 @@
+{
+  "source": "field/script/dungeon.bf (decompiled)",
+  "named_doors": [
+    {
+      "floor_id": 10,
+      "proc": "castle_05F_door",
+      "door_id": 10240,
+      "bit_chk": [
+        {
+          "flag": 3685,
+          "expected": 0
+        },
+        {
+          "flag": 3684,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3685
+      ],
+      "msgs": [
+        "DOOR_LOCK",
+        "OPEN_DOOR_LOCK"
+      ],
+      "locked": true,
+      "kind": "locked_door"
+    },
+    {
+      "floor_id": 10,
+      "proc": "castle_05F_door",
+      "door_id": 10255,
+      "bit_chk": [
+        {
+          "flag": 3686,
+          "expected": 0
+        },
+        {
+          "flag": 3684,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3686
+      ],
+      "msgs": [
+        "DOOR_LOCK",
+        "OPEN_DOOR_LOCK"
+      ],
+      "locked": true,
+      "kind": "locked_door"
+    },
+    {
+      "floor_id": 10,
+      "proc": "castle_05F_door",
+      "door_id": 10248,
+      "bit_chk": [
+        {
+          "flag": 3684,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3684
+      ],
+      "bit_off": [
+        3683
+      ],
+      "call_battle": [
+        {
+          "id": 811,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "CASTLE_ENC_1",
+        "CASTLE_ENC_2",
+        "CASTLE_ENC_WIN_1",
+        "CASTLE_ENC_WIN_2",
+        "DOOR_CASTLE",
+        "GET_KEY",
+        "OPEN_DOOR_OK"
+      ],
+      "yields_key": true,
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 23,
+      "proc": "sauna_03F_door",
+      "door_id": 10252,
+      "bit_chk": [
+        {
+          "flag": 33,
+          "expected": 0
+        }
+      ],
+      "msgs": [
+        "DOOR_SAUNA",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 23,
+      "proc": "sauna_03F_door",
+      "door_id": 10246,
+      "bit_chk": [
+        {
+          "flag": 3714,
+          "expected": 0
+        },
+        {
+          "flag": 3715,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3714
+      ],
+      "msgs": [
+        "DOOR_LOCK",
+        "OPEN_DOOR_LOCK"
+      ],
+      "locked": true,
+      "kind": "locked_door"
+    },
+    {
+      "floor_id": 27,
+      "proc": "sauna_07F_door",
+      "door_id": 10242,
+      "bit_chk": [
+        {
+          "flag": 3715,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3715
+      ],
+      "call_battle": [
+        {
+          "id": 812,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "GET_KEY",
+        "OPEN_DOOR_OK",
+        "SAUNA_ENC_1",
+        "SAUNA_ENC_2",
+        "SAUNA_ENC_DOOR_27",
+        "SAUNA_ENC_WIN"
+      ],
+      "yields_key": true,
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 43,
+      "proc": "playhouse_03F_door",
+      "door_id": 10245,
+      "bit_chk": [
+        {
+          "flag": 34,
+          "expected": 0
+        }
+      ],
+      "msgs": [
+        "DOOR_PLAYHOUSE",
+        "OPEN_DOOR_PH_OK"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 47,
+      "proc": "playhouse_07F_door",
+      "door_id": 10307,
+      "bit_chk": [
+        {
+          "flag": 3751,
+          "expected": 0
+        }
+      ],
+      "msgs": [
+        "PLAYHOUSE_DOOR_STOP"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 47,
+      "proc": "playhouse_07F_door",
+      "door_id": 10271,
+      "bit_chk": [
+        {
+          "flag": 3751,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3751
+      ],
+      "call_battle": [
+        {
+          "id": 813,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "OPEN_DOOR_PH_OK",
+        "PLAYHOUSE_ENC_1",
+        "PLAYHOUSE_ENC_2",
+        "PLAYHOUSE_ENC_DOOR_1",
+        "PLAYHOUSE_ENC_DOOR_2",
+        "PLAYHOUSE_ENC_DOOR_3",
+        "PLAYHOUSE_ENC_WIN"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 67,
+      "proc": "gameworld_07F_door",
+      "door_id": 10246,
+      "bit_chk": [
+        {
+          "flag": 3779,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3779
+      ],
+      "call_battle": [
+        {
+          "id": 814,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "GAMEWORLD_ENC",
+        "GAMEWORLD_ENC_DOOR",
+        "GAMEWORLD_ENC_WIN",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 84,
+      "proc": "base_04F_door",
+      "door_id": 10251,
+      "bit_chk": [
+        {
+          "flag": 3811,
+          "expected": 0
+        },
+        {
+          "flag": 3809,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3811
+      ],
+      "msgs": [
+        "DOOR_LOCK_084",
+        "OPEN_DOOR_LOCK"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 84,
+      "proc": "base_04F_door",
+      "door_id": 10253,
+      "bit_chk": [
+        {
+          "flag": 3813,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3813
+      ],
+      "call_battle": [
+        {
+          "id": 815,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "BASE_ENC",
+        "BASE_ENC_DOOR",
+        "BASE_ENC_WIN",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 86,
+      "proc": "base_06F_door",
+      "door_id": 10246,
+      "bit_chk": [
+        {
+          "flag": 3812,
+          "expected": 0
+        },
+        {
+          "flag": 3810,
+          "expected": 1
+        },
+        {
+          "flag": 3809,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3812
+      ],
+      "msgs": [
+        "DOOR_LOCK_086",
+        "NOT_OPEN_DOOR_LOCK",
+        "OPEN_DOOR_LOCK"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 104,
+      "proc": "heaven_04F_door",
+      "door_id": 10252,
+      "bit_chk": [
+        {
+          "flag": 41,
+          "expected": 0
+        }
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 107,
+      "proc": "heaven_07F_door",
+      "door_id": 10262,
+      "bit_chk": [
+        {
+          "flag": 3841,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3841
+      ],
+      "call_battle": [
+        {
+          "id": 816,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "HEAVEN_ENC_1",
+        "HEAVEN_ENC_DOOR",
+        "HEAVEN_ENC_WIN",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 122,
+      "proc": "city_02F_door",
+      "door_id": 10241,
+      "bit_chk": [
+        {
+          "flag": 3876,
+          "expected": 0
+        },
+        {
+          "flag": 3875,
+          "expected": 0
+        },
+        {
+          "flag": 3874,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3875,
+        3876
+      ],
+      "msgs": [
+        "CITY_2F_LOCK_DOOR",
+        "CITY_2F_LOCK_DOOR_A",
+        "CITY_2F_LOCK_NOTOPEN",
+        "CITY_2F_LOCK_NOTOPEN_A",
+        "CITY_2F_LOCK_OPEN_1",
+        "CITY_2F_LOCK_OPEN_2"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 122,
+      "proc": "city_02F_door",
+      "door_id": 10242,
+      "bit_chk": [
+        {
+          "flag": 3876,
+          "expected": 0
+        },
+        {
+          "flag": 3875,
+          "expected": 0
+        },
+        {
+          "flag": 3874,
+          "expected": 1
+        }
+      ],
+      "bit_on": [
+        3875,
+        3876
+      ],
+      "msgs": [
+        "CITY_2F_LOCK_DOOR",
+        "CITY_2F_LOCK_DOOR_A",
+        "CITY_2F_LOCK_NOTOPEN",
+        "CITY_2F_LOCK_NOTOPEN_A",
+        "CITY_2F_LOCK_OPEN_1",
+        "CITY_2F_LOCK_OPEN_2"
+      ],
+      "kind": "scripted_door"
+    },
+    {
+      "floor_id": 125,
+      "proc": "city_05F_door",
+      "door_id": 10241,
+      "bit_chk": [
+        {
+          "flag": 3873,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3873
+      ],
+      "call_battle": [
+        {
+          "id": 817,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "CITY_ENC_5F",
+        "CITY_ENC_5F_DOOR",
+        "CITY_ENC_5F_WIN_1",
+        "CITY_ENC_5F_WIN_2",
+        "OPEN_NOT_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 128,
+      "proc": "city_08F_door",
+      "door_id": 10242,
+      "bit_chk": [
+        {
+          "flag": 3874,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3874
+      ],
+      "call_battle": [
+        {
+          "id": 818,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "CITY_ENC_8F_1",
+        "CITY_ENC_8F_DOOR",
+        "CITY_ENC_8F_WIN",
+        "OPEN_NOT_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 143,
+      "proc": "last_03F_door",
+      "door_id": 10262,
+      "bit_chk": [
+        {
+          "flag": 3937,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3937
+      ],
+      "call_battle": [
+        {
+          "id": 819,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "LAST_ENC_3F",
+        "LAST_ENC_3F_DOOR",
+        "LAST_ENC_3F_WIN",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    },
+    {
+      "floor_id": 146,
+      "proc": "last_06F_door",
+      "door_id": 10254,
+      "bit_chk": [
+        {
+          "flag": 3938,
+          "expected": 0
+        }
+      ],
+      "bit_on": [
+        3938
+      ],
+      "call_battle": [
+        {
+          "id": 820,
+          "arg": 1
+        }
+      ],
+      "msgs": [
+        "LAST_ENC_6F",
+        "LAST_ENC_6F_DOOR",
+        "LAST_ENC_6F_WIN",
+        "OPEN_DOOR_OK"
+      ],
+      "kind": "boss_door"
+    }
+  ],
+  "named_boxes": [
+    {
+      "floor_id": 10,
+      "proc": "box_open_010_1",
+      "chest_internal_id": 11262,
+      "skip_if_bit": 3691,
+      "bit_on": [
+        3691
+      ]
+    },
+    {
+      "floor_id": 10,
+      "proc": "box_open_010_2",
+      "chest_internal_id": 11261,
+      "skip_if_bit": 3692,
+      "bit_on": [
+        3692
+      ]
+    },
+    {
+      "floor_id": 23,
+      "proc": "box_open_023_1",
+      "chest_internal_id": 11262,
+      "skip_if_bit": 3716,
+      "bit_on": [
+        3716
+      ]
+    },
+    {
+      "floor_id": 23,
+      "proc": "box_open_023_2",
+      "chest_internal_id": 11260,
+      "skip_if_bit": 3717,
+      "bit_on": [
+        3717
+      ]
+    },
+    {
+      "floor_id": 67,
+      "proc": "box_open_067",
+      "chest_internal_id": 11261,
+      "skip_if_bit": 3780,
+      "bit_on": [
+        3780
+      ]
+    },
+    {
+      "floor_id": 84,
+      "proc": "box_open_084",
+      "chest_internal_id": 11261,
+      "skip_if_bit": 3810,
+      "bit_on": [
+        3810
+      ]
+    },
+    {
+      "floor_id": 86,
+      "proc": "box_open_086",
+      "chest_internal_id": 11261,
+      "skip_if_bit": 3809,
+      "bit_on": [
+        3809
+      ]
+    },
+    {
+      "floor_id": 161,
+      "proc": "box_open_161_1",
+      "chest_internal_id": 11262,
+      "skip_if_bit": 3920,
+      "bit_on": [
+        3920
+      ]
+    },
+    {
+      "floor_id": 161,
+      "proc": "box_open_161_2",
+      "chest_internal_id": 11261,
+      "skip_if_bit": 3921,
+      "bit_on": [
+        3921
+      ]
+    },
+    {
+      "floor_id": 161,
+      "proc": "box_open_161_3",
+      "chest_internal_id": 11260,
+      "skip_if_bit": 3922,
+      "bit_on": [
+        3922
+      ]
+    },
+    {
+      "floor_id": 161,
+      "proc": "box_open_161_4",
+      "chest_internal_id": 11259,
+      "skip_if_bit": 3923,
+      "bit_on": [
+        3923
+      ]
+    }
+  ]
+}
