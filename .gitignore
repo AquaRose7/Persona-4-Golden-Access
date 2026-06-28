@@ -56,6 +56,10 @@ database/audio_backup_*/
 my notes.txt
 database/my notes.txt
 database/to do list.txt
+# Loose dev-note .txt files in database/ root are personal working notes (to-do, NPC-id fixes,
+# etc.) — NOT for distribution. (The * does not cross '/', so game-seens scripts in subfolders
+# are unaffected, and P4.tsv is .tsv.)
+database/*.txt
 # Screenshots / large media (mod icon kept via the negation)
 New folder/
 *.jpeg
