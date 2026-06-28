@@ -153,9 +153,25 @@ The plan below was executed the same day. Final state:
 
 ### OverworldNav (`Components/Navigation/OverworldNav.cs`) — user-verified
 - **`-`/`=`** categories (Places · Exits · NPCs · Other), **`[`/`]`** entries
-  nearest-first with live distances, **`\`** distance brief, **Backspace**
-  auto-walk (cancel = press again), **`P`** accelerating beacon (tick
-  900→130ms by distance, trill at CHECK).
+  nearest-first with live distances, **`\`** distance brief (now also speaks the
+  **compass direction** — `WorldDirection`, same wording as the dungeon; note the
+  overworld **Z axis is inverted** vs the dungeon, so N/S is flipped there),
+  **Backspace** auto-walk (cancel = press again), **`P`** beacon.
+- **`P` STEREO POSITIONAL BEACON (rebuilt 2026-06-26).** Replaces the old mono
+  `WinBeep` tick. Drives a `BeaconVoice` (smoothed pan + gain + rate + one-pole
+  low-pass + inter-aural delay) through `DungeonAudio`. **World-anchored** (the
+  sound sits at the interactable's world position, NOT relative to facing — a
+  facing-relative version was built and user-rejected as confusing):
+  **pan = world east/west** (`PanSign`), **low-pass "muffle" = world north/south**
+  (`FrontSign=-1`, bright=north to match the flipped Z), **volume + tick gap =
+  distance** (`NearGain/FarGain`, `NearGap/FarGap`, `FarDist=2500`), **ITD**
+  (`MaxItd≈28` samples) for the 3D feel. Arrival trill at CHECK; arrival radius
+  is the normal `ArriveDist=90` **except** the cramped fridge (`check_reizou`) +
+  sofa (`check_sofa_p4p`) → tight 38u (`IsRoomArea()`-gated). Focus-gated
+  (mutes + releases `DungeonAudio.SetWant` when alt-tabbed). **KNOWN OPEN:** a
+  world-anchored beacon can feel "reversed" when you face away from a target
+  (world-vs-body trade-off); intermittent, user couldn't pin it down — deferred
+  for player-test data before a deeper hunt. Future: true HRTF for full 360°.
 - Auto-walk is self-calibrating (probes movement, learns the camera's
   world angle live, recalibrates each step), with final-approach tap-steps
   until the CHECK fires, 4-direction probe + back-out for corner wedges,

@@ -1,0 +1,9 @@
+2
+00:00:00,500 --> 00:00:07,000
+A view from a window shows a quiet suburban street shrouded in a thick, hazy, yellowish fog.
+3
+00:00:07,000 --> 00:00:15,000
+The camera focuses on a utility pole with tangled wires and a transformer, silhouetted against the hazy, yellow-tinted sky.
+4
+00:00:15,000 --> 00:00:16,000
+The scene fades to black.

@@ -18,11 +18,23 @@ internal sealed class BeaconVoice : ISampleProvider
     public volatile bool Playing;
 
     private readonly float[] _mono;
-    private readonly int _gapFrames;     // silent frames inserted between loops
+    private volatile int _gapFrames;     // silent frames inserted between loops (runtime-settable = tick rate)
     private int _gapLeft;
-    private volatile float _tgtGain, _tgtPan, _tgtRate = 1f;
-    private float _gain, _pan, _rate = 1f;
+
+    /// <summary>Silent frames between loops = the TICK interval. Larger = slower
+    /// ticks (used by the overworld beacon to encode distance).</summary>
+    public int GapFrames { set => _gapFrames = Math.Max(0, value); }
+    private volatile float _tgtGain, _tgtPan, _tgtRate = 1f, _tgtOpen = 1f;
+    private float _gain, _pan, _rate = 1f, _open = 1f;
     private float _posF;     // fractional read position (for pitch/rate resampling)
+    private float _lpState;  // one-pole low-pass state (front/back "muffle")
+    private readonly float[] _hist = new float[64];   // short history for the inter-aural delay
+    private int _histPos;
+    private const float MaxItd = 28f;                 // max inter-aural delay in samples (~0.6 ms)
+
+    /// <summary>Tone openness 0..1: 1 = bright (target ahead), 0 = muffled (behind).
+    /// A cheap one-pole low-pass; left at 1 it's transparent (dungeon beacons).</summary>
+    public float Openness { set => _tgtOpen = Math.Clamp(value, 0f, 1f); }
 
     public BeaconVoice(WaveFormat fmt, float[] mono, int gapFrames = 0)
     {
@@ -60,6 +72,7 @@ internal sealed class BeaconVoice : ISampleProvider
             _gain += (target - _gain) * smooth;
             _pan += (_tgtPan - _pan) * smooth;
             _rate += (_tgtRate - _rate) * smooth;
+            _open += (_tgtOpen - _open) * smooth;
 
             float s = 0f;
             if (_mono.Length > 0 && (Playing || _gain > 1e-4f))
@@ -77,9 +90,28 @@ internal sealed class BeaconVoice : ISampleProvider
             }
             else { _posF = 0; _gapLeft = 0; }
 
+            // One-pole low-pass: a≈1 passes everything (bright), small a muffles.
+            float a = 0.08f + 0.92f * _open;
+            _lpState += a * (s - _lpState);
+            s = _lpState;
+
+            // Inter-aural time delay (ITD): the ear FARTHER from the source hears it
+            // a fraction of a ms later — the cue that makes direction feel 3D, not
+            // just "panned". Delay the contralateral ear by |pan| × MaxItd samples.
+            int size = _hist.Length;
+            _hist[_histPos] = s;
+            float d = MathF.Abs(_pan) * MaxItd;
+            int di = (int)d; float df = d - di;
+            int j0 = ((_histPos - di) % size + size) % size;
+            int j1 = ((j0 - 1) % size + size) % size;
+            float delayed = _hist[j0] + (_hist[j1] - _hist[j0]) * df;
+            _histPos = (_histPos + 1) % size;
+
             float angle = (_pan + 1f) * 0.25f * MathF.PI;
-            buffer[offset + n * 2] = s * MathF.Cos(angle);
-            buffer[offset + n * 2 + 1] = s * MathF.Sin(angle);
+            float lSig = _pan > 0f ? delayed : s;   // source on the right → left ear lags
+            float rSig = _pan < 0f ? delayed : s;   // source on the left  → right ear lags
+            buffer[offset + n * 2]     = lSig * MathF.Cos(angle);
+            buffer[offset + n * 2 + 1] = rSig * MathF.Sin(angle);
         }
         return count;
     }

@@ -15,9 +15,11 @@ namespace p4g64.accessibility.Components;
 internal class HistoryKeys
 {
     private const int PollMs = 40;
-    private const int VK_SHIFT = 0x10, VK_P = 0x50, VK_M = 0x4D, VK_OEM_4 = 0xDB, VK_OEM_6 = 0xDD;
+    private const int VK_SHIFT = 0x10, VK_P = 0x50, VK_M = 0x4D, VK_OEM_4 = 0xDB, VK_OEM_6 = 0xDD,
+                      VK_OEM_COMMA = 0xBC,   // ,  → Shift+, toggles the movie-subtitle reader
+                      VK_OEM_PERIOD = 0xBE;  // .  → Shift+. toggles the cutscene-description reader
 
-    private bool _pWas, _lbWas, _rbWas, _mWas;
+    private bool _pWas, _lbWas, _rbWas, _mWas, _commaWas, _periodWas;
 
     public HistoryKeys()
     {
@@ -55,6 +57,14 @@ internal class HistoryKeys
         bool sm = shift && Down(VK_M);
         if (sm && !_mWas) Dialogue.ToggleReader();
         _mWas = sm;
+
+        bool sc = shift && Down(VK_OEM_COMMA);
+        if (sc && !_commaWas) SubtitleReader.ToggleReader();
+        _commaWas = sc;
+
+        bool sd = shift && Down(VK_OEM_PERIOD);
+        if (sd && !_periodWas) MovieDescription.Toggle();
+        _periodWas = sd;
     }
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);

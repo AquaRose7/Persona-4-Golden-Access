@@ -132,6 +132,13 @@ internal class AutoWalker
         (px, pz) => { bool ok = GridRouter.FindNearestStairs(px, pz, out float tx, out float tz); return (ok, tx, tz); },
         DoorTolUnits, "Heading to the stairs.", "Arrived. Find the door to go to the next floor."));
 
+    /// <summary>Travel to a FIXED point (an Event mark) using the full explore/route/open-doors loop
+    /// — robust through doors and around walls, unlike the one-shot Walk that bee-lines and gives up.
+    /// For tricky scripted-floor marks (e.g. the Bathhouse door whose path A* can't route in one shot).
+    /// Chain several marks (browse nearest-first, Backspace each) to thread a winding route.</summary>
+    internal static void TravelTo(string label, float tx, float tz) => Launch(() => TravelLoop(
+        (px, pz) => (true, tx, tz), DoorTolUnits, $"Traveling to {label}.", $"Reached {label}."));
+
     // Travel (explore + open doors) to a chest, then EASE ONTO the openable spot — drive in
     // until the game's CHECK prompt shows (like the old chest walk) so the player can open it.
     internal static void TravelToChest(float cx, float cz) => Launch(() =>
@@ -753,6 +760,7 @@ internal class AutoWalker
         long deadline = Environment.TickCount64 + 180_000;
         long lastProgress = Environment.TickCount64;
         int stuckLegs = 0;   // consecutive legs that made no real progress → switch route
+        float bestDist = float.MaxValue;   // closest we've gotten to the target (real progress metric)
         var tried = new HashSet<int>();
 
         _travelMode = true;
@@ -821,12 +829,17 @@ internal class AutoWalker
                     else { ReleaseAll(); Speech.Say("Can't find a way there.", true); Log("[AutoWalker] travel no subgoal"); return false; }
                 }
 
-                // Progress = the player ACTUALLY moved. A no-op leg does NOT reset the timer
-                // (so a wedged goal gives up) and counts toward stuckLegs (so we switch route).
+                // Progress = the player got meaningfully CLOSER to the target — NOT merely "moved".
+                // Circling a door (the Bathhouse loop) keeps moving without approaching, so a
+                // movement-based metric never gives up and never switches route. Distance-based:
+                // only resetting on real gain means a circle trips both the 8s give-up AND the
+                // stuckLegs route-switch (so it tries another door/frontier, then bails cleanly).
                 float ax = FieldTracker.LivePlayerX, az = FieldTracker.LivePlayerZ;
-                bool moved = !float.IsNaN(ax) && (ax - px) * (ax - px) + (az - pz) * (az - pz) > (pitch * 0.3f) * (pitch * 0.3f);
-                if (_travelLegStuck) stuckLegs = 2;            // bailed a wall-slip → force a door/frontier re-route
-                else if (moved) { lastProgress = Environment.TickCount64; stuckLegs = 0; }
+                float newDist = (have && !float.IsNaN(ax))
+                    ? MathF.Sqrt((tx - ax) * (tx - ax) + (tz - az) * (tz - az)) : float.MaxValue;
+                if (newDist < bestDist - pitch * 0.5f)
+                { bestDist = newDist; lastProgress = Environment.TickCount64; stuckLegs = 0; }
+                else if (_travelLegStuck) stuckLegs = 2;       // bailed a wall-slip → force a door/frontier re-route
                 else stuckLegs++;
             }
         }
@@ -1169,7 +1182,7 @@ internal class AutoWalker
             // down but not armed = it was held at launch; ignore until released.
         }
         int major = FieldTracker.CurrentMajor, minor = FieldTracker.CurrentMinor;
-        if (major == 240) { why = "Battle."; return true; }
+        if (FieldTracker.IsBattleMajor(major)) { why = "Battle."; return true; }
         if (major != startMajor || minor != startMinor) { why = "Floor changed."; return true; }
         return false;
     }
@@ -1356,18 +1369,29 @@ internal class AutoWalker
         //    fired before). Creep toward it until the game's CHECK prompt lights up (in
         //    range + facing it) or we're basically at it. Driving toward the door is what
         //    makes us face it, which is what raises the prompt.
-        long until = Environment.TickCount64 + 3000;
+        //    The CHECK prompt only fires within ~350u of the interactable. The old fallback
+        //    distance (pitch*0.30 ≈ 360u at pitch 1200) stopped us JUST OUTSIDE that range, so
+        //    the prompt never lit and the confirm-tap did nothing (the "reaches check, leaves,
+        //    presses" loop). Cap it well INSIDE the prompt range so we keep closing until CHECK
+        //    fires; the close fallback only triggers if the door isn't checkable at all.
+        const float CheckRange = 300f;
+        long until = Environment.TickCount64 + 4000;
         while (Environment.TickCount64 < until && !_cancelRequested && Utils.GameHasFocus())
         {
             if (FieldTracker.CheckPromptActive) break;
             float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
-            if (!float.IsNaN(px) && (doorX - px) * (doorX - px) + (doorZ - pz) * (doorZ - pz) <= (pitch * 0.30f) * (pitch * 0.30f)) break;
-            DriveToward(doorX, doorZ, pitch * 0.22f, 300);
+            if (!float.IsNaN(px) && (doorX - px) * (doorX - px) + (doorZ - pz) * (doorZ - pz) <= CheckRange * CheckRange) break;
+            DriveToward(doorX, doorZ, pitch * 0.18f, 280);
         }
         if (_cancelRequested || !Utils.GameHasFocus()) return false;
 
         // 2. OPEN: tap confirm; LOG the CHECK prompt before AND after each tap so we know
         //    for certain whether the confirm press is what opens the door.
+        // Tap confirm to open. NOTE: the CHECK prompt is FACING-aware, so a player merely hugging a
+        // CLOSED door from the side shows no prompt — "no prompt" does NOT reliably mean "open" (that
+        // heuristic was wrong). So always TRY: tapping is harmless on an already-open door and opens a
+        // closed one. (The proper fix is the real open/closed flag off the door actor — TODO, needs a
+        // live closed-vs-open node dump to locate the field.)
         if (open)
         {
             for (int i = 0; i < 4 && !_cancelRequested && Utils.GameHasFocus(); i++)
@@ -1378,7 +1402,7 @@ internal class AutoWalker
                 bool after = FieldTracker.CheckPromptActive;
                 Log($"[AutoWalker] door: confirm #{i} CHECK {before}->{after}");
                 if (before && !after) { Log("[AutoWalker] door: opened"); break; }   // prompt cleared = opened
-                if (!before && i >= 1) break;   // no prompt at all (already open / not interactable)
+                if (!before && i >= 1) break;   // no prompt after a couple taps → already open / not interactable
             }
         }
 
@@ -1391,12 +1415,47 @@ internal class AutoWalker
         // approach reliably says WHICH axis (F8 mapping 2026-06-23 showed each can be wrong on
         // different doors). So TRY the approach-dominant cardinal, then the PERPENDICULAR one
         // (signed toward the target). One of the two IS the real passage; drive straight.
-        int aX = MathF.Abs(dirX) >= MathF.Abs(dirZ) ? Math.Sign(dirX) : 0;
-        int aZ = aX == 0 ? Math.Sign(dirZ) : 0;
-        int bX, bZ;
-        if (aX != 0) { bX = 0; bZ = towardZ - doorZ >= 0f ? 1 : -1; }
-        else { bX = towardX - doorX >= 0f ? 1 : -1; bZ = 0; }
-        Log($"[AutoWalker] door: through axisA=({aX},{aZ}) axisB=({bX},{bZ}) approach=({dirX:F2},{dirZ:F2})");
+        // Passage axis: prefer the door's REAL transform normal (DungeonNav.TryDoorAxis) — the exact
+        // orientation, which fixes the diagonal-approach mis-guess that clipped narrow Bathhouse doors.
+        // Fall back to the approach-direction guess if no door transform is near. Either way the SIGN
+        // is toward the target (the side beyond the door); axisB is the perpendicular fallback.
+        int aX, aZ, bX, bZ;
+        if (DungeonNav.TryDoorAxis(doorX, doorZ, out float pax, out float paz))
+        {
+            // Transform picks the AXIS (X vs Z). SIGN = the APPROACH direction (continue THROUGH to the
+            // far side), NOT the target: the door-subgoal can pick an off-path door whose far side is
+            // away from the target, and threading must still mechanically cross it so the travel loop
+            // re-routes from the other side. Aiming the through-drive at a near-side target reverses it
+            // straight back into the wall (the Bathhouse circling loop).
+            if (MathF.Abs(pax) >= MathF.Abs(paz))
+            { aX = dirX >= 0f ? 1 : -1; aZ = 0; bX = 0; bZ = dirZ >= 0f ? 1 : -1; }
+            else
+            { aX = 0; aZ = dirZ >= 0f ? 1 : -1; bX = dirX >= 0f ? 1 : -1; bZ = 0; }
+            Log($"[AutoWalker] door: transform normal=({pax:F2},{paz:F2}) approach=({dirX:F2},{dirZ:F2}) → axisA=({aX},{aZ}) axisB=({bX},{bZ})");
+        }
+        else
+        {
+            aX = MathF.Abs(dirX) >= MathF.Abs(dirZ) ? Math.Sign(dirX) : 0;
+            aZ = aX == 0 ? Math.Sign(dirZ) : 0;
+            if (aX != 0) { bX = 0; bZ = towardZ - doorZ >= 0f ? 1 : -1; }
+            else { bX = towardX - doorX >= 0f ? 1 : -1; bZ = 0; }
+            Log($"[AutoWalker] door: through axisA=({aX},{aZ}) axisB=({bX},{bZ}) approach=({dirX:F2},{dirZ:F2}) [guess]");
+        }
+
+        // CENTER on the gap FIRST, then drive straight through. The gap runs PERPENDICULAR to the
+        // passage axis, so aligning the player onto the door's perpendicular coordinate (a pure
+        // sideways move) before advancing avoids the diagonal "correct + advance" that clips the frame
+        // corner when you approach a narrow door off-centre (the Bathhouse clip). Passage X → align Z
+        // to doorZ; passage Z → align X to doorX.
+        {
+            float cpx = FieldTracker.LivePlayerX, cpz = FieldTracker.LivePlayerZ;
+            if (!float.IsNaN(cpx) && !float.IsNaN(cpz))
+            {
+                if (aX != 0) DriveToward(cpx, doorZ, pitch * 0.12f, 700);   // passage X: center on Z
+                else         DriveToward(doorX, cpz, pitch * 0.12f, 700);   // passage Z: center on X
+            }
+            if (_cancelRequested || !Utils.GameHasFocus()) return false;
+        }
 
         if (DriveToward(doorX + aX * pitch * 0.9f, doorZ + aZ * pitch * 0.9f, pitch * 0.35f, 1300)) return true;
         if (_cancelRequested || !Utils.GameHasFocus()) return false;

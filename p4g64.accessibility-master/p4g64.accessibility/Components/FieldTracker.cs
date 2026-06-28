@@ -46,6 +46,14 @@ internal unsafe class FieldTracker
 
     public static int CurrentMajor { get; private set; } = -1;
     public static int CurrentMinor { get; private set; } = -1;
+
+    /// <summary>True when a major is a BATTLE context. Battle majors are PER-DUNGEON
+    /// (Yukiko's Castle = 240, Steamy Bathhouse = 241, … one per dungeon) — NOT just 240.
+    /// Every battle-only reader must gate on this, and every dungeon reader / the floor-name
+    /// announcer must EXCLUDE it. Hardcoding 240 was the "battle reads as a new floor / battle
+    /// functions fail outside Yukiko's Castle" bug (fixed 2026-06-27).</summary>
+    public static bool IsBattleMajor(int major) => major >= 240 && major < 250;
+    public static bool InBattle => IsBattleMajor(CurrentMajor);
     private short _lastTimePeriod = -1;
     private short _lastGameDay    = -1;
     private int   _npcCountdown   = 0;   // counts down poll ticks after area change; fires NPC count on 0
@@ -2634,7 +2642,7 @@ internal unsafe class FieldTracker
                 // TV-world HUB ("Entrance"), which has no floor banner — scanning
                 // there found a STALE dungeon banner ("Yukiko's Castle…"), so it
                 // uses the table like other non-floor areas.
-                if (major >= 21 && major != 240)
+                if (major >= 21 && !IsBattleMajor(major))
                 {
                     string? prev = _lastDungeonFloorName;
                     Log($"[FieldTracker] Area -> major={major} minor={minor}: resolving floor name…");
@@ -2643,10 +2651,10 @@ internal unsafe class FieldTracker
                 }
                 else
                 {
-                    // Keep the dungeon name across BATTLES (major 240) so returning
-                    // to the floor still says the dungeon; clear it only on a real
+                    // Keep the dungeon name across BATTLES (any battle major, not just 240) so
+                    // returning to the floor still says the dungeon; clear it only on a real
                     // non-dungeon area (overworld / TV-world hub).
-                    if (major != 240) _lastDungeonFloorName = null;
+                    if (!IsBattleMajor(major)) _lastDungeonFloorName = null;
                     var name = GetAreaName(major, minor);
                     Log($"[FieldTracker] Area -> major={major} minor={minor}: {name}");
                     Speech.Say(name, true);
@@ -2678,15 +2686,25 @@ internal unsafe class FieldTracker
         // (same layout as the now-removed _segTimePtr, but found at a WRITE site so it is live)
         ReadTimePrimary(out short curPeriod, out short curGameDay);
 
-        if (curGameDay > 0 && curGameDay != _lastGameDay)
+        // Day-change read-out (the date screen the sighted see on a new day): announce
+        // date + weekday (FormatDate) + live weather + period. ONLY advance _lastGameDay when
+        // inField, so if the day flips during the transition (inField=false) the announce isn't
+        // lost — it fires the moment the field resumes. The period is folded in here and the
+        // separate period announce below is suppressed so it can't clobber this on the same tick.
+        if (curGameDay > 0 && curGameDay != _lastGameDay && inField)
         {
             _lastGameDay = curGameDay;
-            if (inField)
+            string msg = FormatDate(curGameDay);
+            string weather = ReadWeatherName();
+            if (!string.IsNullOrEmpty(weather)) msg += $", {weather}";
+            if (curPeriod >= 0)
             {
-                var dateName = FormatDate(curGameDay);
-                Log($"[FieldTracker] Day -> {curGameDay}: {dateName}");
-                Speech.Say(dateName, true);
+                _lastTimePeriod = curPeriod;   // fold period in; don't let the block below re-announce it
+                string p = GetTimeName(curPeriod);
+                if (!string.IsNullOrEmpty(p)) msg += $", {p}";
             }
+            Log($"[FieldTracker] Day -> {curGameDay}: {msg}");
+            Speech.Say(msg, true);
         }
 
         if (curPeriod >= 0 && curPeriod != _lastTimePeriod)
@@ -2943,18 +2961,36 @@ internal unsafe class FieldTracker
 
     private string ReadWeatherName()
     {
-        if (_weatherCalendar == null) LoadWeatherCalendar();
-        if (_weatherCalendar == null || _lastGameDay <= 0
-            || _lastGameDay >= _weatherCalendar.Length) return "";
-        int code = _weatherCalendar[_lastGameDay];
-        return code switch
+        // Weather from the validated full schedule by the CURRENT date — the SAME source the calendar
+        // uses, so the M-key now matches it exactly. The earlier "live" read (seg+0x04/+0x06) was WRONG:
+        // those fields are constant (always 1/0), not the weather, so the M-key was stuck on "Sunny".
+        // The real live-weather global is elsewhere and not worth chasing — the sheet is accurate.
+        return WeatherFromSheet(_lastGameDay);
+    }
+
+    // Validated per-day weather schedule (community sheet) — "month-day" -> name. Used as the M-key
+    // fallback for unmapped live codes; the calendar uses the same file directly. See weather_schedule.json.
+    private static System.Collections.Generic.Dictionary<string, string>? _weatherSched;
+    private static void LoadWeatherSched()
+    {
+        _weatherSched = new();
+        try
         {
-            0 => "Clear",
-            1 => "Rainy",
-            2 => "Pouring rain",
-            >= 3 and <= 8 => "Foggy",
-            _ => "",
-        };
+            string p = DataPath("weather_schedule.json");
+            if (!System.IO.File.Exists(p)) { Log("[FieldTracker] weather_schedule.json not found"); return; }
+            using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(p));
+            if (doc.RootElement.TryGetProperty("schedule", out var s))
+                foreach (var kv in s.EnumerateObject()) _weatherSched[kv.Name] = kv.Value.GetString() ?? "";
+            Log($"[FieldTracker] weather schedule loaded ({_weatherSched.Count} days)");
+        }
+        catch (Exception e) { Log($"[FieldTracker] weather schedule load failed: {e.Message}"); }
+    }
+    private static string WeatherFromSheet(int gameDay)
+    {
+        if (_weatherSched == null) LoadWeatherSched();
+        if (_weatherSched == null || gameDay <= 0) return "";
+        var date = _epoch.AddDays(gameDay);
+        return _weatherSched.TryGetValue($"{date.Month}-{date.Day}", out var w) ? w : "";
     }
 
     /// <summary>
@@ -4903,7 +4939,16 @@ internal unsafe class FieldTracker
         15 => "Hanamura Residence",
         17 => $"Farm area {minor}",
         18 => minor == 1 ? "Ski Lodge" : "Snow Mountain",
-        >= 60 and <= 69 => $"Event area {major}-{minor}",
+        // Dungeon 2 = Steamy Bathhouse. Entrance/changing area = (24,1); the in-binary names are
+        // "Steamy Bathhouse, Bath #N" + "Bathhouse, Changing Area" (latter would strip to just
+        // "Bathhouse"), so a major fallback keeps every floor consistent as "Steamy Bathhouse" when
+        // the live banner scan can't read one (e.g. the entrance, where banner="" → was "???").
+        // Dungeon 2 = Steamy Bathhouse spans THREE majors (same split as Yukiko gate=23/maze=40/
+        // scripted=60): 24 = entrance/changing area, 41 = procedural maze floors, 61 = SCRIPTED floors
+        // (61_2 = Bath #3, 61_3 = next scripted/boss — both can have an empty banner → were "???").
+        // 240/241 = battle majors, handled before this switch.
+        24 or 41 or 61 => "Steamy Bathhouse",
+        >= 60 and <= 69 => "???",   // scripted/event floors show "???" on screen when they have no banner
         _ => GetDungeonAreaName(major, minor),
     };
 
@@ -4939,13 +4984,13 @@ internal unsafe class FieldTracker
         if (_confirmedAreaNames.TryGetValue((major, minor), out var name))
             return name;
 
-        // 240 = battle, callers normally handle it but include for clarity
-        if (major == 240) return $"Battle (floor {minor})";
+        // battle majors (per-dungeon, 240-249) = battle; callers normally handle it but include for clarity
+        if (IsBattleMajor(major)) return $"Battle (floor {minor})";
 
-        // Unknown — announce the raw major+minor pair so the user can
-        // tell us what the on-screen banner actually says, and we add
-        // it to _confirmedAreaNames above.
-        return major >= 20 ? $"Unknown dungeon {major} dash {minor}" : $"Area {major}-{minor}";
+        // Unknown dungeon floor: the game itself shows "???" on screen for these
+        // (hidden/mystery floors), so match it instead of speaking a major/minor
+        // pair or a stale dungeon name. Non-dungeon areas keep the raw pair.
+        return major >= 20 ? "???" : $"Area {major}-{minor}";
     }
 
     // Last dungeon NAME announced (used by the M-key re-read). We announce the
@@ -4954,6 +4999,15 @@ internal unsafe class FieldTracker
     // floors of a dungeon share the name, ANY active banner gives the right answer,
     // so no per-floor disambiguation is needed.
     private static volatile string? _lastDungeonFloorName;
+    private static volatile int _lastDungeonFloorMajor = -1;   // dungeon the cached name belongs to
+
+    // SCRIPTED floors the user wants announced by their DISTINCT name (not the stripped dungeon
+    // name) — so a recognisable fixed-layout floor is identifiable by ear. Keyed (major,minor).
+    private static readonly Dictionary<(int, int), string> _floorNameOverrides = new()
+    {
+        [(61, 2)] = "Steamy Bathhouse, Bath number 3",   // scripted Bathhouse floor (events recorded)
+        [(61, 3)] = "Steamy Bathhouse, Bath number 7",   // next scripted floor (user-confirmed 2026-06-27)
+    };
 
     /// <summary>
     /// Background: read the game's banner string for any active floor of the
@@ -4964,6 +5018,14 @@ internal unsafe class FieldTracker
     {
         try
         {
+            // Verbatim name for a recognised scripted floor wins over the banner/dungeon name.
+            if (_floorNameOverrides.TryGetValue((major, minor), out var fixedName))
+            {
+                _lastDungeonFloorName = fixedName; _lastDungeonFloorMajor = major;
+                Log($"[FieldTracker] Area resolved -> major={major} minor={minor}: override \"{fixedName}\"");
+                Speech.Say(fixedName, true);
+                return;
+            }
             string? banner = null;
             for (int attempt = 0; attempt < 4 && banner == null; attempt++)
             {
@@ -4972,15 +5034,23 @@ internal unsafe class FieldTracker
                 var active = DungeonFloorName.ScanActiveBanners();
                 if (active.Count > 0) banner = active[0].name;   // any floor of this dungeon → same name
             }
-            // Empty scan (e.g. returning from a battle to the same floor — the
-            // game doesn't re-show the banner): keep the dungeon name we already
-            // had, else strip the (major,minor) table result. NEVER fall back to
-            // the raw table (it would speak the wrong floor, "Yukiko's Castle 1F").
-            string name = banner != null
-                ? DungeonNameOf(banner)
-                : (_lastDungeonFloorName ?? DungeonNameOf(GetAreaName(major, minor)));
+            // Empty scan: keep the cached name ONLY if it belongs to THIS dungeon
+            // (e.g. returning from a battle to the same floor — the banner doesn't
+            // re-show). A DIFFERENT dungeon whose banner also fails must NOT inherit
+            // the previous one's name (the old bug: 68_1 spoke "100 dash 3" /
+            // "Yukiko's Castle"); it falls back to the table → "???".
+            string? resolved = banner != null ? DungeonNameOf(banner) : null;
+            // Known STALE banner: a leftover "Yukiko's Castle, Gate" lingers in memory
+            // and gets scanned on floors that have no banner of their own. Reject it
+            // when we're not actually in a Yukiko major (23/40) → falls through to "???".
+            if (resolved == "Yukiko's Castle" && major != 23 && major != 40) resolved = null;
+            string name = resolved
+                ?? (_lastDungeonFloorName != null && _lastDungeonFloorMajor == major
+                    ? _lastDungeonFloorName
+                    : DungeonNameOf(GetAreaName(major, minor)));
             if (CurrentMajor != major || CurrentMinor != minor) return;       // moved on
             _lastDungeonFloorName = name;
+            _lastDungeonFloorMajor = major;
             Log($"[FieldTracker] Area resolved -> major={major} minor={minor}: banner=\"{banner}\" -> \"{name}\"");
             Speech.Say(name, true);
         }

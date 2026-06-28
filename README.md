@@ -5,13 +5,15 @@ A screen-reader accessibility mod for the Steam version of **Persona 4 Golden**,
 user's screen reader (NVDA / SAPI via Tolk) and adds blind-playable navigation, so the game can be
 played without sight.
 
-**Latest release: v1.1.0.**
+**Latest release: v1.2.0.**
 
 ## What it does
 
 - Reads menus, dialogue, and on-screen prompts aloud.
 - Full in-battle screen reader (commands, skills, damage, status, personas, results, Shuffle Time).
 - Shops, the Velvet Room (fusion / compendium / skill cards), and the system pop-ups.
+- **Anime cutscenes** — reads the on-screen subtitles, plus optional hand-authored descriptions of
+  the visuals, synced to the movie.
 - **Dungeon navigation** — a compass-based browser + auto-walk (to stairs, chests, doors, shadows),
   a mapping cursor with walk/look modes, and positional audio cues.
 - **Overworld navigation** — an interactable browser + auto-walk that arrives on the game's real

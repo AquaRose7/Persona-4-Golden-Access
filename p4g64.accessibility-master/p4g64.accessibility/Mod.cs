@@ -53,15 +53,23 @@ public class Mod : ModBase // <= Do not Remove.
     private ProfileNav _profileNav;
     private PersonaNav _personaNav;
     private Components.CommandMenus.PlayerMenu _playerMenu;
+    private Components.CommandMenus.QuestMenu _questMenu;
     private ShopMenu _shopMenu;
     private BookstoreMenu _bookstoreMenu;
     private TitleMenu _titleMenu;
     private InternetDialog _internetDialog;
     private SystemMessage _systemMessage;
     private TownMapReader _townMapReader;
+    private CalendarReader _calendarReader;
+    private BookMenu _bookMenu;
+    private SkillReplaceMenu _skillReplaceMenu;
     private VelvetMenu _velvetMenu;
     private VelvetFusion _velvetFusion;
     private DifficultyMenu _difficultyMenu;
+    private EarlyMenu _earlyMenu;
+    private SubtitleReader _subtitleReader;
+    private MovieDescription _movieDescription;
+    private Tutorial _tutorial;
     private NameEntryKeyboard _nameEntryKeyboard;
     private FieldTracker _fieldTracker;
     private LoadScreenTracker _loadScreenTracker;
@@ -151,6 +159,7 @@ public class Mod : ModBase // <= Do not Remove.
         // camp menu master struct at *(0x140EC0A40) — see
         // memory/camp_menu_structure.md.
         _playerMenu = new Components.CommandMenus.PlayerMenu();
+        _questMenu = new Components.CommandMenus.QuestMenu(_hooks!);
         _battle = new Battle(_hooks!);
         _battleLog = new BattleLog(_hooks!);
         _partyStatus = new PartyStatus();
@@ -162,6 +171,9 @@ public class Mod : ModBase // <= Do not Remove.
         _internetDialog = new InternetDialog(_hooks!);
         _systemMessage = new SystemMessage(_hooks!);
         _townMapReader = new TownMapReader(_hooks!);
+        _calendarReader = new CalendarReader(_hooks!);
+        _bookMenu = new BookMenu(_hooks!);
+        _skillReplaceMenu = new SkillReplaceMenu(_hooks!);
         // Velvet Room — fusion facility menus (phase 1: top/root menu).
         // VelvetMenu (root-menu POLL reader) RETIRED 2026-06-16: VelvetFusion now hooks
         // the root-menu dispatcher FUN_14021E2A0 and reads it instantly (no ~100ms poll
@@ -174,6 +186,10 @@ public class Mod : ModBase // <= Do not Remove.
         // list. See memory/velvet_room_fusion_re.md.
         _velvetFusion = new VelvetFusion(_hooks!);
         _difficultyMenu = new DifficultyMenu(_hooks!);
+        _earlyMenu = new EarlyMenu(_hooks!);
+        _subtitleReader = new SubtitleReader(_hooks!);
+        _movieDescription = new MovieDescription();
+        _tutorial = new Tutorial();
         _nameEntryKeyboard = new NameEntryKeyboard(_hooks!);
         _fieldTracker = new FieldTracker(_hooks!);
         _loadScreenTracker = new LoadScreenTracker(_hooks!);

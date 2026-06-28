@@ -86,7 +86,6 @@ internal unsafe class ShopMenu
     // any announcement on it — the shop state field is the truth.
     internal static volatile bool CharSelectIsActive;
     private bool  _active;
-    private bool  _f10, _f10Was;
     private bool  _fKeyWas;              // 'F' key (0x46) previous state — focus-gated
     private bool  _fPressedRawWas;       // 'F' key previous state ignoring focus (diagnostic)
     private bool  _escWas;              // Escape key previous state
@@ -509,6 +508,14 @@ internal unsafe class ShopMenu
     {
         nint list = p->ActiveListPtr;
         short row = *(short*)((nint)p + 0x32);
+        // On a SCROLLING shop list (e.g. Shiroku Store), +0x32 is the WINDOW position, not the
+        // absolute row, so add the scroll +0x34 (guarded like EffectiveRow). Without this the amount
+        // window read the wrong item's price — live 2026-06-28: Dokudami Tea (row 4, 450 yen) was
+        // priced as Revival Bead (row 2, 1950), so "Total" was 5850 instead of 1350 for qty 3.
+        short scroll = *(short*)((nint)p + 0x34);
+        short total  = *(short*)((nint)p + 0x68);
+        if (scroll > 0 && scroll < 512 && total > 0 && row + scroll < total)
+            row = (short)(row + scroll);
         if (list == 0 || row < 0 || row >= 64) return 0;
         nint entry = list + row * ActiveEntryStride;
         if (!IsReadable(entry, 4)) return 0;
@@ -676,10 +683,12 @@ internal unsafe class ShopMenu
         catch { return ""; }
     }
 
-    // ── Background thread: F10 dump + F key description window tracking ──
+    // ── Background thread: F key description window tracking ──
     // F key toggles the in-game description window:
     //   open  → announce current item; then auto-read whenever cursor moves
     //   close → stop reading
+    // (The F10 dev "diff-dumper" key was UNBOUND for release 2026-06-28; DumpDiff/
+    //  DumpShopStruct are kept below as dead code for future field-hunting.)
     private void PollKeys()
     {
         while (true)
@@ -687,16 +696,11 @@ internal unsafe class ShopMenu
             System.Threading.Thread.Sleep(50);
 
             // Ignore keys entirely when the game is not the foreground window —
-            // otherwise F/F10/Esc fire while the user is Alt-Tabbed away.
+            // otherwise F/Esc fire while the user is Alt-Tabbed away.
             bool focused = IsGameFocused();
 
             bool fPressedRaw = (GetAsyncKeyState(0x46) & 0x8000) != 0;
             _fPressedRawWas = fPressedRaw;
-
-            // F10 debug dump
-            _f10 = focused && (GetAsyncKeyState(0x79) & 0x8000) != 0;
-            if (_f10 && !_f10Was) DumpDiff();
-            _f10Was = _f10;
 
             // Read key states regardless of shop active (prevents stuck toggles)
             bool fNow   = focused && fPressedRaw;                               // 'F'

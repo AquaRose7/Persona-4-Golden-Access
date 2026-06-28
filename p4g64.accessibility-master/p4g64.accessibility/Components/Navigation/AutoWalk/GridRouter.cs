@@ -171,9 +171,17 @@ internal static class GridRouter
         return MinimapTracker.CellToWorld(r, c, out wx, out wz);
     }
 
+    /// <summary>The minimap sprite values that mark a "go to the next floor" staircase.
+    /// 0x0C = Yukiko's Castle; 0x0E = Steamy Bathhouse (the down/progress staircase, a 3×3
+    /// tile block — verified 2026-06-27: player stood next to it on Bathhouse floor 41_0).
+    /// The Bathhouse's OTHER 3×3 block (0x0D) is the entrance/up staircase and is left out so
+    /// travel targets the progress stairs, not the one you arrived on. Add per dungeon as found
+    /// (the DungeonNav "STAIRS EMPTY" sprite dump surfaces an unmapped dungeon's value).</summary>
+    private static bool IsStairSprite(byte sprite) => sprite == 0x0C || sprite == 0x0E;
+
     /// <summary>
-    /// World position of the nearest stairs cell (flag=1, sprite=0x0C — the
-    /// StairFinder signature), for routing the Exits category. Returns false
+    /// World position of the nearest stairs cell (flag=1, stair sprite — see
+    /// <see cref="IsStairSprite"/>), for routing the Exits category. Returns false
     /// if the stairs aren't on the explored map yet.
     /// </summary>
     internal static bool FindNearestStairs(float px, float pz, out float wx, out float wz)
@@ -184,7 +192,7 @@ internal static class GridRouter
         for (int c = 0; c < MinimapTracker.COLS; c++)
         {
             if (!MinimapTracker.ReadCell(r, c, out var cell)) continue;
-            if (cell.Flag != 1 || cell.Sprite != 0x0C) continue;
+            if (cell.Flag != 1 || !IsStairSprite(cell.Sprite)) continue;
             if (!MinimapTracker.CellToWorld(r, c, out float x, out float z)) continue;
             float dx = x - px, dz = z - pz;
             float d = dx * dx + dz * dz;

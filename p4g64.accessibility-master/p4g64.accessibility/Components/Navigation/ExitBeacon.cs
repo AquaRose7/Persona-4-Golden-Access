@@ -11,8 +11,6 @@ namespace p4g64.accessibility.Components.Navigation;
 /// </summary>
 internal sealed class ExitBeacon : ProximityBeacon
 {
-    private const byte StairSprite = 0x0C;   // next-floor staircase
-
     protected override int Vk => 0xBF;                 // / (slash) — exit beacon (rebound from P, 2026-06-11)
     protected override string SoundFile => "stares.wav";  // new short stairs cue (replaced 3s exit.wav 2026-06-18)
     protected override string Label => "Exit beacon";
@@ -22,20 +20,9 @@ internal sealed class ExitBeacon : ProximityBeacon
     // 0.7s gap → ~0.9s cycle (a clear speed-up from the old ~1.5s). Tune to taste.
     protected override float LoopGapSeconds => 0.7f;
 
+    // Delegate to the auto-walk's stairs finder so the staircase-sprite set lives in ONE place
+    // (GridRouter.IsStairSprite — 0x0C Yukiko, 0x0E Steamy Bathhouse, …). Previously this scanned for
+    // 0x0C only, so the beacon was silent in the Bathhouse (its stairs are 0x0E). Fixed 2026-06-27.
     protected override bool FindTarget(float px, float pz, out float tx, out float tz)
-    {
-        tx = 0; tz = 0;
-        float best = float.MaxValue; bool found = false;
-        for (int r = 0; r < MinimapTracker.ROWS; r++)
-            for (int c = 0; c < MinimapTracker.COLS; c++)
-            {
-                if (!MinimapTracker.ReadCell(r, c, out var cell)) continue;
-                if (cell.Flag != 1 || cell.Sprite != StairSprite) continue;
-                if (!MinimapTracker.CellToWorld(r, c, out float wx, out float wz)) continue;
-                float dx = wx - px, dz = wz - pz;
-                float d = MathF.Sqrt(dx * dx + dz * dz);
-                if (d < best) { best = d; tx = wx; tz = wz; found = true; }
-            }
-        return found;
-    }
+        => AutoWalk.GridRouter.FindNearestStairs(px, pz, out tx, out tz);
 }

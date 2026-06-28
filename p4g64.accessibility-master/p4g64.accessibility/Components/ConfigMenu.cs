@@ -28,19 +28,23 @@ internal unsafe class ConfigMenu : IDisposable
     private const string CursorWritePattern = "66 41 89 BE 0E 03 00 00";
     private const string TabWritePattern    = "89 74 BB 30";
 
+    // Labels are taken from the game's own config-label table in init_free.bin
+    // (stride 64). Tab order matches the struct's type-6 "Confirm" boundaries.
     private static readonly string[][] TabItems =
     {
-        // Tab 0: Audio
+        // Tab 0: Audio (verified)
         new[] { "Confirm", "BGM", "SE", "Voice", "Voiced Line", "Audio Language", "Sound Output Device" },
-        // Tab 1: Game
-        new[] { "Confirm", "Auto Text", "Cursor Position Memory", "Battle Order Memory", "Equipped Persona Memory", "Program Guide Notification", "Inverted Camera" },
+        // Tab 1: Game — struct shows 10 rows; the asset list has 11 (one of
+        // Network Function / Anime Subtitles / Captions is hidden on PC).
+        // di1..7 are certain; di8/di9 best-guess — VERIFY.
+        new[] { "Confirm", "Auto Text", "Cursor Position Memory", "Battle Order Memory", "Equipped Persona Memory", "Program Guide Notification", "Inverted Camera", "Camera Speed", "Network Function", "Anime Subtitles" },
         // Tab 2: Graphics
-        new[] { "Confirm", "Presets", "Rendering Scale", "Shadow Quality", "Shadow", "Anisotropic Filter", "Anti Aliasing" },
+        new[] { "Confirm", "Rendering Scale", "Animation Quality", "Shadow Quality", "Shadow", "Anisotropic Filter", "Anti Aliasing", "Contrast" },
         // Tab 3: Display
         new[] { "Confirm", "Resolution", "Monitor", "Screen Mode", "V Sync", "FPS Limit" },
-        // Tab 4: Keyboard — Common section visible; more sections below (Field/Dungeon, Battle, Event)
+        // Tab 4: Keyboard — keybind tab (sections). Names TBD (next pass).
         new[] { "Confirm", "Character Movement Forward", "Character Movement Back", "Character Movement Left", "Character Movement Right", "Confirm Action" },
-        // Tab 5: Controller — Common section visible; more sections below
+        // Tab 5: Controller — keybind tab (sections). Names TBD (next pass).
         new[] { "Confirm", "Button Display", "Character Movement Forward", "Character Movement Back", "Character Movement Left", "Character Movement Right" },
     };
 
@@ -56,14 +60,16 @@ internal unsafe class ConfigMenu : IDisposable
     // [8]   non-audio esi (esi captured only when rdi>=2)
     // [12]  non-audio rdi (rdi captured only when rdi>=2)
     // [16]  non-audio flag (set only when rdi>=2 fires)
-    private byte* _shared;
-    private int*  _item         => (int*)(_shared + 0);
-    private int*  _itemFlag     => (int*)(_shared + 4);
-    private int*  _nonAudioEsi  => (int*)(_shared + 8);
-    private int*  _nonAudioRdi  => (int*)(_shared + 12);
-    private int*  _nonAudioFlag => (int*)(_shared + 16);
+    private byte*  _shared;
+    private int*   _item         => (int*)(_shared + 0);
+    private int*   _itemFlag     => (int*)(_shared + 4);
+    private int*   _nonAudioEsi  => (int*)(_shared + 8);
+    private int*   _nonAudioRdi  => (int*)(_shared + 12);
+    private int*   _nonAudioFlag => (int*)(_shared + 16);
+    private ulong* _r14          => (ulong*)(_shared + 24); // DEBUG: live menu working-struct base
 
-    private int _lastItem   = -1; // last announced item index (any tab)
+    private int _lastItem   = -1; // last announced row (absolute, any tab)
+    private int _lastValue  = -999; // last announced value (raw) for the current row
     private int _currentTab = 0;
     private int _idlePolls  = 0;
     private const int IdleResetThreshold = 40;
@@ -73,8 +79,8 @@ internal unsafe class ConfigMenu : IDisposable
 
     internal ConfigMenu(IReloadedHooks hooks)
     {
-        _shared = (byte*)Marshal.AllocHGlobal(20);
-        for (int i = 0; i < 20; i++) _shared[i] = 0;
+        _shared = (byte*)Marshal.AllocHGlobal(32);
+        for (int i = 0; i < 32; i++) _shared[i] = 0;
 
         ulong b = (ulong)_shared;
         Log($"[ConfigMenu] Shared base: 0x{b:X}");
@@ -93,6 +99,9 @@ internal unsafe class ConfigMenu : IDisposable
                 "mov dword [rbx], eax",
                 $"mov rbx, 0x{b+4:X16}",
                 "mov dword [rbx], 1",
+                // DEBUG: capture r14 (the menu working-struct base) for value-offset hunting
+                $"mov rbx, 0x{b+24:X16}",
+                "mov [rbx], r14",
                 "pop rbx",
                 "pop rax"
             };
@@ -159,6 +168,7 @@ internal unsafe class ConfigMenu : IDisposable
             if (++_idlePolls >= IdleResetThreshold)
             {
                 _lastItem  = -1;
+                _lastValue = -999;
                 _idlePolls = 0;
             }
             return;
@@ -178,6 +188,7 @@ internal unsafe class ConfigMenu : IDisposable
             {
                 _currentTab = esi;
                 _lastItem   = -1;
+                _lastValue  = -999;
                 tabChanged  = true;
             }
         }
@@ -186,15 +197,43 @@ internal unsafe class ConfigMenu : IDisposable
         // Use _currentTab to pick the right item array.
         if (itemFired != 0)
         {
-            var item = *_item;
-            if (item < 0 || item > 15) return;
-            if (item == _lastItem && !tabChanged) return; // nothing changed
-            _lastItem = item;
+            var di = *_item;
+            if (di < 0 || di > 15) return;
+
+            // The cursor `di` is the row WITHIN the visible window. Long tabs
+            // (e.g. Game = 10 rows) scroll, so the true row = di + scroll, where
+            // scroll (top visible row index) lives at r14+0x34. Dedupe + name +
+            // value must all use the absolute row, or scrolled rows go silent /
+            // read the wrong setting.
+            int row = di + ReadScroll();
+            if (row < 0 || row > 31) return;
 
             var items    = TabItems[_currentTab];
-            var itemName = item < items.Length ? items[item] : $"Item {item + 1}";
-            var announce = tabChanged ? $"{TabNames[_currentTab]}, {itemName}" : itemName;
-            Log($"[ConfigMenu] → {TabNames[_currentTab]} > {itemName}");
+            var itemName = row < items.Length ? items[row] : $"Item {row + 1}";
+
+            // Read the live value for this row from the descriptor/value array
+            // at r14+0x71C (stride 0x20): type @+0x10, current value @+0x1C (low16).
+            string valueStr = ReadValueString(_currentTab, row, out int rec, out int type, out int raw);
+
+            // Re-announce when EITHER the row OR the value changed (so changing a
+            // setting in place — left/right — speaks the new value, not silence).
+            bool rowChanged = row != _lastItem;
+            bool valChanged = valueStr != null && raw != _lastValue;
+            if (!rowChanged && !valChanged && !tabChanged) return; // nothing changed
+            _lastItem  = row;
+            _lastValue = raw;
+
+            string announce;
+            if (rowChanged || tabChanged)
+            {
+                var label = valueStr != null ? $"{itemName}, {valueStr}" : itemName;
+                announce = tabChanged ? $"{TabNames[_currentTab]}, {label}" : label;
+            }
+            else
+            {
+                announce = valueStr; // value-only change → just speak the new value
+            }
+            Log($"[ConfigMenu] → {TabNames[_currentTab]} > {itemName}  (r14=0x{*_r14:X} di={di} row={row} rec={rec} type={type} raw={raw} val='{valueStr}' rowCh={rowChanged} valCh={valChanged})"); // DEBUG
             Speech.Say(announce, true);
         }
         else if (tabChanged)
@@ -203,6 +242,91 @@ internal unsafe class ConfigMenu : IDisposable
             Log($"[ConfigMenu] Tab → {TabNames[_currentTab]}");
             Speech.Say(TabNames[_currentTab], true);
         }
+    }
+
+    // ── Live value reading ────────────────────────────────────────────────
+    // The menu working struct (r14) holds a flat descriptor/value array at
+    // r14+0x71C, stride 0x20, covering EVERY setting across all tabs in order.
+    // Each record:  +0x10 int = type (6 button, 3 slider, 1/2 toggle, 4 multi)
+    //               +0x1C low16 = current value (verified by snapshot-diff).
+    // Each tab begins with a type-6 "Confirm" button, so the Nth type-6 record
+    // is the base record of tab N. The cursor `di` is the row within the tab
+    // (di0 = Confirm), so rec = tabBase + di.
+    private const int RecordArray = 0x71C;
+    private const int RecordStride = 0x20;
+    private const int TypeOff  = 0x10;
+    private const int ValueOff = 0x1C;
+    private const int ScrollOff = 0x34;  // top visible row index (list scroll)
+
+    // Scroll offset of the current tab's list: true row = di + scroll.
+    private int ReadScroll()
+    {
+        ulong r14 = *_r14;
+        if (r14 == 0) return 0;
+        nint p = (nint)r14 + ScrollOff;
+        if (!IsReadable(p, 4)) return 0;
+        int s = *(int*)p;
+        return (s >= 0 && s < 32) ? s : 0;
+    }
+
+    private string ReadValueString(int tab, int row, out int rec, out int type, out int raw)
+    {
+        rec = -1; type = -1; raw = -1;
+        ulong r14 = *_r14;
+        if (r14 == 0) return null;
+        nint arr = (nint)r14 + RecordArray;
+        if (!IsReadable(arr, RecordStride * 64)) return null;
+
+        // Find the base record of each tab = positions of type-6 (button) records.
+        int tabBase = -1, seen = 0;
+        for (int k = 0; k < 64; k++)
+        {
+            int t = *(int*)(arr + k * RecordStride + TypeOff);
+            if (t == 6)
+            {
+                if (seen == tab) { tabBase = k; break; }
+                seen++;
+            }
+        }
+        if (tabBase < 0) return null;
+
+        rec  = tabBase + row;
+        if (rec < 0 || rec >= 64) return null;
+        nint r = arr + rec * RecordStride;
+        type = *(int*)(r + TypeOff);
+        raw  = *(short*)(r + ValueOff);   // low 16 bits = current value
+        return FormatValue(type, raw);
+    }
+
+    private static string FormatValue(int type, int raw)
+    {
+        // VALUES DISABLED 2026-06-25. The menu's value buffer (+0x1C) is recycled:
+        // it reads correctly just after the menu opens, then goes STALE — toggles
+        // freeze at an old On/Off and sliders stop tracking. Same recycled-buffer
+        // root cause that blocked multi-choice (see memory/config_menu_status.md).
+        // A stale/wrong value is worse than none, so announce NAME ONLY for every
+        // setting. (raw/type still logged for debugging; re-enable here only if a
+        // reliably-live value field is ever found.)
+        return null;
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern nint VirtualQuery(nint lpAddress, byte* lpBuffer, nint dwLength);
+
+    private static bool IsReadable(nint addr, int size)
+    {
+        if (addr == 0) return false;
+        ulong a = (ulong)addr;
+        if (a < 0x10000UL || a > 0x00007FFFFFFFFFFFUL) return false;
+        const int MBI_SIZE = 48, OFF_STATE = 32, OFF_PROTECT = 36;
+        const uint MEM_COMMIT = 0x1000, PAGE_NOACCESS = 0x01, PAGE_GUARD = 0x100;
+        byte* buf = stackalloc byte[MBI_SIZE];
+        if (VirtualQuery(addr, buf, MBI_SIZE) == 0) return false;
+        uint state = *(uint*)(buf + OFF_STATE);
+        uint protect = *(uint*)(buf + OFF_PROTECT);
+        if (state != MEM_COMMIT) return false;
+        if ((protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0) return false;
+        return true;
     }
 
     public void Dispose()

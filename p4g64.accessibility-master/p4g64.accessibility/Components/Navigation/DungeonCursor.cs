@@ -165,7 +165,7 @@ internal class DungeonCursor
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major != 240 && major < 250;
+        return major >= 20 && major < 240;   // dungeons 20-239; battles (240-249) excluded
     }
 
     private void Toggle()

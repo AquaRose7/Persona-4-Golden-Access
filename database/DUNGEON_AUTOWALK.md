@@ -17,6 +17,17 @@ Older dungeon design notes: `memory/dungeon_phase_closed.md`, `SPATIAL_AWARENESS
 | **Chests** | **Old one-shot hunter** (`AutoWalker.Start`) — walks straight to the chest over the known map, stops on it. | reverted 2026-06-23 |
 | **Shadows** | **Old position-gated hunt** (`AutoWalker.StartHunt`) — you walk close, Backspace strikes when you're behind it. | reverted 2026-06-23 |
 | **Doors / Places** | **Old one-shot walk** (`AutoWalker.Start`). | unchanged |
+| **Events** *(added 2026-06-24)* | **Old one-shot walk** to a hand-recorded named point — present ONLY on SCRIPTED (fixed-layout) floors that have a mark. | `DungeonNav` `Cat.Events` → `AutoWalker.Start` |
+
+**"Events" marks (scripted floors).** Fixed-layout story/boss floors keep the same geometry every run,
+so a few hand-recorded named points are universal. `DungeonNav` shows an **"Events"** category in the
+`-`/`=` cycle **only when the current floor has a recorded mark** (that presence check IS the
+"scripted-floor" gate; procedural floors are untouched). Floor key = `"major_minor"` — verified that
+scripted floors get a distinct scene-major (Yukiko 2F = `23_3`, 5F = `60_1`) while procedural maze floors
+all collide on `40_0` (**never mark a `40_0` floor**). Backspace auto-walks via the existing
+`AutoWalker.Start`. Data: `dungeon_waypoints.json` (`floorKey → [{X,Z,Label}]`, bundled universal). The
+record/promote keys are currently UNBOUND (the `RecordMark`/`UndoMark`/`PromoteSelectionToEvents` methods
++ a Ctrl-guarded re-bind recipe live in `DungeonNav.Tick`). Shipped marks: 2F "Stairs", 5F "Event door".
 
 **Why only stairs use travel:** the generalized travel (`TravelLoop`) was briefly wired to
 chests + shadows too, but on the **coarse minimap** it hugged walls / circled on far targets

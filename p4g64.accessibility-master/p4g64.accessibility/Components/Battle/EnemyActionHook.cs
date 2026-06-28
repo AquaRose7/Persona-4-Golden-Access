@@ -45,7 +45,7 @@ internal sealed unsafe class EnemyActionHook
 
     private void After(nint actor)
     {
-        if (FieldTracker.CurrentMajor != 240) return;
+        if (!FieldTracker.InBattle) return;   // per-dungeon battle major (240, 241, …)
         if (!IsReadable(actor, 0xCF8)) return;
         if (*(byte*)(actor + 0xA2) != 1) return;          // enemy actions only
 

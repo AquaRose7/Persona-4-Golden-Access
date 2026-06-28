@@ -106,7 +106,9 @@ internal class EnemyRadar
             DungeonAudio.SetWant(this, false);
             return;
         }
-        bool m = IsKeyDown(VK_M);
+        // Shift-up so Shift+. (the radar's period key) is reserved for the
+        // movie-description toggle and never fires the radar.
+        bool m = IsKeyDown(VK_M) && !IsKeyDown(0x10 /*VK_SHIFT*/);
         if (m && !_mWas) Toggle();
         _mWas = m;
 
@@ -131,7 +133,7 @@ internal class EnemyRadar
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major != 240 && major < 250;
+        return major >= 20 && major < 240;   // dungeons 20-239; battles (240-249) excluded
     }
 
     private void Toggle()

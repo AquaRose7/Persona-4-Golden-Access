@@ -32,8 +32,21 @@
 // read — pick something like 7900+ where customSubMenu and vanilla don't
 // touch.
 
+import( "tutorial.msg" );   // mod tutorial pop-up text
+
 void order_party_softhook()
 {
+    // ── Mod tutorial pop-ups — HELP_MSG = the game's help/tutorial BUBBLE style
+    //    (BIT 7900+ = safe range, per the note above). Both welcome bubbles show
+    //    back-to-back from ONE trigger (so at most one menu side-effect, not two). ──
+    if (BIT_CHK(7900))
+    {
+        BIT_OFF(7900);
+        HELP_MSG(Welcome1);
+        HELP_MSG(Welcome2);
+        return;
+    }
+
     // ── Calibration: teleport to entry N of the CURRENT area ──
     if (BIT_CHK(6710))
     {
@@ -71,4 +84,11 @@ void order_party_softhook()
     if (BIT_CHK(6707)) { BIT_OFF(6707); CALL_DUNGEON(5, 1); return; }   // Yukiko Gate
     if (BIT_CHK(6708)) { BIT_OFF(6708); CALL_DUNGEON(6, 0); return; }   // Yukiko 1F
     if (BIT_CHK(6709)) { BIT_OFF(6709); CALL_DUNGEON(7, 0); return; }   // Yukiko 2F
+
+    // GENERIC floor jump — works in EVERY dungeon (the floor ID is one sequential int that
+    // GET_FLOOR_ID() reads and CALL_DUNGEON jumps to). Found via customSubMenu's Floor Select
+    // (DungeonTravel.flow: floor IDs are sequential, base 5 Yukiko / 20 Bathhouse / 40 Rise / …).
+    // 6711 = next floor, 6712 = previous floor. C# arms one + synth-F.
+    if (BIT_CHK(6711)) { BIT_OFF(6711); CALL_DUNGEON(GET_FLOOR_ID() + 1, 0); return; }   // next floor
+    if (BIT_CHK(6712)) { BIT_OFF(6712); CALL_DUNGEON(GET_FLOOR_ID() - 1, 0); return; }   // previous floor
 }

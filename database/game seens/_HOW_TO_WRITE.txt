@@ -1,0 +1,30 @@
+HOW TO WRITE CUTSCENE DESCRIPTIONS
+==================================
+
+Two ways, both keyed by the cutscene CODE (e.g. P4CT001 = first scene after the
+opening). The mod announces a cutscene's code when it has no description, so you
+always know which one you're on.
+
+TEXT (recommended — NVDA reads it):
+-----------------------------------
+Make one file named  <CODE>.txt  in this folder (or inside a <CODE>/ subfolder).
+Each line:   <time>  <description>
+
+  # P4CT001 — first scene after the opening   <- '#' line = comment, ignored
+  0:00   The opening fades. A foggy town comes into view.
+  0:12   A man in a dark suit turns to face the protagonist.
+  1:45   The screen cuts to the inside of a train.
+
+Time formats accepted:  M:SS   MM:SS   MMSS    (0:12  /  1:45  /  0012)
+Blank lines are ignored. NVDA speaks each line when the movie reaches that time.
+
+AUDIO (optional — your own recordings):
+---------------------------------------
+Drop clips named  <NN>_<MMSS>.mp3  in a  <CODE>/  subfolder
+  P4CT001/01_0000.mp3   plays at 0:00
+  P4CT001/02_0012.mp3   plays at 0:12
+or flat:  <CODE>_<MMSS>.mp3   (.wav also works)
+
+Times are measured from the moment the cutscene STARTS in-game.
+The "_E" English-audio variant of a movie is merged to the base code, so one
+description covers both (P4CT001 covers P4CT001 and P4CT001_E).

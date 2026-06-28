@@ -17,6 +17,9 @@ internal unsafe class Dialogue
     private Dialog.DialogExecutionInfo* _lastDialog = (Dialog.DialogExecutionInfo*)0;
     private int _lastPage = -1;
     private short _lastSelected = -1;
+    private nint _selectionObj;       // the dialogInfo that currently owns a choice list (0 = none).
+                                      // Tied to the OBJECT (its ptr is stable; SelectionText's isn't)
+                                      // so other dialog objects drawn the same frame can't clobber it.
     private TextStruct* _lastSpeaker;
     private Dialog.DialogExecution* _playedDialog;
     private IHook<StartDialogDelegate> _startDialogHook;
@@ -60,6 +63,8 @@ internal unsafe class Dialogue
         {
             _lastDialog = (Dialog.DialogExecutionInfo*)0;
         }
+        _selectionObj = 0;   // any selection list from a prior dialog is gone
+        _lastSelected = -1;
 
         return res;
     }
@@ -73,6 +78,14 @@ internal unsafe class Dialogue
 
         if (dialogInfo->SelectionText != (Dialog.DialogExecutionInfo*)0)
             SpeakSelection(dialogInfo);
+        else if ((nint)dialogInfo == _selectionObj)
+        {
+            // OUR selection object's list closed → next one is a fresh menu.
+            // (Only reset for the object that owned it — not for other objects
+            // drawn this frame that simply have no list.)
+            _selectionObj = 0;
+            _lastSelected = -1;
+        }
 
         return res;
     }
@@ -117,16 +130,29 @@ internal unsafe class Dialogue
 
     private void SpeakSelection(Dialog.DialogExecutionInfo* dialogInfo)
     {
-        // Only speak out the current selection once
-        if (_lastDialog == dialogInfo && dialogInfo->SelectedOption == _lastSelected)
-            return;
-
+        // A fresh choice menu is identified by its SelectionText pointer changing
+        // (reset to 0 when no list is up). On a fresh menu we ALWAYS read the
+        // highlighted option — even if it's option 0 and 0 happened to be the
+        // last option we spoke from a previous menu (the old bug where the first
+        // choice sometimes wasn't read) — and play a short cue.
         var selectedOption = dialogInfo->SelectedOption;
         if (selectedOption == -1)
         {
+            // List is up but the cursor isn't set yet — don't claim the object so
+            // the first real option still counts as a fresh menu (sound + read).
             _lastSelected = selectedOption;
             return;
         }
+
+        bool newMenu = (nint)dialogInfo != _selectionObj;
+        _selectionObj = (nint)dialogInfo;
+
+        // Same menu, same option already spoken → nothing changed (this is what
+        // stops the per-frame loop).
+        if (!newMenu && selectedOption == _lastSelected)
+            return;
+
+        if (newMenu) PlayChoiceCue();   // "a choice menu appeared" sound
 
         var text = dialogInfo->SelectionText->GetSelection(selectedOption);
         if (!string.IsNullOrWhiteSpace(text))
@@ -137,6 +163,27 @@ internal unsafe class Dialogue
 
         _lastSelected = selectedOption;
     }
+
+    // ── Choice-appeared cue ───────────────────────────────────────────────
+    // Played via the Windows PlaySound API (async, on the system mixer) so it
+    // doesn't touch the game's own audio engine. choice.wav ships flat in the
+    // mod folder (DataPath resolves it; falls back to database/sounds).
+    private static string? _cuePath;
+
+    private static void PlayChoiceCue()
+    {
+        try
+        {
+            _cuePath ??= DataPath("choice.wav", "sounds");
+            if (System.IO.File.Exists(_cuePath))
+                PlaySound(_cuePath, IntPtr.Zero, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+        }
+        catch { /* a missing cue must never break dialogue reading */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("winmm.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern bool PlaySound(string? pszSound, IntPtr hmod, uint fdwSound);
+    private const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_FILENAME = 0x00020000;
 
     /// <summary>
     /// Removes parts of the dialog that shouldn't be spoken such as the "> " at the start of some messages

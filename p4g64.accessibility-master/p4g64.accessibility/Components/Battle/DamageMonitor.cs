@@ -70,7 +70,7 @@ internal sealed unsafe class DamageMonitor
 
     private void Tick()
     {
-        if (FieldTracker.CurrentMajor != 240)
+        if (!FieldTracker.InBattle)   // battle major is per-dungeon (240, 241, …), not just 240
         {
             if (_last.Count > 0) _last.Clear();
             if (_lastAction.Count > 0) _lastAction.Clear();

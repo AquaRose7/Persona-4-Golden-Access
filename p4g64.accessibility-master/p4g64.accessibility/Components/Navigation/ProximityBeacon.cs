@@ -73,7 +73,9 @@ internal abstract class ProximityBeacon
             return;
         }
 
-        bool k = IsKeyDown(Vk);
+        // Shift-up so Shift+, (the chest beacon's comma) is reserved for the
+        // movie-subtitle toggle and never fires the beacon.
+        bool k = IsKeyDown(Vk) && !IsKeyDown(0x10 /*VK_SHIFT*/);
         if (k && !_keyWas) { Log($"[{GetType().Name}] key {(char)Vk} edge"); Toggle(); }
         _keyWas = k;
 

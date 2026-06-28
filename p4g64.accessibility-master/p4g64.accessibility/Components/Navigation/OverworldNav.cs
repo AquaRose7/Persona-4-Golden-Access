@@ -40,6 +40,7 @@ internal class OverworldNav
     private const int VK_OEM_5     = 0xDC;   // \
     private const int VK_BACK      = 0x08;   // Backspace
     private const int VK_P         = 0x50;   // P beacon
+    private const int VK_OEM_1     = 0xBA;   // ;  → speak selected NPC's area+id (rename diagnostic)
 
     // Final-step assist: a bounded position-write nudge for the last ≤130u onto the spot (school only;
     // travel is always stick). PERMANENTLY ON — the O-key toggle was removed 2026-06-22 (user never wants it
@@ -92,7 +93,7 @@ internal class OverworldNav
 
     private readonly Thread _thread;
     private volatile bool _stopped;
-    private bool _minusWas, _plusWas, _lbWas, _rbWas, _bsWas, _bkWas, _pWas;
+    private bool _minusWas, _plusWas, _lbWas, _rbWas, _bsWas, _bkWas, _pWas, _idWas;
 
     private int _catIndex = -1;
     private bool _activeLast;
@@ -175,12 +176,15 @@ internal class OverworldNav
     internal static volatile bool IsWalking;
     private bool _walking { get => IsWalking; set => IsWalking = value; }
     private volatile bool _beacon;
+    private BeaconVoice _voice;   // stereo positional beacon voice (mixed via DungeonAudio)
 
     public OverworldNav()
     {
         LoadCatalog();
         LoadCalib();
         LoadWalkgrid();
+        _voice = new BeaconVoice(DungeonAudio.Format, MakePing(), gapFrames: 6000);
+        DungeonAudio.AddInput(_voice);   // persistent input; added once at startup
         _thread = new Thread(PollLoop) { IsBackground = true, Name = "OverworldNav" };
         _thread.Start();
         Log($"[OverworldNav] ready ({_catalog.Count} areas; -/= category, [ ] entries, \\ brief, Backspace walk, P beacon)");
@@ -419,6 +423,10 @@ internal class OverworldNav
         bool p = IsKeyDown(VK_P);
         if (p && !_pWas && !shift) ToggleBeacon();   // Shift+P = repeat last (HistoryKeys)
         _pWas = p;
+
+        bool idk = IsKeyDown(VK_OEM_1);
+        if (idk && !_idWas) AnnounceSelectedId();    // ;  → speak the selected NPC's area + id (rename diagnostic)
+        _idWas = idk;
         // (Removed 2026-06-22: the O-key PosDrive toggle. The final-step assist stays permanently ON — the
         // user never wants it off — and O is the party HP/SP key, so the binding was a conflict.)
     }
@@ -545,17 +553,20 @@ internal class OverworldNav
     }
 
     /// <summary>
-    /// Per-INSTANCE NPC name overrides, keyed on area + the unit's 16-bit handle id. Used for
-    /// story characters that appear in the field with a SHARED generic model (so they'd otherwise
-    /// read as "Townsperson") — e.g. Dojima at the start. Guarded to only ever relabel a generic
-    /// "Townsperson" node, so a named character is never touched and the shared model name (used
-    /// for navigation of every other townsperson) stays intact. Add a line per character.
+    /// Per-INSTANCE NPC name overrides, keyed on area + the unit's 16-bit handle id (unique per
+    /// scene). Used for story characters that appear in the field with a SHARED model — either a
+    /// generic "Townsperson" OR a named-but-shared model like "Drama club member". Because the key
+    /// is the exact area+id, renaming one instance never touches the others (the shared model name,
+    /// used for navigating every other instance, stays intact). Add a line per character; find the
+    /// id with the `;` diagnostic (AnnounceSelectedId). For TV-world LOBBY NPCs use
+    /// DungeonNav.PlaceNpcNames instead.
     /// </summary>
     private static string OverrideNpcName(string areaKey, ushort id, string baseName)
     {
-        if (baseName != "Townsperson") return baseName;   // never relabel a named NPC
-        // area 8_2 (Central Shopping District), first-time-in-world Dojima:
-        if (areaKey == "8_2" && id == 0x0C1C) return "Dojima";
+        if (areaKey == "8_2" && id == 0x0C1C) return "Dojima";       // Central Shopping District
+        if (areaKey == "8_2" && id == 0x0C28) return "King Moron";
+        if (areaKey == "6_2" && id == 0x0C35) return "Yumi";         // was "Drama club member"
+        if (areaKey == "9_4" && id == 0x0C34) return "Adachi";       // was "Townsperson"
         return baseName;
     }
 
@@ -728,7 +739,21 @@ internal class OverworldNav
         float dx = t.X - px, dz = t.Z - pz;
         float dist = MathF.Sqrt(dx * dx + dz * dz);
         int steps = Math.Max(1, (int)MathF.Round(dist / UnitsPerStep));
-        Speech.Say($"{t.Name}: {steps} step{(steps == 1 ? "" : "s")}. Backspace walks, P beacons.", true);
+        string dir = WorldDirection(dx, dz);
+        Speech.Say($"{t.Name}: {dir}, {steps} step{(steps == 1 ? "" : "s")}. Backspace walks, P beacons.", true);
+    }
+
+    // Fixed-compass bearing to a target offset (dx = +X / east, dz = +Z / north),
+    // worded the same as the dungeon browser so directions feel consistent.
+    private static string WorldDirection(float dx, float dz)
+    {
+        float adx = MathF.Abs(dx), adz = MathF.Abs(dz);
+        if (adx < 1e-4f && adz < 1e-4f) return "here";
+        string ns = dz > 0 ? "south" : "north";   // overworld Z is inverted vs the dungeon convention
+        string ew = dx > 0 ? "east" : "west";
+        if (adz > adx * 2f) return ns;          // mostly north/south
+        if (adx > adz * 2f) return ew;          // mostly east/west
+        return ns + ew;                         // diagonal: northeast / southwest / …
     }
 
     private void SetSelection(Target t)
@@ -739,6 +764,29 @@ internal class OverworldNav
     private bool TryGetSelection(out Target t)
     {
         lock (_selLock) { t = _selTarget; return _hasSel; }
+    }
+
+    /// <summary>
+    /// Rename diagnostic (the <c>;</c> key). Speaks the currently-selected NPC's area key and
+    /// 16-bit handle id — exactly the two values <see cref="OverrideNpcName"/> needs to add a
+    /// per-instance rename. Navigate to a "Townsperson" with <c>[</c>/<c>]</c>, press <c>;</c>,
+    /// read back the id, and we add one line. Only People targets carry an id (PersonId != 0).
+    /// (For TV-world LOBBY NPCs the id table is DungeonNav.PlaceNpcNames; those already speak
+    /// "Person &lt;id&gt;" in DECIMAL via the dungeon browser.)
+    /// </summary>
+    private void AnnounceSelectedId()
+    {
+        if (!TryGetSelection(out var t)) { Speech.Say("Nothing selected.", true); return; }
+        if (t.PersonId == 0)
+        {
+            Speech.Say($"{t.Name} is not a person, no id to rename.", true);
+            return;
+        }
+        int maj = FieldTracker.CurrentMajor, min = FieldTracker.CurrentMinor;
+        string hex = t.PersonId.ToString("X4");
+        string spoken = string.Join(" ", hex.ToCharArray());   // digit-by-digit so the reader doesn't mangle it
+        Speech.Say($"{t.Name}. Area {maj} {min}. Id {spoken}.", true);
+        Log($"[OverworldNav] ID DIAG: area {maj}_{min} id 0x{hex} name '{t.Name}'");
     }
 
     private static string CalibKey(Target t) => $"{(int)MathF.Round(t.BX)}_{(int)MathF.Round(t.BZ)}_{t.Name}";
@@ -807,21 +855,37 @@ internal class OverworldNav
         new Thread(BeaconLoop) { IsBackground = true, Name = "OverworldBeacon" }.Start();
     }
 
+    // Beacon tuning: the tick gap (in mixer frames) at the target and far away,
+    // and how far "far" is. Larger gap = slower ticks.
+    private const int FarDist = 2500;
+    private const int NearGap = (int)(44100 * 0.05f);   // ~0.05 s gap when close → rapid ticks
+    private const int FarGap  = (int)(44100 * 0.75f);   // ~0.75 s gap far away → lazy ticks
+    private const float NearGain = 0.85f, FarGain = 0.22f;  // louder near, quieter far (realism)
+    private const float PanSign = 1f;                   // world east = right (flip to -1 if reversed)
+    private const float FrontSign = -1f;                // north = bright (matches flipped overworld Z + compass)
+
     /// <summary>
-    /// Tick beep whose interval shrinks with distance (slow far → rapid near).
-    /// Ends with a rising trill when the CHECK prompt fires or the player is on
-    /// top of the target.
+    /// STEREO positional beacon: the sound sits at the TARGET's location relative
+    /// to the CAMERA (which is locked per area, so it doesn't swing as the player
+    /// turns — far less confusing than facing-relative). Pan = target left/right on
+    /// screen; pitch = up/down (into the view = higher, toward the camera = lower);
+    /// ticks faster as you approach. Trill on arrival / CHECK prompt.
     /// </summary>
     private void BeaconLoop()
     {
         try
         {
+            _voice.Playing = true;
+            DungeonAudio.SetWant(this, true);
+
             while (_beacon && !_stopped && ActiveHere())
             {
-                if (!Utils.GameHasFocus()) { Thread.Sleep(150); continue; }   // mute beacon while alt-tabbed
+                if (!Utils.GameHasFocus()) { _voice.Playing = false; DungeonAudio.SetWant(this, false); Thread.Sleep(150); continue; }
+                DungeonAudio.SetWant(this, true);   // re-acquire the output when focus returns
+                _voice.Playing = true;
                 if (!TryGetSelection(out var t)) break;
                 var (px, _, pz, ok) = FieldTracker.WorldPlayerPos();
-                if (!ok) { Thread.Sleep(300); continue; }
+                if (!ok) { Thread.Sleep(120); continue; }
                 if (t.PersonId != 0 && TryGetPersonPos(t.PersonId, out float lx, out float lz))
                 {
                     t.X = lx; t.Z = lz;
@@ -830,35 +894,70 @@ internal class OverworldNav
                 float dx = t.X - px, dz = t.Z - pz;
                 float dist = MathF.Sqrt(dx * dx + dz * dz);
 
-                // Arrival = the CHECK prompt while actually inside THIS
-                // target's box (a neighbour's CHECK must not end the beacon),
-                // or sitting on the centre with no prompt.
-                if (FieldTracker.CheckPromptActive && InsideBox(in t, px, pz, 60f))
+                // Arrival = CHECK prompt inside THIS target's box, or on the centre.
+                // Only the cramped fridge + sofa (which sit right next to other checks)
+                // use a tight radius; every other place keeps the normal tolerance.
+                bool tight = IsRoomArea() && (t.Name == "check_reizou" || t.Name == "check_sofa_p4p");
+                float arrive = tight ? 38f : ArriveDist;
+                bool atCheck = FieldTracker.CheckPromptActive &&
+                               (tight ? dist < arrive : InsideBox(in t, px, pz, 60f));
+                if (atCheck)
                 {
-                    WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90);
-                    Speech.Say($"{t.Name}. Check available.", true);
-                    _beacon = false;
+                    Arrive($"{t.Name}. Check available.");
                     return;
                 }
-                if (dist < ArriveDist)
+                if (dist < arrive)
                 {
-                    WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90);
-                    Speech.Say(FieldTracker.CheckPromptActive
+                    Arrive(FieldTracker.CheckPromptActive
                         ? $"{t.Name}. Check available."
-                        : $"At {t.Name}, no check prompt here right now.", true);
-                    _beacon = false;
+                        : $"At {t.Name}, no check prompt here right now.");
                     return;
                 }
 
-                // 2500u+ away → 900 ms ticks; right next to it → 130 ms.
-                int interval = (int)Math.Clamp(130 + dist / 2500f * 770f, 130, 900);
-                uint freq = (uint)Math.Clamp(700 + (2500f - Math.Min(dist, 2500f)) / 2500f * 500f, 700, 1200);
-                WinBeep(freq, 45);
-                Thread.Sleep(interval);
+                // ── direction in a FIXED WORLD frame — the sound sits at the
+                //    interactable's world position (east/west = pan, north/south =
+                //    muffle), independent of which way the player is turned. Matches
+                //    the spoken "northeast"-style compass cues. ──
+                float ux = dist > 1e-3f ? dx / dist : 0f;   // world +X → left/right
+                float uz = dist > 1e-3f ? dz / dist : 0f;   // world +Z → ahead/behind (muffle)
+                float pan = Math.Clamp(ux * PanSign, -1f, 1f);
+                float openness = Math.Clamp((uz * FrontSign + 1f) * 0.5f, 0f, 1f);
+                float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist; // 1 near … 0 far
+                float gain = FarGain + (NearGain - FarGain) * prox;        // louder as you approach
+                int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));
+
+                _voice.Set(gain, pan, 1f);     // constant pitch (pitch cue removed)
+                _voice.Openness = openness;
+                _voice.GapFrames = gap;
+                Thread.Sleep(55);
             }
         }
         catch (Exception ex) { Log($"[OverworldNav] beacon error: {ex.Message}"); }
-        finally { _beacon = false; }
+        finally { _beacon = false; _voice.Playing = false; DungeonAudio.SetWant(this, false); }
+    }
+
+    private void Arrive(string say)
+    {
+        _voice.Playing = false;
+        DungeonAudio.SetWant(this, false);
+        WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90);
+        Speech.Say(say, true);
+        _beacon = false;
+    }
+
+    // Short sine ping for the beacon tick (the gap between loops sets the rhythm).
+    private static float[] MakePing()
+    {
+        int rate = DungeonAudio.Format.SampleRate;
+        int n = (int)(rate * 0.05f);
+        var m = new float[n];
+        int fade = Math.Max(1, n / 6);
+        for (int i = 0; i < n; i++)
+        {
+            float env = i < fade ? i / (float)fade : (i > n - fade ? (n - i) / (float)fade : 1f);
+            m[i] = MathF.Sin(2f * MathF.PI * 760f * i / rate) * 0.7f * env;
+        }
+        return m;
     }
 
     // ── auto-walk (Backspace) ────────────────────────────────────────────────

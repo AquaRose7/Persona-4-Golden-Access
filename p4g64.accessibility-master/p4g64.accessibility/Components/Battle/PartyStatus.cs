@@ -127,7 +127,7 @@ internal sealed unsafe class PartyStatus
             // (major 240) where their context is valid; the stat node is this very
             // slot pointer. Sanity-gate the result (max >= current).
             int maxHp = -1, maxSp = -1;
-            if (FieldTracker.CurrentMajor == 240 && Battle.GetMaxHp != null && Battle.GetMaxSp != null
+            if (FieldTracker.InBattle && Battle.GetMaxHp != null && Battle.GetMaxSp != null
                 && IsReadable(slot, 0x100))
             {
                 try { maxHp = Battle.GetMaxHp(slot); maxSp = Battle.GetMaxSp(slot); } catch { }

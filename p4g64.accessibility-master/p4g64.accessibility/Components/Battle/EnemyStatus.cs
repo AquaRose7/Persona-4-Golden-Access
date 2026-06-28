@@ -59,7 +59,7 @@ internal sealed unsafe class EnemyStatus
 
     private void Announce()
     {
-        if (FieldTracker.CurrentMajor != 240)
+        if (!FieldTracker.InBattle)   // per-dungeon battle major (240, 241, …)
         {
             Speech.Say("Enemy status only works in battle.", true);
             return;

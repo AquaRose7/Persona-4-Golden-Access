@@ -205,8 +205,19 @@ internal class DungeonNav
         {
             Dictionary<string, List<EventMark>> snap;
             lock (_marksLock) snap = new(_marks);
-            System.IO.File.WriteAllText(MarksWritePath(),
-                JsonSerializer.Serialize(snap, new JsonSerializerOptions { WriteIndented = true }));
+            string json = JsonSerializer.Serialize(snap, new JsonSerializerOptions { WriteIndented = true });
+            // Write to BOTH (a) the mod-folder copy the loader actually READS via DataPath — so marks
+            // PERSIST across restart (the old bug: it saved only to database/, which the loader ignores
+            // when a mod-folder copy exists) AND (b) the database source (keeps the committed/bundled
+            // copy current). Dedupe when they resolve to the same file.
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(Utils.ModDir)) paths.Add(System.IO.Path.Combine(Utils.ModDir, "dungeon_waypoints.json"));
+            paths.Add(MarksWritePath());
+            foreach (var p in paths)
+            {
+                try { System.IO.File.WriteAllText(p, json); Log($"[EventMarks] saved {snap.Count} floor(s) -> {p}"); }
+                catch (Exception e) { Log($"[EventMarks] save to {p} failed: {e.Message}"); }
+            }
         }
         catch (Exception e) { Log($"[EventMarks] save failed: {e.Message}"); }
     }
@@ -244,7 +255,6 @@ internal class DungeonNav
     private List<Entry> _entries = new();
     private int _cursor;
     private bool _bkWas;
-    private bool _f8Was;   // TEMP: door-cell mapper (F8) — remove after we map the doorway
 
     public DungeonNav()
     {
@@ -324,60 +334,17 @@ internal class DungeonNav
         }
         _bkWas = bk;
 
-        // TEMP: F8 dumps the minimap cell grid around the player (walkable vs wall) + the
-        // nearest door, so we can map a doorway's real walkable gap by hand. Remove after.
-        bool f8 = IsKeyDown(0x77);
-        if (f8 && !_f8Was) DoorCellMap();
-        _f8Was = f8;
-
-        // Event-mark DEV/setup keys are intentionally UNBOUND (the marks we need are already
-        // recorded + bundled, so nothing here should write the file during normal play). To
-        // author more marks later, re-add a bool _f7Was/_f6Was field and this poll block:
-        //   bool ctrl = IsKeyDown(0x11);   // dev guard so a player can't trigger a write by accident
-        //   bool f7 = IsKeyDown(0x76); if (f7 && !_f7Was && ctrl) { if (shift) UndoMark(); else RecordMark(); } _f7Was = f7;
-        //   bool f6 = IsKeyDown(0x75); if (f6 && !_f6Was && ctrl) PromoteSelectionToEvents(); _f6Was = f6;
-        // The RecordMark / UndoMark / PromoteSelectionToEvents methods are kept below, ready to wire.
+        // Event-mark DEV/setup keys (Ctrl+F7 record / Ctrl+Shift+F7 undo / Ctrl+F6 promote)
+        // are UNBOUND in shipping builds — they author the dungeon_waypoints.json file and are
+        // not for players. RecordMark/UndoMark/PromoteSelectionToEvents are kept as dead code;
+        // re-bind them here (behind the Ctrl guard) when authoring more marks. See
+        // memory/dungeon_event_marks.md.
     }
 
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major != 240 && major < 250;
-    }
-
-    // TEMP (door-cell mapper): dump the minimap cell grid around the player + the nearest
-    // door, so we can SEE a doorway's real walkable gap vs the frame and aim the through at
-    // the gap. Press F8 in the gap, then at the frame edges, then send the log. Remove after.
-    private void DoorCellMap()
-    {
-        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
-        if (float.IsNaN(px) || float.IsNaN(pz)) { Log("[DoorMap] player pos unavailable"); return; }
-        MinimapTracker.WorldToCell(px, pz, out int pr, out int pc);
-        int pflag = MinimapTracker.ReadCell(pr, pc, out var pcell) ? pcell.Flag : -1;
-
-        float ddx = 0, ddz = 0, best = float.MaxValue; bool haveDoor = false;
-        foreach (var (x, z) in Doors())
-        { float d = (x - px) * (x - px) + (z - pz) * (z - pz); if (d < best) { best = d; ddx = x; ddz = z; haveDoor = true; } }
-        int dr = -1, dc = -1, dflag = -1;
-        if (haveDoor && MinimapTracker.WorldToCell(ddx, ddz, out dr, out dc))
-            dflag = MinimapTracker.ReadCell(dr, dc, out var dcell) ? dcell.Flag : -1;
-
-        Log($"[DoorMap] === player=({px:F0},{pz:F0}) cell=({pr},{pc}) flag={pflag} | nearestDoor=({ddx:F0},{ddz:F0}) cell=({dr},{dc}) flag={dflag} d={(haveDoor ? MathF.Sqrt(best) : -1):F0} ===");
-        Log("[DoorMap] grid rows pr-3..pr+3 x cols pc-3..pc+3 (.=unexpl o=walk #=wall ?=oob, P=player D=door):");
-        for (int r = pr - 3; r <= pr + 3; r++)
-        {
-            string line = "[DoorMap] ";
-            for (int c = pc - 3; c <= pc + 3; c++)
-            {
-                char ch;
-                if (r == pr && c == pc) ch = 'P';
-                else if (r == dr && c == dc) ch = 'D';
-                else if (!MinimapTracker.ReadCell(r, c, out var cc)) ch = '?';
-                else ch = cc.Flag == 0 ? '.' : cc.Flag == 1 ? 'o' : cc.Flag == 2 ? '#' : 'x';
-                line += ch; line += ' ';
-            }
-            Log(line);
-        }
+        return major >= 20 && major < 240;   // dungeons 20-239; battles (240-249) excluded
     }
 
     private void CycleCategory(int dir)
@@ -473,6 +440,17 @@ internal class DungeonNav
         if (cat == Cat.Exits)   // Stairs: full travel (explore + route + open doors)
         {
             AutoWalk.AutoWalker.TravelToStairs();
+            return;
+        }
+        if (cat == Cat.Events && IsFloorJumpLabel(e.Label, out int jdir))   // placed "Next/Previous floor" event
+        {
+            TeleportRelativeFloor(jdir);
+            return;
+        }
+        if (cat == Cat.Events)  // Event marks: full travel too — the one-shot Walk can't reach a
+        {                       // tricky scripted-floor mark (e.g. a winding-path door). Chain marks
+            if (!e.HasPos) { Speech.Say("No position to walk to.", true); return; }   // for a winding route.
+            AutoWalk.AutoWalker.TravelTo(e.Label, e.TX, e.TZ);
             return;
         }
         if (!e.HasPos)
@@ -589,6 +567,13 @@ internal class DungeonNav
 
         foreach (var m in marks)
         {
+            // Floor-jump marks ("Next floor"/"Previous floor") are teleports, not walk targets — no
+            // distance/steps; Backspace teleports (see the Events dispatch in StartWalk).
+            if (IsFloorJumpLabel(m.Label, out _))
+            {
+                list.Add(new Entry { Say = m.Label, Dist = 1e9f, FloorDir = 0, Label = m.Label, HasPos = true, TX = m.X, TZ = m.Z });
+                continue;
+            }
             float dist = havePos ? MathF.Sqrt((m.X - px) * (m.X - px) + (m.Z - pz) * (m.Z - pz)) : 0;
             int steps = AutoWalk.RouteSpeech.StepsFromUnits(dist);
             list.Add(new Entry
@@ -653,6 +638,10 @@ internal class DungeonNav
             list.Add(new Entry { Say = say, Dist = dist, FloorDir = 0,
                                  Label = "Stairs", HasPos = true, TX = x, TZ = z });
         }
+
+        // (Floor-jump teleport is NOT a global Exits option — teleporting skips a floor's STORY
+        //  scripts, so it's only offered as a PLACED "Next floor"/"Previous floor" Event mark on the
+        //  specific floors where we want it (e.g. Bath #3). See BuildEventEntries / the Events dispatch.)
         return list;
     }
 
@@ -726,6 +715,10 @@ internal class DungeonNav
         return list;
     }
 
+    // (Door open/closed label REMOVED 2026-06-27 — the minimap-explore heuristic wasn't reliable
+    //  enough in play. The minimap does NOT encode door state on the door's own cell; the only direct
+    //  signal is the door actor animation pose at node+0x300. See memory/bathhouse_dungeon.md.)
+
     /// <summary>
     /// Places = the interactable master table (save point, dungeon ENTRANCES,
     /// NPCs in the lobby) — the data the scene-actor door/chest pass misses.
@@ -766,6 +759,8 @@ internal class DungeonNav
         [0x00C8] = "Yosuke",   // 200
         [0x0320] = "Teddie",   // 800
         [0x012C] = "Chie",     // 300
+        [0x0190] = "Yukiko",   // 400 — added when she joined (user-mapped)
+        [0x0384] = "Fox",      // 900 — TV-world entrance (SP heal NPC)
     };
 
     /// <summary>
@@ -795,6 +790,53 @@ internal class DungeonNav
         foreach (var (x, z, kind, _, _, _) in EnumerateInteractables())
             if (kind == Kind.Door) outp.Add((x, z));
         return outp;
+    }
+
+    /// <summary>
+    /// The PASSAGE AXIS (door normal, XZ) for the door nearest (x,z) — the way you walk THROUGH it —
+    /// read from its scene-actor TRANSFORM (a 4×4 at xf+0x330; row 2 @+0x350 = the forward/Z-basis =
+    /// the door normal). This is the exact orientation, far more reliable than guessing the axis from
+    /// the approach direction (which fails on diagonal approaches — the narrow Bathhouse doors).
+    /// Verified 2026-06-27 on Bathhouse door @(9000,13200): forward=(-1,0,0) ⇒ pass along ±X, matching
+    /// the player's side. Returns false if no active node sits within ~250u of (x,z).
+    /// </summary>
+    internal static unsafe bool TryDoorAxis(float x, float z, out float ax, out float az)
+    {
+        ax = az = 0;
+        if (!IsReadable(SceneRootPtr, 8)) return false;
+        nint sceneRoot = *(nint*)SceneRootPtr;
+        if (sceneRoot == 0 || !IsReadable(sceneRoot + OFF_SCENE, 8)) return false;
+        nint scene = *(nint*)(sceneRoot + OFF_SCENE);
+        if (scene == 0 || !IsReadable(scene + OFF_LIST_HEAD, 8)) return false;
+        nint node = *(nint*)(scene + OFF_LIST_HEAD);
+        int guard = 0; float bestD = float.MaxValue, bfx = 0, bfz = 0; bool found = false;
+        while (node != 0 && guard++ < 4096)
+        {
+            if (!IsReadable(node + OFF_NODE_ACTIVE, 1)) break;
+            if ((*(byte*)(node + OFF_NODE_ACTIVE) & 2) != 0 && IsReadable(node + OFF_NODE_XFORM, 8))
+            {
+                nint xf = *(nint*)(node + OFF_NODE_XFORM);
+                if (xf != 0 && IsReadable(xf + 0x358, 4))
+                {
+                    float dx = *(float*)(xf + OFF_ACTOR_X) - x, dz = *(float*)(xf + OFF_ACTOR_Z) - z;
+                    float d = dx * dx + dz * dz;
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        bfx = *(float*)(xf + 0x350);   // forward/Z-basis .x  (door normal)
+                        bfz = *(float*)(xf + 0x358);   // forward/Z-basis .z
+                        found = true;
+                    }
+                }
+            }
+            if (!IsReadable(node + OFF_NODE_NEXT, 8)) break;
+            node = *(nint*)(node + OFF_NODE_NEXT);
+        }
+        if (!found || bestD > 250f * 250f) return false;
+        float m = MathF.Sqrt(bfx * bfx + bfz * bfz);
+        if (!float.IsFinite(m) || m < 0.1f) return false;
+        ax = bfx / m; az = bfz / m;
+        return true;
     }
     internal static List<(float x, float z)> Chests() => EnumerateChests();
     internal static List<(float x, float z)> Shadows()
@@ -1065,6 +1107,50 @@ internal class DungeonNav
         Log($"[DungeonNav] teleport → {target.name} (flag {target.flagId})");
         Speech.Say($"Teleporting to {target.name}.", true);
         new Thread(() => TeleportSequence(target)) { IsBackground = true, Name = "DungeonNavTeleport" }.Start();
+    }
+
+    // A PLACED Event mark whose Label is a floor-jump command (vs a walk-to point) — hand-set in
+    // dungeon_waypoints.json on the specific floors where a teleport makes sense (teleporting skips
+    // a floor's story scripts, so it must NOT be global). Returns +1 next / -1 previous.
+    private static bool IsFloorJumpLabel(string label, out int dir)
+    {
+        dir = 0;
+        if (string.IsNullOrEmpty(label)) return false;
+        string l = label.Trim().ToLowerInvariant();
+        if (l == "next floor")     { dir = +1; return true; }
+        if (l == "previous floor" || l == "prev floor") { dir = -1; return true; }
+        return false;
+    }
+
+    // GENERIC floor jump — works in ANY dungeon (Bathhouse included), because the field.flow branch
+    // uses CALL_DUNGEON(GET_FLOOR_ID() ± 1, 0) (floor IDs are one sequential int; mechanism found in
+    // customSubMenu's Floor Select). dir = +1 next, -1 previous. Flags 6711/6712 (armed here, consumed
+    // by our field.flow). The way past a floor whose stairs the auto-walk can't route to.
+    private void TeleportRelativeFloor(int dir)
+    {
+        int flag = dir > 0 ? 6711 : 6712;
+        Speech.Say(dir > 0 ? "Teleporting to the next floor." : "Teleporting to the previous floor.", true);
+        new Thread(() => TriggerFloorFlag(flag)) { IsBackground = true, Name = "DungeonNavFloorJump" }.Start();
+    }
+
+    private unsafe void TriggerFloorFlag(int flagId)
+    {
+        try
+        {
+            if (!SetFlagBit(flagId, true))
+            {
+                Speech.Say("Floor jump not ready, try again.", true);
+                Log("[DungeonNav] floor-jump flag bitmap not initialised; aborted.");
+                return;
+            }
+            Thread.Sleep(180);   // let the trigger key (Backspace) release before synth-F
+            keybd_event(0, (byte)SC_F, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+            Thread.Sleep(40);
+            keybd_event(0, (byte)SC_F, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+            Thread.Sleep(3500);
+            Log($"[DungeonNav] floor-jump flag {flagId} -> now {FieldTracker.CurrentMajor}/{FieldTracker.CurrentMinor}");
+        }
+        catch (Exception ex) { Log($"[DungeonNav] floor-jump error: {ex.Message}"); }
     }
 
     private void TeleportSequence((int major, int minor, string name, int flagId) target)

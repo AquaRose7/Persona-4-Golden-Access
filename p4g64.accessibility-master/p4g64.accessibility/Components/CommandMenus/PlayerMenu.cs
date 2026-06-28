@@ -62,8 +62,12 @@ internal sealed unsafe class PlayerMenu
     private int _lastStripId = -1;
     private string _lastSpoken = "";
 
-    private int _itemRow = -1, _itemTab = -1, _itemTarget = -1;
+    private int _itemRow = -1, _itemTab = -1, _itemTarget = -1, _itemPersonaTarget = -1;
     private bool _itemTargeting;
+    // True once the skill-card persona panel was seen during the current item-use; reset when we
+    // return to the item list. Distinguishes the skill-card learn transition (which must NOT announce
+    // a member) from a real heal-item member select (which never has a preceding persona target).
+    private bool _wasPersonaTarget;
     private int _skillRow = -1, _skillMember = -1, _skillTarget = -1;
     private bool _skillPaneList;
     private int _equipChar = -1, _equipSlot = -1, _equipListRow = -1;
@@ -75,7 +79,6 @@ internal sealed unsafe class PlayerMenu
     private int _stRow, _stItem = -1;        // status detail nav (I/K rows, J/L items)
     private bool _stiW, _stkW, _stjW, _stlW;
     private int _systemRow = -1;
-    private int _questRow = -1;
     private int _slinkRow = -1;
 
     internal PlayerMenu()
@@ -105,6 +108,11 @@ internal sealed unsafe class PlayerMenu
         // OVERLAYS it. When it's open, stop reading the camp menu — otherwise
         // the System submenu behind it keeps re-announcing "Change Difficulty".
         if (ReadChangeDifficulty()) return;
+
+        // The "replace a skill" overlay (skill card → full slots) sits on top of the camp
+        // menu; while it's up, SkillReplaceMenu speaks the skills, so the camp Item poll must
+        // stay silent (else its stale member-target leaks a "name. HP. SP." through).
+        if (SkillReplaceMenu.RecentlyActive) return;
 
         nint pCamp = ReadPtr((nint)PCampPtrAddr);
         int mask = 0;
@@ -185,18 +193,16 @@ internal sealed unsafe class PlayerMenu
         int row = *(short*)(obj + 0x26) + *(short*)(obj + 0x28);
         int total = *(short*)(obj + 0x4C0);
 
-        // Healing/buff skills open a "use on whom" target pane. The settled
-        // cursor index is a plain 0-based field at +0x2A (the skill obj is
-        // shifted +2 vs the item obj, whose index is at +0x28); party count at
-        // +0x38. (Snapshot/live-verified 2026-06-17 with a 3-member party:
-        // first member=0, Chie=2; +0x38=3.) The OLD code mis-modelled +0x2A as
-        // a per-member "blink flag" with count at +0x36 (=count-1), capping the
-        // scan at 2 so the 3rd member read as the MC. Read the index directly.
+        // Healing/buff skills open a "use on whom" target pane. Cursor (list position) = +0x2A
+        // (the skill obj's cursor is +2 vs the item obj's +0x28); active-party COUNT = +0x20
+        // (same field as the item obj — live-verified 2026-06-28: +0x20=4, cursor +0x2A=3 on
+        // Yukiko). The OLD code read +0x38 as the count, but +0x38 is the 4th slot-list entry
+        // (=3), so it rejected member index 3 and the newest member was always silent.
         bool targeting = (flags & 4) != 0;
         if (targeting)
         {
-            int cnt = *(short*)(obj + 0x38);
-            if (cnt < 1 || cnt > 4) cnt = 4;
+            int cnt = *(short*)(obj + 0x20);
+            if (cnt < 1 || cnt > 8) cnt = 8;
             int m = *(short*)(obj + 0x2A);
             if (m < 0 || m >= cnt) return; // transient/out of range
             if (m == _skillTarget) return;
@@ -270,20 +276,38 @@ internal sealed unsafe class PlayerMenu
         {
             _itemTargeting = targeting;
             _itemTarget = -1;
-            if (!targeting) _itemRow = -1; // back on the list — re-announce
+            _itemPersonaTarget = -1;
+            if (!targeting) { _itemRow = -1; _wasPersonaTarget = false; } // back on the list — re-announce
         }
         if (targeting)
         {
-            // "Use on whom?" target pane. The settled cursor index is a plain
-            // 0-based field at +0x28 (0=first roster member … N-1); +0x38 is the
-            // party count. (Snapshot-verified 2026-06-17 with a 3-member party:
-            // MC=0, Yosuke=1, Chie=2; +0x38=3.) The OLD code mis-modelled +0x28
-            // as a per-member "blink flag" with the count at +0x36 (which is
-            // really count-1), so it capped the scan at 2 and never saw the 3rd
-            // member — Chie was announced as the MC. Read the index directly so
-            // it works for any party size (1-4).
-            int tgtCount = *(short*)(obj + 0x38);
-            if (tgtCount < 1 || tgtCount > 4) tgtCount = 4;
+            // SKILL CARD "Use on which Persona?" — a SEPARATE target panel that shows the
+            // MC's persona stock instead of party members. The render (FUN_14016EE20) gates
+            // the persona panel on +0x30A8 bit 4 (vs the member panel at +0x3090); when it's
+            // set, read the persona list, not the member index. RE 2026-06-26 (snapshot +
+            // CE find-what-accesses [rdi+0x2A] -> render). Check FIRST so we never speak the
+            // stale "Member 1" the member branch produced (the reported silent bug).
+            if (IsReadable(obj + 0x30A8, 1) && (*(byte*)(obj + 0x30A8) & 4) != 0)
+            {
+                _wasPersonaTarget = true;
+                ReadPersonaTarget(obj);
+                return;
+            }
+            // A skill card's persona-confirm transition keeps targeting flagged (and even the member
+            // panel flag set) for a few frames before the "replace a skill" screen loads — the member
+            // branch then leaks a stale "name. HP. SP." (member 0). A real heal-item member select never
+            // follows a persona target, so suppress the member announce when one was seen this item-use.
+            // The flag resets the moment we return to the item list, so switching to a heal item speaks
+            // immediately (no timer).
+            if (_wasPersonaTarget) { _itemTarget = -1; return; }
+            // "Use on whom?" target pane. Cursor (list position) = +0x28; the active-party
+            // COUNT = +0x20. (Live-verified 2026-06-28 with a 4-member party: +0x20=4 constant
+            // as the cursor swept 0→3; +0x32+i*2 = {0,1,2,3} are the list's roster slots.)
+            // The OLD code read +0x38 as the count — but +0x38 is actually the 4th SLOT-LIST
+            // entry (=3), constant at 3, so it rejected member index 3 (the newest member,
+            // e.g. Yukiko) as out-of-range → the last member to join was always silent.
+            int tgtCount = *(short*)(obj + 0x20);
+            if (tgtCount < 1 || tgtCount > 8) tgtCount = 8;
             int member = *(short*)(obj + 0x28);
             if (member < 0 || member >= tgtCount) return; // transient/out of range
             if (member == _itemTarget) return;
@@ -317,6 +341,34 @@ internal sealed unsafe class PlayerMenu
         if (!string.IsNullOrEmpty(desc)) msg += ". " + desc;
         Speak(msg);
 
+    }
+
+    // Skill-card "Use on which Persona?" list (the persona-target panel, +0x30A8 bit 4).
+    // Shows the MC's persona stock. Fields in the Item submenu obj (RE 2026-06-26, snapshot +
+    // CE find-what-accesses on the cursor -> render FUN_14016EE20):
+    //   +0x2A   short  cursor (highlighted list row)
+    //   +0x2858 short  count (personas listed)
+    //   +0x2840 u16[]  per-row STOCK SLOT index -> ProtagPersonas[slot] (id @+2, level @+4)
+    private void ReadPersonaTarget(nint obj)
+    {
+        if (!IsReadable(obj + 0x2858, 2)) return;
+        int count = *(short*)(obj + 0x2858);
+        int cursor = *(short*)(obj + 0x2A);
+        if (count < 1 || count > 12 || cursor < 0 || cursor >= count) return;
+        if (cursor == _itemPersonaTarget) return;
+        _itemPersonaTarget = cursor;
+
+        if (!IsReadable(obj + 0x2840 + cursor * 2, 2)) return;
+        int slot = *(short*)(obj + 0x2840 + cursor * 2);
+        var party = PartyInfoSafe;
+        if (party == null || slot < 0 || slot > 11) return;
+        nint entry = (nint)(&party->ProtagPersonas) + (nint)slot * 0x30;
+        if (!IsReadable(entry, 0x30)) return;
+        int pid = *(short*)(entry + 2);
+        int level = *(byte*)(entry + 4);
+        string nm = (pid >= 1 && pid <= 512) ? GetName(pid) : $"Persona {cursor + 1}";
+        Log($"[PlayerMenu][Item] persona target cursor={cursor} slot={slot} id={pid} lv={level}");
+        Speak($"{nm}, level {level}, {cursor + 1} of {count}");
     }
 
     // Equip: character cursor +0x28 (ids u16[] at +0x38, count +0x4C),
@@ -628,17 +680,31 @@ internal sealed unsafe class PlayerMenu
     private void ReadSocialLink(nint obj)
     {
         if (!IsReadable(obj, 0x100)) return;
-        int row = *(short*)(obj + 0x28);
+        // ABSOLUTE row = visible-window cursor (+0x28) + scroll offset (+0x2A). The OLD code used
+        // only +0x28, so scrolling the list (which moves the window while the visible cursor stays
+        // put) didn't change `row` → the dedup silenced it → "a lot of choices don't read."
+        // (Live-verified 2026-06-28: cursor on Margaret/Empress had +0x28=2, +0x2A=1 → row 3, and
+        // record[3] @+0x40+3*0xC = {arcana 4, mid 20, rank 1} = Empress, rank 1. ✓)
+        int row = *(short*)(obj + 0x28) + *(short*)(obj + 0x2A);
         if (row < 0 || row > 23) return;
         if (row == _slinkRow) return;
         nint rec = obj + 0x40 + (nint)row * 0x0C;
         int arcana = *(ushort*)(rec + 0);
         int rank = *(ushort*)(rec + 4);
-        if (arcana < 1 || arcana > 25) return;   // empty/invalid row — don't latch
+        // Golden remaps the late arcana ids vs the tarot table, so they need explicit names here
+        // (verified live 2026-06-28 against the on-screen labels): internal id 25 = Jester (Adachi —
+        // the shared ArcanaName wrongly gives "Hunger"), 27 = Aeon (Marie). Both are past the 25-entry
+        // tarot table, so the old "> 25" guard also silenced Marie's row.
+        if (arcana < 1 || arcana > 27) return;   // empty/invalid row — don't latch
         _slinkRow = row;
         Log($"[PlayerMenu][SLink] row {row} arcana {arcana} rank {rank} (mid={*(ushort*)(rec + 2)})");
         string holder = SLinkHolder(arcana);
-        string arcName = Battle.Battle.ArcanaName(arcana);
+        string arcName = arcana switch
+        {
+            25 => "Jester",   // Golden internal id 25 = Jester (Adachi); ArcanaName(25) wrongly = "Hunger"
+            27 => "Aeon",     // Golden internal id 27 = Aeon (Marie)
+            _  => Battle.Battle.ArcanaName(arcana)
+        };
         string rk = (rank >= 1 && rank <= 10) ? $", rank {rank}" : "";
         Speak(holder.Length > 0 ? $"{holder}, {arcName}{rk}" : $"{arcName}{rk}");
     }
@@ -669,25 +735,13 @@ internal sealed unsafe class PlayerMenu
         23 => "Marie",
         24 => "Tohru Adachi",
         25 => "Tohru Adachi",
+        27 => "Marie",            // Golden internal Aeon id (records use 27, not the tarot 23)
         _ => ""
     };
 
-    // Quest: cursor +0x28 (visible row), scroll +0x2A.
-    private void ReadQuest(nint obj)
-    {
-        int row = *(short*)(obj + 0x28) + *(short*)(obj + 0x2A);
-        if (row == _questRow) return;
-        _questRow = row;
-
-        // All quests are "No Quest" until discovered, and the discovered gate
-        // is a GLOBAL the game checks (not in this object — +0x34/+0x36/+0x3C
-        // vary per row even when all are undiscovered, so they're slot/title
-        // ids, not state). Reading HelpBmd.Quest[idx] showed objectives that
-        // the screen hides (spoilers) — DON'T. Announce "No Quest" to match
-        // the screen. TODO: real titles/objectives need the discovered-state
-        // global, found+verified once the player has an active quest.
-        Speak($"Quest {row + 1}, No Quest");
-    }
+    // Quest: handled by QuestMenu.cs (hooks the UI-text fn to read real titles). This is a
+    // no-op so the two don't double-speak. See memory/quest_menu_deadend.md → quest_menu_solved.
+    private void ReadQuest(nint obj) { }
 
     // System: option ids s16[] at +0x3E, scroll +0x32, in-page cursor +0x2C,
     // visible count +0x4E. Ids live: [1,2,3,5,4,6,7]. id1=Config CONFIRMED
@@ -1113,7 +1167,6 @@ internal sealed unsafe class PlayerMenu
         _statusSel = -1;
         _stRow = 0; _stItem = -1;
         _systemRow = -1;
-        _questRow = -1;
         _slinkRow = -1;
     }
 

@@ -1,0 +1,54 @@
+1
+00:00:00,000 --> 00:00:01,000
+A dark screen displays a single, glowing blue four-pointed star in the center.
+2
+00:00:01,000 --> 00:00:03,000
+The screen transforms into a fast-paced, kaleidoscopic pattern of black, white, and yellow shapes that shift rhythmically.
+3
+00:00:03,000 --> 00:00:05,000
+The scene transitions to a blue night sky filled with stars, where a butterfly with glowing blue wings hovers above a floating yellow television screen.
+4
+00:00:05,000 --> 00:00:10,000
+The television screen expands to fill the view, displaying the title, Persona 4 Golden, in stylized lettering against a yellow grid background.
+5
+00:00:10,000 --> 00:00:14,000
+A young man in a school uniform walks through a vibrant, abstract space featuring geometric shapes and a black-and-white houndstooth pattern.
+6
+00:00:14,000 --> 00:00:18,000
+A young man with light hair wearing a dark coat jumps while holding a blue plastic bucket over his head, accompanied by abstract musical notes.
+7
+00:00:18,000 --> 00:00:23,000
+A girl in a green school uniform performs a dance on a bright green background, surrounded by colorful, stylized flowers.
+8
+00:00:23,000 --> 00:00:27,000
+A girl in a red blazer stands on a red background while holding a traditional paper fan, with black-and-white checkered patterns floating around her.
+9
+00:00:27,000 --> 00:00:31,000
+A young man in a dark sweater walks purposefully across a bright purple screen, decorated with electric yellow zig-zag lines and pink rabbit silhouettes.
+10
+00:00:31,000 --> 00:00:35,000
+A young woman with long reddish-brown hair dances on a bright pink background, surrounded by drifting black and purple heart shapes.
+11
+00:00:35,000 --> 00:00:39,000
+A young person in a dark coat and hat stands on a vibrant blue background, with mechanical black gears rotating slowly in the corners.
+12
+00:00:39,000 --> 00:00:43,000
+A cartoon bear creature in a red, white, and blue astronaut suit stands on a yellow background, waving its hands with a cheerful expression.
+13
+00:00:43,000 --> 00:00:55,000
+The screen displays abstract scenes of people in silhouette against yellow cautionary tape, moving through rain and electrical power lines, with large text identifying the production staff.
+14
+00:00:55,000 --> 00:01:00,000
+Inside a dark room with purple velvet curtains, three figures in uniform sit around a long wooden table covered in playing cards, with snowflakes drifting in the air.
+15
+00:01:00,000 --> 00:01:03,000
+A group of characters wearing helmets rides a motor scooter through a blue tunnel, with rainbow-colored motion trails blurring behind them.
+16
+00:01:03,000 --> 00:01:16,000
+The scene shifts through a rapid series of colorful, geometric patterns that cycle through snapshots of all the characters, including close-ups and dynamic poses.
+17
+00:01:16,000 --> 00:01:21,000
+A young man in a school uniform stands in a dark, red-lit void, removes his glasses, and looks directly at the camera, before the glasses float away into a bright blue sky.
+18
+00:01:21,000 --> 00:01:30,000
+The video concludes by returning to the original dark screen, showing the blue star, the kaleidoscopic pattern, the butterfly, and the floating yellow television screen.

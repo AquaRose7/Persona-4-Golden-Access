@@ -19,6 +19,17 @@ internal unsafe class DifficultyMenu : IDisposable
         "Very Easy", "Easy", "Normal", "Hard", "Very Hard"
     };
 
+    // The on-screen description for each difficulty (transcribed from the game —
+    // the text is baked into an encoded blob, not extractable as plain text).
+    private static readonly string[] Descriptions =
+    {
+        "This mode is easier than easy. Relax and enjoy the story. If your party is wiped in battle, you can instantly retry.",
+        "For those who are less than confident in their skills. The battles are easier than Normal mode, so don't get too worked up.",
+        "This is the best balance of difficulty and enjoyment. Please experience the tension.",
+        "This is for the confident. Battles are more challenging, and you'll experience severe gameplay.",
+        "Do you hate yourself, or are you supremely self-confident? This difficulty requires a strength of heart that never gives in.",
+    };
+
     private IHook<RenderDelegate>? _hook;
     private short _lastCursor = -1;
 
@@ -60,7 +71,7 @@ internal unsafe class DifficultyMenu : IDisposable
         if (wasFirstRender) return;
 
         LogDebug($"Difficulty menu: cursor={cursor} -> {Options[cursor]}");
-        Speech.Say(Options[cursor], true);
+        Speech.Say($"{Options[cursor]}. {Descriptions[cursor]}", true);
     }
 
     public void Dispose() { }

@@ -84,6 +84,8 @@ internal class ControllerInput
     private readonly HashSet<int> _synthDown = new();
     private bool _rtHeld, _ltHeld;             // hysteretic trigger state (poll thread)
     private bool _bUpWas, _bDownWas, _bLeftWas, _bRightWas;  // LT+RT d-pad edge state (speech history)
+    private bool _bR3Was;                                    // LT+RT + R3 edge state (subtitle toggle)
+    private bool _bL3Was;                                    // LT+RT + L3 edge state (description toggle)
     private bool _connectedLogged;
 
     private readonly Thread _thread;
@@ -142,7 +144,7 @@ internal class ControllerInput
         _ltHeld = _ltHeld ? lt >= TrigOff : lt >= TrigOn;
         _modHeldShared = _rtHeld || _ltHeld;   // published for the per-frame OnInputFn (no per-frame XInput)
         bool both = _rtHeld && _ltHeld;
-        if (!both) _bUpWas = _bDownWas = _bLeftWas = _bRightWas = false;  // reset history edges off-combo
+        if (!both) _bUpWas = _bDownWas = _bLeftWas = _bRightWas = _bR3Was = _bL3Was = false;  // reset edges off-combo
 
         ushort b = st.Gamepad.Buttons;
 
@@ -160,6 +162,8 @@ internal class ControllerInput
             EdgeFire(b, DPAD_LEFT,  ref _bLeftWas,  static () => Speech.Step(-1));        // history back
             EdgeFire(b, DPAD_RIGHT, ref _bRightWas, static () => Speech.Step(+1));        // history forward
             EdgeFire(b, DPAD_DOWN,  ref _bDownWas,  static () => Dialogue.ToggleReader()); // dialogue auto-read on/off
+            EdgeFire(b, R3,         ref _bR3Was,    static () => SubtitleReader.ToggleReader()); // movie subtitle on/off
+            EdgeFire(b, L3,         ref _bL3Was,    static () => MovieDescription.Toggle());     // cutscene description on/off
         }
         else if (_rtHeld)
         {

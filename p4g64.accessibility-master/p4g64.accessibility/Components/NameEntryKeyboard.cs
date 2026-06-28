@@ -13,11 +13,15 @@ namespace p4g64.accessibility.Components;
 ///   inner + 0x20 = column (int, 0–19)
 ///   inner + 0x24 = row    (int, 0–6)
 ///
-/// The keyboard is 20 columns × 7 rows:
-///   Cols  0– 4 : uppercase A–Z (rows 0–5)
-///   Cols  5– 9 : lowercase a–z (rows 0–5)
-///   Cols 10–14 : digits 0–9 (rows 0–1) + Atlus-encoded symbols (rows 2–5)
-///   Cols 15–19 : ASCII symbols &amp; through @, and more
+/// The keyboard is 20 columns × 7 rows, in 4 panels (verified from screenshot
+/// database/player menu/name.jpeg, 2026-06-25):
+///   Cols  0– 4 : uppercase A–Z (Z alone on row 5)
+///   Cols  5– 9 : lowercase a–z
+///   Cols 10–14 : digits 0–9 ONLY (rows 0–1; rows 2–5 are empty)
+///   Cols 15–19 : symbols — row0 + − × ÷ = · row1 . , ( ) ? · row2 ! # $ % &
+///                · row3 * / " , · · row4 : ;
+/// Symbols are spoken as words for clarity. Space/OK/Delete are bottom BUTTONS
+/// (controller-bound), not grid cells, so they're not in this map.
 /// </summary>
 internal unsafe class NameEntryKeyboard : IDisposable
 {
@@ -26,52 +30,52 @@ internal unsafe class NameEntryKeyboard : IDisposable
     {
         // row 0
         {
-            "A","B","C","D","E",          // cols  0– 4  uppercase
-            "a","b","c","d","e",          // cols  5– 9  lowercase
-            "0","1","2","3","4",          // cols 10–14  digits (Atlus 0x0005-0x0009)
-            "&","'","(",")", "*"          // cols 15–19  symbols
+            "A","B","C","D","E",                                 // cols  0– 4 uppercase
+            "a","b","c","d","e",                                 // cols  5– 9 lowercase
+            "0","1","2","3","4",                                 // cols 10–14 digits
+            "plus","minus","times","divide","equals"             // cols 15–19 symbols
         },
         // row 1
         {
             "F","G","H","I","J",
             "f","g","h","i","j",
-            "5","6","7","8","9",          // Atlus 0x000A-0x000E
-            "+", null, null, null, ","
+            "5","6","7","8","9",
+            "period","comma","open parenthesis","close parenthesis","question mark"
         },
         // row 2
         {
             "K","L","M","N","O",
             "k","l","m","n","o",
-            null,null,null,null,null,     // Atlus 0x000F-0x0013  (unknown symbols)
-            "-",".","/" ,"0","1"
+            null,null,null,null,null,                            // digits panel: nothing below 0–9
+            "exclamation mark","hash","dollar","percent","ampersand"
         },
         // row 3
         {
             "P","Q","R","S","T",
             "p","q","r","s","t",
-            null,null,null,null,null,     // Atlus 0x0014-0x0018
-            "2","3","4","5","6"
+            null,null,null,null,null,
+            "asterisk","slash","quote","comma","dot"
         },
         // row 4
         {
             "U","V","W","X","Y",
             "u","v","w","x","y",
-            null,null,null,null,null,     // Atlus 0x0019-0x001D
-            "7","8","9",":",";"
+            null,null,null,null,null,
+            "colon","semicolon",null,null,null
         },
         // row 5
         {
-            "Z","[","\\","]","^",
-            "z","{","|","}","~",
-            null,null,"Space","!","\"",   // Atlus 0x001E-0x001F, then ASCII space/!/\"
-            "<","=",">","?","@"
+            "Z",null,null,null,null,
+            "z",null,null,null,null,
+            null,null,null,null,null,
+            null,null,null,null,null
         },
-        // row 6
+        // row 6 (no grid keys)
         {
-            "_","`", null, null, null,    // cols 0–4
-            "Delete",null,null,null,null, // cols 5–9  (0x007F = DEL)
-            null,null,null,null,null,     // cols 10–14
-            null,null,null,null,null      // cols 15–19
+            null,null,null,null,null,
+            null,null,null,null,null,
+            null,null,null,null,null,
+            null,null,null,null,null
         },
     };
 
@@ -141,8 +145,13 @@ internal unsafe class NameEntryKeyboard : IDisposable
         var ch = CharMap[row, col];
         if (ch == null) return;
 
-        LogDebug($"Keyboard: row={row} col={col} -> {ch}");
-        Speech.Say(ch, true);
+        // In THIS keyboard only: prefix uppercase LETTERS with "cap" so they're
+        // distinguishable by ear from their lowercase twins (which read as just
+        // the letter). Digits and symbols ([, ^, etc.) are left as-is.
+        string spoken = (ch.Length == 1 && ch[0] >= 'A' && ch[0] <= 'Z') ? $"cap {ch}" : ch;
+
+        LogDebug($"Keyboard: row={row} col={col} -> {spoken}");
+        Speech.Say(spoken, true);
     }
 
     private int  _lastField = -1;
