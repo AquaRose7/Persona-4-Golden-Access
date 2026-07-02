@@ -37,6 +37,7 @@ internal unsafe class MovieDescription : IDisposable
     internal static void Toggle()
     {
         Enabled = !Enabled;
+        ModSettings.SetBool("movie_descriptions", Enabled);
         Speech.Say(Enabled ? "Descriptions on." : "Descriptions off.", true);
     }
 

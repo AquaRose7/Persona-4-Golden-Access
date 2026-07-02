@@ -55,6 +55,7 @@ public unsafe class SkillSelect
             // merely echoes it isn't spoken twice (MessageBubble consumes this).
             Battle.PendingEchoSkillId = skillId;
             Battle.PendingEchoSkillTick = Environment.TickCount64;
+            Battle.SelectedSkillId = skillId;   // persistent — TargetReader reads its element for weakness
         }
         catch { }
         if (skillId == _lastSkillId)
@@ -99,7 +100,9 @@ public unsafe class SkillSelect
                 skillElement > Skill.ElementalType.Dark
                     ? "Support"
                     : skillElement.ToString(); // The icon does not differentiate between the non-damaging types
-            text = $"{skillName}: {elementText} skill that costs {skillCost} {costType}. "; // TODO availability
+            // Scope (single/all) is already in the skill's description, so it's not repeated here.
+            // The AoE affinity breakdown is spoken at the TARGET step (MultiTargetReader).
+            text = $"{skillName}: {elementText} skill that costs {skillCost} {costType}. ";
         }
 
         if (drawDescription)

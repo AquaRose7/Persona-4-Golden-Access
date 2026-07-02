@@ -26,14 +26,15 @@ namespace p4g64.accessibility.Components;
 ///   RT + B          → enemy status         (U)
 ///   RT + Y          → time + date          (M)
 ///   RT + d-pad      → grid-cursor move I/K/J/L
-///   RT + L3         → grid-cursor open/toggle    (H)
+///   RT + L3         → grid-cursor open/toggle (H)  — OR, in battle, read current character (Shift+O)
+///   RT + L/R shoulder → cycle ally prev/next (; / ')  — battle only
 ///   RT + R3         → cursor walk/look mode (N)   — dungeon walking vs cursor
 ///   LT + d-pad ←/→  → category prev/next   (- / =)
 ///   LT + d-pad ↑/↓  → entry prev/next      ([ / ])
 ///   LT + A          → brief: name + distance (\)
 ///   LT + B          → overworld nav beacon (P)
 ///   LT + L3 or R3   → auto-walk            (Backspace)
-///   LT + X          → FREE (was auto-walk; moved off X because the game reads X as Open-Menu)
+///   LT + X          → room "Quick interact" menu (same as Shift+F; X is suppressed while LT held)
 ///
 /// ## Stopping the GAME from also reacting (the hard part — solved at P4G's own input layer)
 /// P4G assembles its button presses into an internal bitfield in <c>FUN_140505D50</c> (found via
@@ -62,6 +63,7 @@ internal class ControllerInput
     // XInput digital button masks.
     private const ushort DPAD_UP = 0x0001, DPAD_DOWN = 0x0002, DPAD_LEFT = 0x0004, DPAD_RIGHT = 0x0008;
     private const ushort L3 = 0x0040, R3 = 0x0080;
+    private const ushort LB = 0x0100, RB = 0x0200;   // left / right shoulder (bumpers)
     private const ushort A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000;
 
     // Virtual-key codes the existing handlers poll for.
@@ -86,6 +88,8 @@ internal class ControllerInput
     private bool _bUpWas, _bDownWas, _bLeftWas, _bRightWas;  // LT+RT d-pad edge state (speech history)
     private bool _bR3Was;                                    // LT+RT + R3 edge state (subtitle toggle)
     private bool _bL3Was;                                    // LT+RT + L3 edge state (description toggle)
+    private bool _ltXWas;                                    // LT + X edge state (room Quick interact menu)
+    private bool _rtL3Was, _rtLbWas, _rtRbWas;               // RT + L3 / shoulders edge state (battle character keys)
     private bool _connectedLogged;
 
     private readonly Thread _thread;
@@ -123,9 +127,25 @@ internal class ControllerInput
 
         // Bug #1 focus gate: only act when the game is focused AND a pad is present.
         if (GameHasFocus() && TryGetState(out XInputState st))
+        {
             ComputeDesired(st, desired);
+            // Publish the movement vector (-1..1 each axis) for WallBump's intent/direction check —
+            // reuses this poll's already-read state so nothing else has to hit XInput (perf). Left stick
+            // + D-pad (D-pad only when NO trigger is held, i.e. it's game movement not a mod shortcut).
+            float mvx = st.Gamepad.ThumbLX / 32767f, mvy = st.Gamepad.ThumbLY / 32767f;
+            if (!_modHeldShared)
+            {
+                ushort b = st.Gamepad.Buttons;
+                if ((b & DPAD_RIGHT) != 0) mvx += 1f;
+                if ((b & DPAD_LEFT)  != 0) mvx -= 1f;
+                if ((b & DPAD_UP)    != 0) mvy += 1f;
+                if ((b & DPAD_DOWN)  != 0) mvy -= 1f;
+            }
+            LeftStickX = Math.Clamp(mvx, -1f, 1f);
+            LeftStickY = Math.Clamp(mvy, -1f, 1f);
+        }
         else
-            { _rtHeld = _ltHeld = false; _modHeldShared = false; }
+            { _rtHeld = _ltHeld = false; _modHeldShared = false; LeftStickX = 0f; LeftStickY = 0f; }
 
         // Diff desired vs currently-synthesized; press/release the delta.
         foreach (int vk in AllVks)
@@ -145,6 +165,8 @@ internal class ControllerInput
         _modHeldShared = _rtHeld || _ltHeld;   // published for the per-frame OnInputFn (no per-frame XInput)
         bool both = _rtHeld && _ltHeld;
         if (!both) _bUpWas = _bDownWas = _bLeftWas = _bRightWas = _bR3Was = _bL3Was = false;  // reset edges off-combo
+        if (!_ltHeld) _ltXWas = false;                                                        // reset LT+X edge off-LT
+        if (!_rtHeld) _rtL3Was = _rtLbWas = _rtRbWas = false;                                  // reset RT character-key edges off-RT
 
         ushort b = st.Gamepad.Buttons;
 
@@ -179,8 +201,17 @@ internal class ControllerInput
             if ((b & DPAD_LEFT)  != 0) desired.Add(VK_J);  // cursor left
             if ((b & DPAD_RIGHT) != 0) desired.Add(VK_L);  // cursor right
 
-            if ((b & L3) != 0) desired.Add(VK_H); // grid-cursor open/toggle      (H)
+            // L3: in battle → read the CURRENT acting character (Shift+O); otherwise the dungeon
+            // grid-cursor toggle (H). Gate = FieldTracker.InBattle (major 220-299) — the OLD
+            // ActiveBtlInfo!=0 gate went STALE after a battle ended (pointer not cleared), which
+            // permanently blocked H on the pad (user report 2026-07-03).
+            if ((b & L3) != 0 && !FieldTracker.InBattle) desired.Add(VK_H); // grid-cursor toggle (H)
             if ((b & R3) != 0) desired.Add(VK_N); // cursor walk/look mode toggle (N)
+
+            // Battle character keys (one-shot): RT + L3 = current character; RT + shoulders = cycle ally.
+            EdgeFire(b, L3, ref _rtL3Was, static () => { if (FieldTracker.InBattle) Battle.PartyStatus.ReadCurrentCharacter(); });
+            EdgeFire(b, LB, ref _rtLbWas, static () => Battle.PartyStatus.CycleCurrentAlly(-1));
+            EdgeFire(b, RB, ref _rtRbWas, static () => Battle.PartyStatus.CycleCurrentAlly(+1));
         }
         else if (_ltHeld)
         {
@@ -196,6 +227,10 @@ internal class ControllerInput
             if ((b & B) != 0) desired.Add(VK_P);           // overworld nav beacon   (P)
 
             if ((b & L3) != 0 || (b & R3) != 0) desired.Add(VK_BACK); // auto-walk (Backspace)
+
+            // LT + X = open the room "Quick interact" menu (one-shot; the game's X is suppressed
+            // while LT is held, so no game menu). Same as Shift+F.
+            EdgeFire(b, X, ref _ltXWas, static () => RoomActionMenu.ControllerOpenRequest = true);
         }
     }
 
@@ -275,6 +310,11 @@ internal class ControllerInput
     private IHook<InputFnDelegate>? _inputHook;
     private long[]? _validBits;                    // InputBitfields validated ONCE (static BSS) — no per-frame VirtualQuery
     private static volatile bool _modHeldShared;   // trigger-held, published by the poll thread; read per-frame here
+
+    /// <summary>Left analog stick vector (-1..1 per axis; +X right, +Y up), published each poll (0
+    /// when unfocused / no pad). WallBump reads it for movement intent + direction without polling
+    /// XInput itself.</summary>
+    internal static volatile float LeftStickX, LeftStickY;
 
     private void TrySetupInputSuppression(IReloadedHooks hooks)
     {
@@ -382,13 +422,27 @@ internal class ControllerInput
     private int OnGetDeviceState0(nint self, uint cb, nint data) { int hr = _gds0!.OriginalFunction(self, cb, data); MaskKeyboard(hr, cb, data); return hr; }
     private int OnGetDeviceState1(nint self, uint cb, nint data) { int hr = _gds1!.OriginalFunction(self, cb, data); MaskKeyboard(hr, cb, data); return hr; }
 
+    // Suppress the game's read of physical F WHILE Shift is held, so the Room Action
+    // menu trigger (Shift+F → RoomActionMenu) doesn't ALSO open the game's normal F menu
+    // (same double-fire problem the controller suppression solves for pad buttons). Our own
+    // menu-opening synth F is sent clean (Shift released) + isn't tracked here, so it's
+    // untouched. DIK: F=0x21, LSHIFT=0x2A, RSHIFT=0x36.
+    internal static bool SuppressShiftF = true;
+    private const int DIK_F = 0x21, DIK_LSHIFT = 0x2A, DIK_RSHIFT = 0x36;
+
     private static unsafe void MaskKeyboard(int hr, uint cb, nint data)
     {
         if (hr != 0 || data == 0 || cb != 256) return;   // 256 = DInput keyboard state (DIK-indexed, 0x80=down)
-        if (_synthScanCount <= 0) return;
         if (!IsReadable(data, 256)) return;
-        for (int sc = 1; sc < 256; sc++)
-            if (_synthScan[sc] != 0 && *(byte*)(data + sc) != 0) *(byte*)(data + sc) = 0;
+
+        if (_synthScanCount > 0)
+            for (int sc = 1; sc < 256; sc++)
+                if (_synthScan[sc] != 0 && *(byte*)(data + sc) != 0) *(byte*)(data + sc) = 0;
+
+        if (SuppressShiftF
+            && (*(byte*)(data + DIK_LSHIFT) != 0 || *(byte*)(data + DIK_RSHIFT) != 0)
+            && *(byte*)(data + DIK_F) != 0)
+            *(byte*)(data + DIK_F) = 0;
     }
 
     // ── key synthesis (VK form: updates GetAsyncKeyState, which every handler polls) ──

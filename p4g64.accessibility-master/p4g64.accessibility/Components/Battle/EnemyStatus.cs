@@ -59,7 +59,7 @@ internal sealed unsafe class EnemyStatus
 
     private void Announce()
     {
-        if (!FieldTracker.InBattle)   // per-dungeon battle major (240, 241, …)
+        if (!FieldTracker.InBattle)   // battle major = 200 + floor major (band 220-299)
         {
             Speech.Say("Enemy status only works in battle.", true);
             return;
@@ -91,6 +91,8 @@ internal sealed unsafe class EnemyStatus
             if (down) speech.Append(", down");
             string ail = Battle.AilmentText(status);
             if (ail != null) speech.Append($", {ail}");
+            string buffs = Battle.BuffTextFromStat(stat);
+            if (buffs != null) speech.Append($", {buffs}");
             speech.Append(". ");
         }
 

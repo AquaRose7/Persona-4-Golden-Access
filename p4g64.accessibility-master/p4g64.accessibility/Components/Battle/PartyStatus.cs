@@ -30,6 +30,10 @@ internal sealed unsafe class PartyStatus
 {
     private const int PollMs = 50;
     private const int VK_O = 0x4F;
+    private const int VK_SHIFT = 0x10;                   // Shift+O — read the current acting character
+    private const int VK_SEMI = 0xBA, VK_QUOTE = 0xDE;   // ; / ' — cycle one ally's status (battle only)
+    private bool _semiWas, _quoteWas;
+    private int _cursor;
 
     // Base of the persistent party-member array (slot 0 = protagonist) and the
     // record stride. Both confirmed from runtime dumps; static under ASLR-off.
@@ -66,11 +70,19 @@ internal sealed unsafe class PartyStatus
     private volatile bool _stopped;
     private bool _keyWas;
 
+    /// Shared instance so ControllerInput can route RT+shoulders / RT+L3 to the same readers.
+    internal static PartyStatus Instance;
+    /// Cycle one ally (battle only) — controller RT + left/right shoulder.
+    internal static void CycleCurrentAlly(int dir) { if (Battle.ActiveBtlInfo != 0) Instance?.CycleAlly(dir); }
+    /// Read the current acting character — controller RT + L3 (in battle).
+    internal static void ReadCurrentCharacter() => Instance?.AnnounceCurrent();
+
     public PartyStatus()
     {
+        Instance = this;
         _thread = new Thread(PollLoop) { IsBackground = true, Name = "PartyStatus" };
         _thread.Start();
-        Log("[PartyStatus] ready (O = speak party HP/SP)");
+        Log("[PartyStatus] ready (O = party HP/SP, Shift+O = current character, ; ' = cycle ally)");
     }
 
     public void Stop() => _stopped = true;
@@ -84,8 +96,21 @@ internal sealed unsafe class PartyStatus
             {
                 if (!Utils.GameHasFocus()) continue;   // ignore O while alt-tabbed
                 bool down = IsKeyDown(VK_O);
-                if (down && !_keyWas) Announce();
+                if (down && !_keyWas) { if (IsKeyDown(VK_SHIFT)) AnnounceCurrent(); else Announce(); }
                 _keyWas = down;
+
+                // ; / ' cycle through one ally's status at a time — battle only, so they don't
+                // clash with ; (NPC id) in the overworld.
+                if (Battle.ActiveBtlInfo != 0)
+                {
+                    bool semi = IsKeyDown(VK_SEMI);
+                    if (semi && !_semiWas) CycleAlly(-1);
+                    _semiWas = semi;
+                    bool quote = IsKeyDown(VK_QUOTE);
+                    if (quote && !_quoteWas) CycleAlly(+1);
+                    _quoteWas = quote;
+                }
+                else { _semiWas = _quoteWas = false; }
             }
             catch (Exception ex)
             {
@@ -119,39 +144,102 @@ internal sealed unsafe class PartyStatus
             if ((inParty & 1) == 0) continue;
             if (id == 0 || id > 32) continue;
 
-            string name = id == 1
-                ? (FirstName(DecodeAtlusName(McNameAddr)) ?? "Protagonist")
-                : (_names.TryGetValue(id, out var n) ? n : $"Member {id}");
-
-            // Max HP/SP via the confirmed party getters. Only call them in battle
-            // (major 240) where their context is valid; the stat node is this very
-            // slot pointer. Sanity-gate the result (max >= current).
-            int maxHp = -1, maxSp = -1;
-            if (FieldTracker.InBattle && Battle.GetMaxHp != null && Battle.GetMaxSp != null
-                && IsReadable(slot, 0x100))
-            {
-                try { maxHp = Battle.GetMaxHp(slot); maxSp = Battle.GetMaxSp(slot); } catch { }
-                if (maxHp < hp || maxHp > 9999) maxHp = -1;
-                if (maxSp < sp || maxSp > 9999) maxSp = -1;
-            }
-
-            string hpStr = maxHp > 0 ? $"{hp} of {maxHp} HP" : $"{hp} HP";
-            string spStr = maxSp > 0 ? $"{sp} of {maxSp} SP" : $"{sp} SP";
-            // Status ailment (the record IS the battle stat node; +0x0C status).
-            uint status = *(uint*)(b + 0x0C);
-            string ail = Battle.AilmentText(status);
-            if ((status & Battle.StatusDown) != 0) ail = ail == null ? "down" : $"down, {ail}";
-            // Flag-word bit 0x200 = guard stance (confirmed twice, 2026-06-10).
-            if ((inParty & 0x200) != 0) ail = ail == null ? "guarding" : $"{ail}, guarding";
-            sb.Append(ail == null
-                ? $"{name} {hpStr}, {spStr}. "
-                : $"{name} {hpStr}, {spStr}, {ail}. ");
+            sb.Append(DescribeMember(slot, id)).Append(". ");
             spoken++;
         }
 
         string msg = spoken > 0 ? sb.ToString().TrimEnd() : "No party data.";
         Speech.Say(msg, true);
         Log($"[PartyStatus] O ->{logSb} | {msg}");
+    }
+
+    /// Shift+O — read the CURRENT acting character (whose turn it is): name, HP/SP, ailments, buffs.
+    private void AnnounceCurrent()
+    {
+        if (Battle.ActiveBtlInfo == 0) { Speech.Say("Only in battle.", true); return; }
+        nint unit = Battle.ActingUnit();
+        if (unit == 0 || !IsReadable(unit + 0xCF8, 8)) { Speech.Say("No current character.", true); return; }
+        nint stat = *(nint*)(unit + 0xCF0);
+        if (!IsReadable(stat, 0x28)) { Speech.Say("No current character.", true); return; }
+        var b = (byte*)stat;
+        ushort hp = *(ushort*)(b + 0x08);
+        ushort sp = *(ushort*)(b + 0x0A);
+
+        string name = FirstName(Battle.UnitName(unit)) ?? "Current";
+        int maxHp = -1, maxSp = -1;
+        if (Battle.GetMaxHp != null && Battle.GetMaxSp != null)
+        {
+            try { maxHp = Battle.GetMaxHp(stat); maxSp = Battle.GetMaxSp(stat); } catch { }
+            if (maxHp < hp || maxHp > 9999) maxHp = -1;
+            if (maxSp < sp || maxSp > 9999) maxSp = -1;
+        }
+        string hpStr = maxHp > 0 ? $"{hp} of {maxHp} HP" : $"{hp} HP";
+        string spStr = maxSp > 0 ? $"{sp} of {maxSp} SP" : $"{sp} SP";
+
+        uint status = *(uint*)(b + 0x0C);
+        string ail = Battle.AilmentText(status);
+        if ((status & Battle.StatusDown) != 0) ail = ail == null ? "down" : $"down, {ail}";
+        string buffs = Battle.BuffTextFromStat(stat);
+        if (buffs != null) ail = ail == null ? buffs : $"{ail}, {buffs}";
+
+        string line = ail == null ? $"{name}, {hpStr}, {spStr}" : $"{name}, {hpStr}, {spStr}, {ail}";
+        Speech.Say(line, true);
+        Log($"[PartyStatus] Shift+O current -> {line}");
+    }
+
+    /// One member's spoken line: "Name N of M HP, K of L SP[, ailment]".
+    private string DescribeMember(nint slot, int id)
+    {
+        var b = (byte*)slot;
+        ushort inParty = *(ushort*)(b + OFF_IN_PARTY);
+        ushort hp = *(ushort*)(b + OFF_HP);
+        ushort sp = *(ushort*)(b + OFF_SP);
+
+        string name = id == 1
+            ? (FirstName(DecodeAtlusName(McNameAddr)) ?? "Protagonist")
+            : (_names.TryGetValue(id, out var n) ? n : $"Member {id}");
+
+        // Max HP/SP via the confirmed party getters (battle context only); sanity-gated.
+        int maxHp = -1, maxSp = -1;
+        if (FieldTracker.InBattle && Battle.GetMaxHp != null && Battle.GetMaxSp != null
+            && IsReadable(slot, 0x100))
+        {
+            try { maxHp = Battle.GetMaxHp(slot); maxSp = Battle.GetMaxSp(slot); } catch { }
+            if (maxHp < hp || maxHp > 9999) maxHp = -1;
+            if (maxSp < sp || maxSp > 9999) maxSp = -1;
+        }
+        string hpStr = maxHp > 0 ? $"{hp} of {maxHp} HP" : $"{hp} HP";
+        string spStr = maxSp > 0 ? $"{sp} of {maxSp} SP" : $"{sp} SP";
+
+        uint status = *(uint*)(b + 0x0C);
+        string ail = Battle.AilmentText(status);
+        if ((status & Battle.StatusDown) != 0) ail = ail == null ? "down" : $"down, {ail}";
+        if ((inParty & 0x200) != 0) ail = ail == null ? "guarding" : $"{ail}, guarding";
+        // Stat buffs (in battle the slot pointer IS the stat node, so read straight from it).
+        string buffs = FieldTracker.InBattle ? Battle.BuffTextFromStat(slot) : null;
+        if (buffs != null) ail = ail == null ? buffs : $"{ail}, {buffs}";
+
+        return ail == null ? $"{name} {hpStr}, {spStr}" : $"{name} {hpStr}, {spStr}, {ail}";
+    }
+
+    /// ; / ' move a cursor through the active party and speak ONE member's status.
+    private void CycleAlly(int dir)
+    {
+        var actives = new List<(nint slot, int id)>();
+        for (int i = 0; i < MaxSlots; i++)
+        {
+            nint slot = PartyArrayBase + i * Stride;
+            if (!IsReadable(slot, 0x10)) continue;
+            var b = (byte*)slot;
+            ushort inParty = *(ushort*)(b + OFF_IN_PARTY);
+            ushort id = *(ushort*)(b + OFF_CHAR_ID);
+            if ((inParty & 1) == 0 || id == 0 || id > 32) continue;
+            actives.Add((slot, id));
+        }
+        if (actives.Count == 0) { Speech.Say("No party data.", true); return; }
+        _cursor = ((_cursor + dir) % actives.Count + actives.Count) % actives.Count;
+        var (cslot, cid) = actives[_cursor];
+        Speech.Say(DescribeMember(cslot, cid), true);
     }
 
     /// <summary>

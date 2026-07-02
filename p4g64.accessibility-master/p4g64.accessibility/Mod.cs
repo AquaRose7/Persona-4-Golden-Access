@@ -47,6 +47,8 @@ public class Mod : ModBase // <= Do not Remove.
 
     private Battle _battle;
     private BattleLog _battleLog;
+    private Components.Battle.TurnReader _turnReader;
+    private Components.Battle.MultiTargetReader _multiTargetReader;
     private PartyStatus _partyStatus;
     private EnemyStatus _enemyStatus;
     private DamageMonitor _damageMonitor;
@@ -54,6 +56,8 @@ public class Mod : ModBase // <= Do not Remove.
     private PersonaNav _personaNav;
     private Components.CommandMenus.PlayerMenu _playerMenu;
     private Components.CommandMenus.QuestMenu _questMenu;
+    private Components.CommandMenus.SocialLinkDetail _socialLinkDetail;
+    private Components.RoomActionMenu _roomActionMenu;
     private ShopMenu _shopMenu;
     private BookstoreMenu _bookstoreMenu;
     private TitleMenu _titleMenu;
@@ -80,6 +84,8 @@ public class Mod : ModBase // <= Do not Remove.
     private EnemyRadar? _enemyRadar;
     private ExitBeacon? _exitBeacon;
     private ChestBeacon? _chestBeacon;
+    private NavBeacon? _navBeacon;
+    private WallBump? _wallBump;
     private DungeonNav? _dungeonNav;
     private PersonaReleaseMenu? _personaReleaseMenu;
     private ControllerInput? _controllerInput;
@@ -127,6 +133,12 @@ public class Mod : ModBase // <= Do not Remove.
             e.SetObserved();
         };
         Utils.ModDir = _modLoader.GetDirectoryForModId(_modConfig.ModId);
+        // Persisted user settings (mod_settings.json in the mod folder) — restore the mode
+        // toggles BEFORE the components construct so they start in last session's state.
+        ModSettings.Load();
+        Components.Dialogue.ReaderEnabled = ModSettings.GetBool("dialogue_reader", true);
+        Components.SubtitleReader.ReaderEnabled = ModSettings.GetBool("subtitle_reader", true);
+        Components.MovieDescription.Enabled = ModSettings.GetBool("movie_descriptions", true);
         AtlusEncoding.Initiailse(Utils.ModDir);
         Dialog.Initialise();
         Party.Initialise();
@@ -152,6 +164,11 @@ public class Mod : ModBase // <= Do not Remove.
         Log($"Tolk loaded. IsLoaded={Tolk.IsLoaded()}, HasSpeech={Tolk.HasSpeech()}, ScreenReader={Tolk.DetectScreenReader() ?? "none"}");
         Speech.Say("Accessibility mod loaded", true);
 
+        // Announce restored NON-default toggles — otherwise the silence looks like a bug.
+        if (!Components.Dialogue.ReaderEnabled) Speech.Say("Dialogue reader off, voice mode.", false);
+        if (!Components.SubtitleReader.ReaderEnabled) Speech.Say("Subtitle reader off.", false);
+        if (!Components.MovieDescription.Enabled) Speech.Say("Cutscene descriptions off.", false);
+
         _dialogue = new Dialogue(_hooks!);
         _titleBar = new TitleBar(_hooks!);
         // PLAYER MENU phase (2026-06-12): PlayerMenu replaces CommandMenu +
@@ -160,8 +177,12 @@ public class Mod : ModBase // <= Do not Remove.
         // memory/camp_menu_structure.md.
         _playerMenu = new Components.CommandMenus.PlayerMenu();
         _questMenu = new Components.CommandMenus.QuestMenu(_hooks!);
+        _socialLinkDetail = new Components.CommandMenus.SocialLinkDetail(_hooks!);
+        _roomActionMenu = new Components.RoomActionMenu();
         _battle = new Battle(_hooks!);
         _battleLog = new BattleLog(_hooks!);
+        _turnReader = new Components.Battle.TurnReader();
+        _multiTargetReader = new Components.Battle.MultiTargetReader();
         _partyStatus = new PartyStatus();
         _enemyStatus = new EnemyStatus();
         _damageMonitor = new DamageMonitor();
@@ -220,6 +241,8 @@ public class Mod : ModBase // <= Do not Remove.
         _enemyRadar = new EnemyRadar();
         _exitBeacon = new ExitBeacon();
         _chestBeacon = new ChestBeacon();
+        _navBeacon = new NavBeacon();   // P = 3D camera-relative beacon to the selected item / H-cursor
+        _wallBump = new WallBump();     // SPIKE: thud when you hit a wall (trying-to-move-but-stuck)
         // DoorBeacon (the ';' door-sound beacon) removed 2026-06-23 (user request).
 
         // Unified dungeon browser + auto-walk. -/= cycle category (Doors ·

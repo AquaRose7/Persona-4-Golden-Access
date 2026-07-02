@@ -52,9 +52,6 @@ internal sealed unsafe class BookstoreMenu
         // are just the menu's open/close transitions (0x03/0x06/0x09 … 0x1E-0x22).
         short st = *(short*)(obj + 0x04);
         if (st != 0x0A && st != 0x0B) { _last = -1; return; }
-        // Don't fight the real shop reader: while a normal shop is active it owns
-        // ShopMenu.ShopState; the bookstore leaves it at ST_NONE (0xFFFF).
-        if (ShopMenu.ShopState != 0xFFFF) { _last = -1; return; }
 
         nint list = *(nint*)(obj + 0x60);
         int count = *(int*)(obj + 0x68);
@@ -65,6 +62,16 @@ internal sealed unsafe class BookstoreMenu
         int price = *(int*)e;
         ushort id = *(ushort*)(e + 4);
         if (id == 0 || id > 0x3000 || price < 0 || price > 9_999_999) { _last = -1; return; }
+
+        // Don't fight the real shop reader. Books are Event key-items (1024-1280),
+        // which a real shop never sells — so a book ALWAYS means the bookstore and is
+        // read regardless of ShopMenu's state. Only bail for a non-book item while a
+        // real shop is active. (The old gate bailed whenever ShopMenu.ShopState was
+        // non-NONE; that state goes STALE — it only resets when the shop struct's
+        // memory becomes unreadable — and the bookstore reuses the shop-object layout,
+        // so the poll could leave it at 0x0A, intermittently muting the bookstore.)
+        bool isBook = id >= 1024 && id < 1281;
+        if (!isBook && ShopMenu.ShopState != 0xFFFF) { _last = -1; return; }
 
         int key = (id << 8) | (abs & 0xFF);
         if (key == _last) return;
@@ -78,7 +85,7 @@ internal sealed unsafe class BookstoreMenu
         if (wallet > 0) msg += $". You have {wallet} yen";
         string desc = Item.GetDescription(id);
         if (!string.IsNullOrEmpty(desc)) msg += ". " + desc;
-        Log($"[Bookstore] [{abs}/{count}] id={id} price={price} \"{name}\"");
+        Log($"[Bookstore] [{abs}/{count}] id={id} price={price} shopState=0x{ShopMenu.ShopState:X4} \"{name}\"");
         Speech.Say(msg, interrupt: true);
     }
 

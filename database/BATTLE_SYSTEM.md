@@ -11,6 +11,53 @@ in `Battle.cs`'s constructor and receive `IReloadedHooks`.
 
 ---
 
+## 2026-06-30 — battle-reader info expansion (in progress)
+
+New readers layered on the existing stack. **Stat-node layout note:** the affinity GRID is read via
+the game functions `GetAffinity(stat,elem)` / `GetAffinityKnown(nameId,elem)` — NOT the raw nibble
+offsets in `battle_structs_wip.md` (those proved unreliable for buffs). The raw offsets below are for
+STAT BUFFS only, found via a clean live diff (cast in isolation, watch the stat node).
+
+- **Whose-turn** (`TurnReader.cs`): `Battle.ActingUnit()` = `*(BtlInfo+0xCB8)` (Turn) `→ +0x38` = acting
+  party member; announce FIRST name on change. **NULL on enemy turns**; a full BtlInfo+manager pointer
+  scan found no acting-enemy field, and P4G has **no turn-order UI** (agility-weighted + random, web-
+  researched) → no readable "next turn." Enemies are named at their action by DamageMonitor.
+- **Target affinity** (`Battle.TargetWeaknessNote` → appended in `BattleLog.cs` enemy-target read):
+  element from `Battle.SelectedSkillId` (published by SkillSelect, persistent) or Physical for Attack;
+  `Battle.KnownAffinity(unit,elem)` = `GetAffinityKnown` gate → only DISCOVERED (hit-revealed)
+  affinities, matching the game's mark (Analyze does NOT reveal). **`ClassifyAffinity` flag `0x02000000`
+  = REPEL** (2026-07-02): Ghidra proved it's a DISTINCT no-damage flag (merge layer treats 0x01/0x02 as
+  separate parallel flags; `FUN_1400d2840` zeroes damage for the whole `0x27000000` = 0x01|0x02|0x04|0x20
+  null/drain/repel group), and the USER confirmed live that the suspect element bounced damage back →
+  repel. Was previously (wrongly) "block" then "null". Fixed in both `ClassifyAffinity` and
+  `ClassifyPersonaRaw`. Confirmed flags: `0x08`=weak, `0x10`=resist, `0x01`=null, `0x02`=repel; `0x04`/
+  `0x20` (drain/repel) still unverified guesses.
+- **Stat buffs** atk/def/agi (`Battle.BuffText(unit)` / `BuffTextFromStat(stat)`): per-stat **sign byte
+  at stat+0x1C (atk) / +0x1D (def) / +0x1E (agi)** — 0 neutral, **high bit set = down**, clear = up;
+  **turn counter at stat+0x25/+0x26/+0x27** (non-zero = active, ticks 3→2→1, gate on this). Wired into
+  the enemy-target read, U-key `EnemyStatus`, and `PartyStatus.DescribeMember` (O / `;` / `'`).
+  A **4th buff slot, index 3 = critical rate** (sign +0x1F, turn +0x28), was added 2026-07-02 (Chie's
+  all-party crit buff); `BuffTextFromStat` loops `t < 4` with `_buffStat[3]="critical rate"`.
+- **Mind Charge (Concentrate)** = **`stat+0x16` bit `0x10`** — VERIFIED live 2026-07-02 (an enemy that
+  self-Concentrates: the bit toggled `00→10` on the charge and `10→00` on the discharge across two
+  isolated captures; it is NOT in the 0x1C buff array). Announced as "mind charged" in `BuffTextFromStat`.
+  Found by widening a throttled per-unit `stat[0x0C-0x8F]` diagnostic dump (now removed) and diffing
+  charge vs discharge. NOTE: **normal Charge** (Power Charge, 2.5× next PHYS) not yet observed — likely
+  an adjacent bit in the same `0x16` byte; add when a Charge user is available. Dead ends: the buff array
+  0x1C-0x28 and the status u32 at 0x0C both stayed empty through a Mind Charge (status only carried
+  down `0x100000` / dead `0x80000`).
+- **Multi-target** (`MultiTargetReader.cs`): skill target scope = **`ActiveSkillData+0x0C`** (0 single /
+  1 all — Bufula 0x00 vs Mabufu 0x01; `Skill.GetTargetScope`). Fires on a REAL skill-list confirm only
+  (`_listWasOpen` guards against a stale `SelectedSkillId` re-firing on every ring hover of "Skill"):
+  speaks "All enemies." + `Battle.AoeAffinitySummary(elem)` = discovered weak/resist/null/drain/repel
+  COUNTS across living enemies.
+- **Keys:** Shift+O = current acting character (`PartyStatus.AnnounceCurrent`, reads `ActingUnit` stat
+  node); `;`/`'` = cycle one ally (battle-gated). **Pad: RT+L3 = current char (in battle) / cursor H
+  (dungeon); RT+left/right shoulder = `;`/`'`** (`PartyStatus.Instance` static hooks).
+- **Enervation** ailment = status `0x80` (`_ailmentNames`).
+- **Anti-spam:** `Speech.Say` mutes an identical line re-spoken within 600ms (`_recentSaid`), killing
+  the navigator↔reader ping-pong; `RepeatLast`/`Step`/`Record` bypass it.
+
 ## ✅ WORKING (built + confirmed by the user this session)
 
 ### 1. Persona panel (in-battle MC Persona menu) — `PersonaNav.cs`
@@ -199,7 +246,45 @@ Time arena hunt. Candidate next session.
 
 ---
 
-## 🔧 IN PROGRESS — Shuffle Time card narration (BREAKTHROUGH 2026-06-10)
+## ✅ Shuffle Time card narration — CLOSED 2026-07-01 (both issues solved, user-verified)
+
+Everything in this section below is the original 2026-06-10 build; the two hard problems were solved
+2026-07-01. All logic is in `Components/Battle/ShuffleReader.cs`.
+
+**Model (why change spreads were hard):** the game keeps a **panel map** (`logic+0xE7C`, u16[] of a
+logical card-id per on-screen slot in display order, `0xFFFF`-term, compacts as drawn) + a **texture
+array** (`logic+0x1EC0 + slot*0x138`). On a **change** card it gives the new card a **brand-new id ≥
+dealt**, drops the replaced card's id out of the map, and may overwrite a *bystander* slot's texture.
+So `id-dealt` arithmetic and the raw texture array are BOTH unreliable after a change (every formula
+gave wrong names; a One-More even renumbers survivors).
+
+**Issue 1 — change-card names (SOLVED for normal + single-change).** `ResolveSlots()` returns
+(name,effect) per position by two always-true facts: (1) **an original still in the map keeps its
+identity** — a replaced card's id LEAVES the map, so any `id < dealt` present is still the remembered
+card `_orig[id]` even if its slot texture got clobbered; (2) **the one created card (id ≥ dealt) = the
+one changed slot** (texture ≠ `_orig`). Else → "card changed" (never a wrong name). `_orig[]` is
+captured on any no-created-card frame and **must survive a mid-shuffle struct re-find** (do NOT clear it
+on drop). A ~300ms grace lets a still-loading change-card resolve before saying "card changed". OPEN
+(safe-degrade): double-change (2 created) and Fool (all-change) — full naming needs the render node
+(`*(logic+0x20)` = head of a draw-task list; the shuffle node is **`battle_shuffle`**, its card sprites
+are children — a tree-walk, deferred).
+
+**Issue 2 — "you can take X cards" (SOLVED).** Tries = **`head[5]` = `*(int*)(logic+0x14)`** — a HEADER
+field (the old "not in struct" only scanned 0x20..0x1EC0). Went 3→2→1 as cards were taken while
+remaining (`+0xE88`) went 5→4→3; rises on a "+draw" pick. Found via snapshot-diff (`cursor_hunt.py snap`
+at 3/2/1 + `find_seq.py 3,2,1` + a scratch struct-locator) — no CE table needed.
+
+**Detection hardened + made light 2026-07-01:** signature caps relaxed (dealt ≤ 16, tries h5 ≤ 0x3F, h6
+≤ 0xFF — the "card/" path read is the real gate) so big/high-rank spreads read; and a **scan backoff**
+(fast 200ms → 6s) because battle-UI state stays 17 on the reward screen with no struct (was scanning
+~600ms nonstop). Fast start also catches brief tutorial shuffles.
+
+**Full offset map + every dead end:** `memory/shuffle_time_structs.md`,
+`memory/next_session_shuffle_time.md` (read before any shuffle work).
+
+---
+
+### Original build notes (2026-06-10, kept for history)
 
 **The shuffle struct is FOUND** (external RPM snapshot diff, `database/frida/cursor_hunt.py`
 — CE-style 0→1→2→3 hunt over all private memory; scripts in `database/frida/`):

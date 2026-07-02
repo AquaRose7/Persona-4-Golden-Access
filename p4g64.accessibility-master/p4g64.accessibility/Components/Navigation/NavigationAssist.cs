@@ -195,7 +195,7 @@ internal unsafe class NavigationAssist
         // same press. Battle (240) is also a dungeon major but you can't
         // teleport floors during a battle anyway.
         int curMajor = FieldTracker.CurrentMajor;
-        if (curMajor >= 20 && curMajor < 250) return;
+        if (curMajor >= 20 && curMajor < 300) return;   // dungeon 20-69 + battle 220-299
 
         bool minus = IsKeyDown(VK_OEM_MINUS);
         if (minus && !_minusWas) CycleCategory(-1);

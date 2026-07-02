@@ -33,6 +33,7 @@ internal unsafe class SubtitleReader : IDisposable
     internal static void ToggleReader()
     {
         ReaderEnabled = !ReaderEnabled;
+        ModSettings.SetBool("subtitle_reader", ReaderEnabled);
         Speech.Say(ReaderEnabled ? "Subtitle reader on." : "Subtitle reader off.", true);
     }
 

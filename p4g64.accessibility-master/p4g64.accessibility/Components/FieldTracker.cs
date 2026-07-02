@@ -47,13 +47,29 @@ internal unsafe class FieldTracker
     public static int CurrentMajor { get; private set; } = -1;
     public static int CurrentMinor { get; private set; } = -1;
 
-    /// <summary>True when a major is a BATTLE context. Battle majors are PER-DUNGEON
-    /// (Yukiko's Castle = 240, Steamy Bathhouse = 241, … one per dungeon) — NOT just 240.
-    /// Every battle-only reader must gate on this, and every dungeon reader / the floor-name
-    /// announcer must EXCLUDE it. Hardcoding 240 was the "battle reads as a new floor / battle
-    /// functions fail outside Yukiko's Castle" bug (fixed 2026-06-27).</summary>
-    public static bool IsBattleMajor(int major) => major >= 240 && major < 250;
+    /// <summary>True when a major is a BATTLE context. Battle major = 200 + the FLOOR major
+    /// you are fighting on (VERIFIED 2026-07-01): Yukiko's Castle Gate floor 22 → battle 222,
+    /// the maze floor 40 → battle 240, later dungeons up into the 260s. So the battle band is
+    /// the whole 220–299 range, NOT just 240-249 — the old 240-249 gate silenced every battle
+    /// on a gate/scripted floor and the entire early-game (Gate) tutorial. No legitimate field
+    /// major sits between 70 and 219, so 220+ unambiguously means battle. Every battle-only
+    /// reader must gate on this; every dungeon reader / the floor-name announcer must EXCLUDE it.
+    /// Hardcoding 240 was the "battle functions fail outside Yukiko's Castle" bug.</summary>
+    public static bool IsBattleMajor(int major) => major >= 220 && major < 300;
     public static bool InBattle => IsBattleMajor(CurrentMajor);
+
+    /// <summary>TickCount64 of the last area (major/minor) change. Background pollers that WALK game
+    /// scene structures (e.g. the dungeon door detector) back off for a moment afterward — the game
+    /// frees/rebuilds those structures on a transition, and an in-process walk mid-rebuild can hit a
+    /// freed page and hard-crash (uncatchable AVE). See DUNGEON_DOORS_AND_BEACON.md crash watch.</summary>
+    public static long LastAreaChangeMs;
+
+    /// <summary>True for ~1.5s after an area change — scene/camera/player structures are still being
+    /// rebuilt, so EVERY background poller that reads live position/camera/scene should back off (an
+    /// in-process read mid-rebuild can hit a freed page → uncatchable AVE). This is the fix for the
+    /// transition crashes that got frequent once WallBump/NavBeacon (per-frame camera+pos reads) were
+    /// added — they re-activate the instant the major re-enters range, mid-rebuild.</summary>
+    public static bool InAreaTransition => Environment.TickCount64 - LastAreaChangeMs < 1500;
     private short _lastTimePeriod = -1;
     private short _lastGameDay    = -1;
     private int   _npcCountdown   = 0;   // counts down poll ticks after area change; fires NPC count on 0
@@ -1375,7 +1391,7 @@ internal unsafe class FieldTracker
 
         Log("[FieldTracker] === Numpad3 TELEPORT-TO-TREASURE TEST ===");
 
-        if (CurrentMajor < 20 || CurrentMajor >= 240)
+        if (CurrentMajor < 20 || CurrentMajor >= 220)
         {
             Speech.Say("Treasure teleport only works in dungeons.", true);
             return;
@@ -1584,7 +1600,7 @@ internal unsafe class FieldTracker
 
         Log("[FieldTracker] === Numpad4 SPEED-BOOST TELEPORT TEST ===");
 
-        if (CurrentMajor < 20 || CurrentMajor >= 240)
+        if (CurrentMajor < 20 || CurrentMajor >= 220)
         {
             Speech.Say("Teleport only works in dungeons.", true);
             return;
@@ -2633,6 +2649,7 @@ internal unsafe class FieldTracker
                 _lastMinor = minor;
                 CurrentMajor = major;
                 CurrentMinor = minor;
+                LastAreaChangeMs = Environment.TickCount64;   // scene is (re)building → crash window; pollers back off
 
                 // Dungeon FLOORS (major ≥ 21): the (major,minor)→name table is
                 // unreliable (deep floors all share one major/minor), so read the
@@ -5007,6 +5024,13 @@ internal unsafe class FieldTracker
     {
         [(61, 2)] = "Steamy Bathhouse, Bath number 3",   // scripted Bathhouse floor (events recorded)
         [(61, 3)] = "Steamy Bathhouse, Bath number 7",   // next scripted floor (user-confirmed 2026-06-27)
+        // Dungeon ENTRANCE/GATE floors (reached from the TV hub, major 20 → 23/24/25 minor 1). The game
+        // gives each a distinct name; the generic banner-strip/dungeon fallback mangled them (Yukiko lost
+        // its ", Gate"; the Bathhouse changing area scanned empty → "Steamy Bathhouse"). User-confirmed
+        // from on-screen banners 2026-07-02.
+        [(23, 1)] = "Yukiko's Castle, Gate",
+        [(24, 1)] = "Bathhouse, Changing Area",
+        [(25, 1)] = "Marukyu Striptease Seats",
     };
 
     /// <summary>

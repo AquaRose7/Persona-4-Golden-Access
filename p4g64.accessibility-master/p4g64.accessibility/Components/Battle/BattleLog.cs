@@ -156,6 +156,12 @@ internal sealed unsafe class BattleLog
                 if (down) sb.Append(", down");
                 string ail = Battle.AilmentText(Battle.UnitStatusOf(actor));
                 if (ail != null) sb.Append($", {ail}");
+                // Affinity to the chosen Attack/Skill element — only if discovered (matches the
+                // game's mark; hidden until you've hit it with that element).
+                string wk = Battle.TargetWeaknessNote(actor);
+                if (wk != null) sb.Append($", {wk}");
+                string buffs = Battle.BuffText(actor);
+                if (buffs != null) sb.Append($", {buffs}");
                 if (cnt > 1 && idx > 0) sb.Append($", {idx} of {cnt}");
                 speak = sb.ToString();
             }

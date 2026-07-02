@@ -173,11 +173,14 @@ internal static class GridRouter
 
     /// <summary>The minimap sprite values that mark a "go to the next floor" staircase.
     /// 0x0C = Yukiko's Castle; 0x0E = Steamy Bathhouse (the down/progress staircase, a 3×3
-    /// tile block — verified 2026-06-27: player stood next to it on Bathhouse floor 41_0).
-    /// The Bathhouse's OTHER 3×3 block (0x0D) is the entrance/up staircase and is left out so
-    /// travel targets the progress stairs, not the one you arrived on. Add per dungeon as found
-    /// (the DungeonNav "STAIRS EMPTY" sprite dump surfaces an unmapped dungeon's value).</summary>
-    private static bool IsStairSprite(byte sprite) => sprite == 0x0C || sprite == 0x0E;
+    /// tile block — verified 2026-06-27: player stood next to it on Bathhouse floor 41_0);
+    /// 0x0A = Marukyu Striptease (verified 2026-07-01 via the STAIRS EMPTY dump: player stood
+    /// on it, floor 42_0, a clean 3×3 block; the other block 0x09 ×18 is the entrance/up
+    /// staircase, excluded). Each dungeon's OTHER staircase block (the entrance/up stairs you
+    /// arrive on — Bathhouse 0x0D, Marukyu 0x09) is left out so travel targets the progress
+    /// stairs, not the one you came from. Add per dungeon as found (the DungeonNav "STAIRS EMPTY"
+    /// sprite dump surfaces an unmapped dungeon's value).</summary>
+    private static bool IsStairSprite(byte sprite) => sprite == 0x0C || sprite == 0x0E || sprite == 0x0A;
 
     /// <summary>
     /// World position of the nearest stairs cell (flag=1, stair sprite — see

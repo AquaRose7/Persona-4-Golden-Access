@@ -45,9 +45,14 @@ internal unsafe class Dialogue
     /// Down (HistoryKeys / ControllerInput).</summary>
     internal static bool ReaderEnabled = true;
 
+    /// <summary>Last time a message/dialog window drew (this hook fires every frame one is up). WallBump
+    /// gates on it so a frozen-position dialog doesn't read as a wall hit.</summary>
+    internal static long LastDialogTick;
+
     internal static void ToggleReader()
     {
         ReaderEnabled = !ReaderEnabled;
+        ModSettings.SetBool("dialogue_reader", ReaderEnabled);
         Speech.Say(ReaderEnabled ? "Dialogue reader on." : "Dialogue reader off, voice mode.", true);
     }
 
@@ -73,10 +78,16 @@ internal unsafe class Dialogue
     {
         var res = _drawDialogHook.OriginalFunction(dialogInfo);
 
-        if (dialogInfo->DialogText != (Dialog.DialogExecutionInfo*)0)
+        // Only a REAL visible dialog (has text / a choice list) counts — DrawDialog fires every field
+        // frame even when empty, so stamping unconditionally made "dialog on screen" always-true.
+        bool hasText = dialogInfo->DialogText != (Dialog.DialogExecutionInfo*)0;
+        bool hasChoice = dialogInfo->SelectionText != (Dialog.DialogExecutionInfo*)0;
+        if (hasText || hasChoice) LastDialogTick = Environment.TickCount64;
+
+        if (hasText)
             SpeakMessage(dialogInfo);
 
-        if (dialogInfo->SelectionText != (Dialog.DialogExecutionInfo*)0)
+        if (hasChoice)
             SpeakSelection(dialogInfo);
         else if ((nint)dialogInfo == _selectionObj)
         {

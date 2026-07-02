@@ -178,8 +178,13 @@ internal class OverworldNav
     private volatile bool _beacon;
     private BeaconVoice _voice;   // stereo positional beacon voice (mixed via DungeonAudio)
 
+    // Singleton handle for cross-component walk requests (RoomActionMenu's quick-interact
+    // handoff in big outdoor areas). Set once at startup.
+    internal static OverworldNav? Instance;
+
     public OverworldNav()
     {
+        Instance = this;
         LoadCatalog();
         LoadCalib();
         LoadWalkgrid();
@@ -311,8 +316,8 @@ internal class OverworldNav
     private bool ActiveHere()
     {
         int major = FieldTracker.CurrentMajor;
-        // Yield dungeon majors to DungeonNav (same key map).
-        if (major >= 20 && major != 240 && major < 250) return false;
+        // Yield dungeon (20-69) AND battle (220-299) majors to DungeonNav / the battle readers.
+        if (major >= 20 && major < 300) return false;
         return CurrentArea() != null;
     }
 
@@ -567,6 +572,13 @@ internal class OverworldNav
         if (areaKey == "8_2" && id == 0x0C28) return "King Moron";
         if (areaKey == "6_2" && id == 0x0C35) return "Yumi";         // was "Drama club member"
         if (areaKey == "9_4" && id == 0x0C34) return "Adachi";       // was "Townsperson"
+        // From database/fixed characters IDs.txt (user-recorded via the `;` diagnostic, 2026-07-02):
+        if (areaKey == "6_2" && id == 0x0C38) return "Daisuke";              // was "Townsperson 6" (Daisuke Nagase)
+        if (areaKey == "6_2" && id == 0x0C37) return "Kou";                  // was "Townsperson 5" (Kou Ichijo)
+        if (areaKey == "8_2" && id == 0x0C3A) return "Adachi";              // was "Townsperson 3"
+        if (areaKey == "8_2" && id == 0x0C3E) return "Yumi";               // was "Drama club member"
+        if (areaKey == "6_1" && id == 0x0C32) return "Naoki Konishi";       // was "Boy"
+        if (areaKey == "10_1" && id == 0x0C06) return "Konishi Liquor Store manager"; // was "Townsperson 4"
         return baseName;
     }
 
@@ -740,7 +752,8 @@ internal class OverworldNav
         float dist = MathF.Sqrt(dx * dx + dz * dz);
         int steps = Math.Max(1, (int)MathF.Round(dist / UnitsPerStep));
         string dir = WorldDirection(dx, dz);
-        Speech.Say($"{t.Name}: {dir}, {steps} step{(steps == 1 ? "" : "s")}. Backspace walks, P beacons.", true);
+        // No keybind hint — it names keyboard keys (noise for controller players, messy with both schemes).
+        Speech.Say($"{t.Name}: {dir}, {steps} step{(steps == 1 ? "" : "s")}.", true);
     }
 
     // Fixed-compass bearing to a target offset (dx = +X / east, dz = +Z / north),
@@ -819,7 +832,19 @@ internal class OverworldNav
         {
             Dictionary<string, float[]> snap;
             lock (_calibLock) snap = new Dictionary<string, float[]>(_calib);
-            System.IO.File.WriteAllText(CalibWritePath(), JsonSerializer.Serialize(snap));
+            string json = JsonSerializer.Serialize(snap);
+            // Write to BOTH (a) the mod-folder copy the loader actually READS via DataPath — so
+            // learned spots PERSIST across restart (the old bug: saved only to database/, which
+            // LoadCalib ignores when a mod-folder copy exists — same as the dungeon-marks bug)
+            // AND (b) the database source (keeps the committed/bundled copy current).
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(Utils.ModDir)) paths.Add(System.IO.Path.Combine(Utils.ModDir, "overworld_calibration.json"));
+            paths.Add(CalibWritePath());
+            foreach (var p in paths)
+            {
+                try { System.IO.File.WriteAllText(p, json); }
+                catch (Exception e) { Log($"[OverworldNav] calib save to {p} failed: {e.Message}"); }
+            }
         }
         catch (Exception e) { Log($"[OverworldNav] calib save failed: {e.Message}"); }
     }
@@ -970,6 +995,41 @@ internal class OverworldNav
         _walking = true;
         Speech.Say($"Walking to {t.Name}.", true);
         new Thread(() => WalkLoop(t)) { IsBackground = true, Name = "OverworldWalk" }.Start();
+    }
+
+    // ── programmatic walk (RoomActionMenu quick-interact handoff) ────────────
+    // True once the poll has SEEN the field as active (its state-reset on the active flip has
+    // already run) — starting a walk before that would get it killed by the reset.
+    internal bool ReadyForWalk => ActiveHere() && _activeLast;
+
+    /// <summary>
+    /// Start the Backspace auto-walk to the current area's catalog target with the given proc
+    /// name (e.g. "tyuuka" = Aiya). Returns false if not in a catalogued area, the proc isn't
+    /// here, the player position isn't readable yet, or a walk is already running.
+    /// announce=false skips the "Walking to X" line (quick-interact: the player just PICKED
+    /// the place from a menu — repeating it is noise; the arrival announce still happens).
+    /// </summary>
+    internal bool WalkToProcTarget(string proc, bool announce = true)
+    {
+        if (_walking) return false;
+        var area = CurrentArea();
+        if (area == null) return false;
+        // Same proc can back several boxes (e.g. the two check_farmtools yard spots) — prefer
+        // the one with a LEARNED spot (ground truth), else the first match.
+        Target target = default; bool found = false, foundCalib = false;
+        foreach (var t in area.Targets)
+        {
+            if (t.Proc != proc) continue;
+            bool hasCalib = TryGetCalib(t, out _, out _, out _, out _);
+            if (!found || (hasCalib && !foundCalib)) { target = t; found = true; foundCalib = hasCalib; }
+        }
+        if (!found) return false;
+        var (_, _, _, ok) = FieldTracker.WorldPlayerPos();
+        if (!ok) return false;
+        _walking = true;
+        if (announce) Speech.Say($"Walking to {target.Name}.", true);
+        new Thread(() => WalkLoop(target)) { IsBackground = true, Name = "OverworldWalk" }.Start();
+        return true;
     }
 
     // 8 walk directions: angle (degrees, 0 = the direction W moves) → scancodes.

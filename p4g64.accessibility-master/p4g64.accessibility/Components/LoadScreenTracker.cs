@@ -249,13 +249,43 @@ internal unsafe class LoadScreenTracker : IDisposable
 
     private static string? FindSavePath()
     {
-        const string steamBase = @"C:\Program Files (x86)\Steam\userdata";
-        if (!Directory.Exists(steamBase)) return null;
-        foreach (var dir in Directory.GetDirectories(steamBase))
+        // Steam's INSTALL dir (userdata lives there, not in the game library). The old
+        // hardcoded default broke every non-default install ("Save slot 1: unknown"), so:
+        // registry first (covers any drive/path), default path as last resort.
+        var roots = new List<string>();
+        try
         {
-            var candidate = Path.Combine(dir, "1113000", "remote");
-            if (Directory.Exists(candidate)) return candidate;
+            if (Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam")
+                    ?.GetValue("SteamPath") is string sp && sp.Length > 0)
+                roots.Add(sp.Replace('/', '\\'));
         }
+        catch { }
+        try
+        {
+            if (Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam")
+                    ?.GetValue("InstallPath") is string ip && ip.Length > 0)
+                roots.Add(ip);
+        }
+        catch { }
+        roots.Add(@"C:\Program Files (x86)\Steam");
+
+        foreach (var root in roots)
+        {
+            string userdata;
+            try { userdata = Path.Combine(root, "userdata"); if (!Directory.Exists(userdata)) continue; }
+            catch { continue; }
+            // Several Steam accounts can have a P4G folder — pick the most recently written.
+            string? best = null; DateTime bestTime = DateTime.MinValue;
+            foreach (var dir in Directory.GetDirectories(userdata))
+            {
+                var candidate = Path.Combine(dir, "1113000", "remote");
+                if (!Directory.Exists(candidate)) continue;
+                var t = Directory.GetLastWriteTimeUtc(candidate);
+                if (best == null || t > bestTime) { best = candidate; bestTime = t; }
+            }
+            if (best != null) return best;
+        }
+        Log("[LoadScreenTracker] save folder NOT FOUND (no Steam userdata/1113000) — slots will read 'unknown'");
         return null;
     }
 

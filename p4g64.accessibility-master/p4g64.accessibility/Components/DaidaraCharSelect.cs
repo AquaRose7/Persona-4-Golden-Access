@@ -26,12 +26,8 @@ internal unsafe class DaidaraCharSelect
     private IHook<CursorUpdateDelegate> _hook = null!;
     private short _lastCursor = -1;
 
-    // Party member names in join order. Slot 0 is the protagonist whose
-    // CUSTOM name lives in a game global we haven't located yet — "You" is
-    // always true meanwhile (user request 2026-06-12: was reading "Yu"
-    // instead of their custom name).
-    private static readonly string[] MemberNames =
-        { "You", "Yosuke", "Chie", "Yukiko", "Kanji", "Rise", "Naoto", "Teddie" };
+    // Names + the cursor→charId mapping now live in ShopMenu.CharSelectName
+    // (single source of truth for the Daidara equippable-member list).
 
     internal DaidaraCharSelect(IReloadedHooks hooks)
     {
@@ -66,11 +62,10 @@ internal unsafe class DaidaraCharSelect
         if (cursor == _lastCursor) return;
         _lastCursor = cursor;
 
-        string name = cursor == 0
-            ? ShopMenu.ProtagonistName()
-            : cursor > 0 && cursor < MemberNames.Length
-                ? MemberNames[cursor]
-                : $"Member {cursor}";
+        // The cursor indexes Daidara's equippable-member list (recruited members in
+        // join order, Rise excluded) → authoritative char id + name. Verified live
+        // 2026-06-30; see ShopMenu.CharSelectCharId.
+        string name = ShopMenu.CharSelectName(cursor);
 
         Log($"[DaidaraCharSelect] cursor={cursor} → {name}");
         Speech.Say(name, true);

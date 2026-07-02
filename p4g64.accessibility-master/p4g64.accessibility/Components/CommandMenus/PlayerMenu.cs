@@ -56,6 +56,11 @@ internal sealed unsafe class PlayerMenu
 
     private static readonly string[] EquipSlotNames = { "Weapon", "Armor", "Accessory", "Clothes" };
 
+    /// <summary>True while the camp menu (or a submenu) is open — the reliable pCamp+0x0C mask signal.
+    /// Dungeon nav components (DungeonCursor / DungeonNav / NavBeacon) gate on it so their keys don't
+    /// fire behind the menu.</summary>
+    internal static volatile bool IsMenuOpen;
+
     // ── Trackers ──────────────────────────────────────────────────────────
     private int _lastMask = -1;
     private int _lastFocus = -2;        // -1 strip, 0..7 submenu, -2 closed
@@ -118,6 +123,12 @@ internal sealed unsafe class PlayerMenu
         int mask = 0;
         if (pCamp != 0 && IsReadable(pCamp, 0x60))
             mask = *(int*)(pCamp + OffOpenMask);
+
+        // The reliable "camp menu is open" signal. The pointer alone is garbage-non-zero on dungeon
+        // floors, and that garbage can even yield a non-zero mask — so require a SANE submenu mask
+        // (only bits 0-8: bit0 = strip, bits 1-8 = the eight submenus). A garbage mask has high bits set
+        // and is rejected, so this never wrongly gates the dungeon nav keys.
+        IsMenuOpen = mask != 0 && (mask & ~0x1FF) == 0;
 
         if (pCamp == 0 || mask == 0)
         {
@@ -208,7 +219,7 @@ internal sealed unsafe class PlayerMenu
             if (m == _skillTarget) return;
             _skillTarget = m;
             Log($"[PlayerMenu][Skill] target index {m}/{cnt}");
-            Speak(MemberLine(m));
+            Speak(MemberLineByCursor(obj, m));
             return;
         }
         if (_skillTarget != -1) _skillTarget = -1;
@@ -225,7 +236,7 @@ internal sealed unsafe class PlayerMenu
         {
             if (member == _skillMember) return;
             _skillMember = member;
-            Speak(MemberLine(member));
+            Speak(MemberLineByCursor(obj, member));
             Log($"[PlayerMenu][Skill] member={member}");
             return;
         }
@@ -313,7 +324,7 @@ internal sealed unsafe class PlayerMenu
             if (member == _itemTarget) return;
             _itemTarget = member;
             Log($"[PlayerMenu][Item] target index {member}/{tgtCount}");
-            Speak(MemberLine(member));
+            Speak(MemberLineByCursor(obj, member));
             return;
         }
 
@@ -791,6 +802,26 @@ internal sealed unsafe class PlayerMenu
                 return $"{CharIdName(charId, idx)}. HP {*(ushort*)(m + 8)}. SP {*(ushort*)(m + 0xA)}";
         }
         return $"Member {idx + 1}";
+    }
+
+    // Map a skill/item member CURSOR (display position) → roster slot. The menu obj's list at +0x32
+    // (u16 per entry) holds a position into the RECRUITED list (recruited members only, in slot order)
+    // — NOT a roster slot. Confirmed 2026-06-30: party MC/Yosuke/Yukiko/Kanji gave +0x32=[0,1,3,4],
+    // and since Rise (id5) isn't recruited yet, recruited-pos 4 = roster slot 5 (Kanji id6), NOT slot 4
+    // (Rise). So we walk the recruited roster entries (flag&1) and return the pos-th one's slot.
+    // Cursor 0 is ALWAYS the MC (roster slot 0) — shortcut it to avoid a transient mis-read on open.
+    // Read a skill/item member line by the menu CURSOR. The active-party CHAR-ID list lives at
+    // obj+0x34 (u16 per entry = char id directly, in display order) — confirmed 2026-06-30: party
+    // MC/Chie/Yukiko/Kanji gave +0x34=[1,3,4,6]. This tracks the live party (unlike the +0x32 list,
+    // which goes stale to the default layout after a swap). Falls back to the old slot path if absent.
+    private static string MemberLineByCursor(nint obj, int cursor)
+    {
+        if (cursor >= 0 && cursor <= 7 && IsReadable(obj + 0x34 + (nint)cursor * 2, 2))
+        {
+            int id = *(ushort*)(obj + 0x34 + (nint)cursor * 2);
+            if (id >= 1 && id <= 16) return MemberLineById(id);
+        }
+        return MemberLine(cursor);
     }
 
     private static string MemberLineById(int charId)

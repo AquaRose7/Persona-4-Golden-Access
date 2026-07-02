@@ -20,9 +20,38 @@ internal static class Speech
     private static int _navIdx = -1;            // current browse position; -1/Count = "at newest"
     private static readonly object _lock = new();
 
+    // Anti-spam: suppress an IDENTICAL line re-spoken within this window — but ONLY IN BATTLE. The
+    // navigator↔reader ping-pong (two readers alternating the same line 30-40×) is a battle-only
+    // problem; applying the guard everywhere made fast list-scrolling (re-reading the same item)
+    // feel bad by muting a deliberate re-read. So outside battle nothing is ever muted, and in battle
+    // the window is short enough to kill only true rapid-fire ping-pong, not an intentional re-read.
+    // Manual repeat (RepeatLast/Step) and Record bypass this regardless.
+    private const long SpamWindowMs = 300;
+    private static readonly Dictionary<string, long> _recentSaid = new();
+
     /// <summary>Speak a line AND record it to history. Drop-in for the old <c>Tolk.Output</c>.</summary>
     internal static void Say(string text, bool interrupt = true)
     {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        if (Components.FieldTracker.InBattle)   // spam guard is battle-only (see note above)
+        {
+            lock (_lock)
+            {
+                long now = Environment.TickCount64;
+                if (_recentSaid.TryGetValue(text, out long t) && now - t < SpamWindowMs)
+                {
+                    _recentSaid[text] = now;   // keep refreshing so sustained spam stays muted
+                    return;
+                }
+                _recentSaid[text] = now;
+                if (_recentSaid.Count > 48)    // opportunistic prune of stale entries
+                {
+                    var stale = new List<string>();
+                    foreach (var kv in _recentSaid) if (now - kv.Value > SpamWindowMs * 4) stale.Add(kv.Key);
+                    foreach (var k in stale) _recentSaid.Remove(k);
+                }
+            }
+        }
         Record(text);
         Tolk.Output(text, interrupt);
     }

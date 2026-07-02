@@ -1392,7 +1392,15 @@ internal class AutoWalker
         // heuristic was wrong). So always TRY: tapping is harmless on an already-open door and opens a
         // closed one. (The proper fix is the real open/closed flag off the door actor — TODO, needs a
         // live closed-vs-open node dump to locate the field.)
-        if (open)
+        // Skip the open sequence entirely if we've already walked THROUGH this door (it was
+        // marked open by the crossing detector / a prior thread). Dungeon doors stay open for the
+        // floor visit, so a marked-open door is genuinely open → tapping is wasted; go straight to
+        // threading. (Marks clear on floor change, so a regenerated closed door is never skipped.)
+        if (open && DungeonNav.IsDoorOpenMarked(doorX, doorZ))
+        {
+            Log($"[AutoWalker] door @({doorX:F0},{doorZ:F0}) already open — skipping open-tap");
+        }
+        else if (open)
         {
             for (int i = 0; i < 4 && !_cancelRequested && Utils.GameHasFocus(); i++)
             {
@@ -1457,14 +1465,18 @@ internal class AutoWalker
             if (_cancelRequested || !Utils.GameHasFocus()) return false;
         }
 
-        if (DriveToward(doorX + aX * pitch * 0.9f, doorZ + aZ * pitch * 0.9f, pitch * 0.35f, 1300)) return true;
+        if (DriveToward(doorX + aX * pitch * 0.9f, doorZ + aZ * pitch * 0.9f, pitch * 0.35f, 1300))
+        { DungeonNav.MarkDoorOpen(doorX, doorZ); return true; }
         if (_cancelRequested || !Utils.GameHasFocus()) return false;
         Log("[AutoWalker] door: axis A clipped — trying the perpendicular");
-        if (DriveToward(doorX + bX * pitch * 0.9f, doorZ + bZ * pitch * 0.9f, pitch * 0.35f, 1300)) return true;
+        if (DriveToward(doorX + bX * pitch * 0.9f, doorZ + bZ * pitch * 0.9f, pitch * 0.35f, 1300))
+        { DungeonNav.MarkDoorOpen(doorX, doorZ); return true; }
         if (_cancelRequested || !Utils.GameHasFocus()) return false;
         Log("[AutoWalker] door: both axes clipped — slip + retry");
         SlipPastToward(doorX + bX * pitch * 0.9f, doorZ + bZ * pitch * 0.9f);
-        return DriveToward(doorX + bX * pitch * 0.9f, doorZ + bZ * pitch * 0.9f, pitch * 0.35f, 1200);
+        bool through = DriveToward(doorX + bX * pitch * 0.9f, doorZ + bZ * pitch * 0.9f, pitch * 0.35f, 1200);
+        if (through) DungeonNav.MarkDoorOpen(doorX, doorZ);
+        return through;
     }
 
     // ── Input ────────────────────────────────────────────────────────────────

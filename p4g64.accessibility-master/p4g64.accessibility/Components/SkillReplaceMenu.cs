@@ -13,12 +13,19 @@ namespace p4g64.accessibility.Components;
 /// Ghidra gave the field layout).
 ///
 /// Hooks FUN_140428D80 — the per-ROW skill-button drawer (called once per row each
-/// frame). Its 4th arg (param_4 / r9) is the menu struct:
-///   +0x04  byte   cursor (0..count-1 = a current skill; == count = decline/new-skill slot)
+/// frame; this SAME drawer also renders a persona's skill grid in the battle Persona
+/// detail, so gate carefully). Its 4th arg (param_4 / r9) is the menu struct:
+///   +0x04  byte   cursor (0..count-1 = a current skill; == count = the incoming-skill slot)
 ///   +0x68  u16    count of current skills (8 when full)
 ///   +0x0A + i*0xC  u16  current skill id for row i  (-> Skill.GetName/GetDescription)
-///   +0x232 u16    the NEW skill being learned
-/// We ignore which row is being drawn; just read the cursor + its skill, deduped.
+///   +0x6E  u16    the INCOMING skill being learned — a RAW skill id, valid only on the real
+///                 replace screen (persona FULL, count==8). Found 2026-07-02 by struct scan
+///                 (Gale Slash=145 sat at 0x6E, stable across cursor). NOTE: +0x232 was the OLD
+///                 (wrong) guess — on the battle persona-detail it held 0x600+nextSkill, but on
+///                 the learn screen it reads 0x600 (nothing); do NOT use it.
+/// cursor 0..count-1 reads the current skill; cursor==count reads the incoming skill ONLY when
+/// full (count>=8), plain name+description (no "do not learn"). Non-full = auto-fills, so that
+/// slot stays silent. Deduped on cursor.
 /// </summary>
 internal unsafe class SkillReplaceMenu : IDisposable
 {
@@ -66,13 +73,10 @@ internal unsafe class SkillReplaceMenu : IDisposable
         if (cursor == _lastCursor) return;
         _lastCursor = cursor;
 
-        // The new skill being learned (for context on open + the decline slot).
-        int newId = IsReadable(menu + 0x232, 2) ? *(short*)(menu + 0x232) : 0;
-        string newName = (newId >= 1 && newId <= 1024) ? Skill.GetName(newId) : "";
-
         string body;
         if (cursor < count)
         {
+            // A current skill (the 8-slot array: id at 0x0A + i*0xC).
             if (!IsReadable(menu + 0x0A + cursor * 0xC, 2)) return;
             int id = *(short*)(menu + 0x0A + cursor * 0xC);
             string nm = (id >= 1 && id <= 1024) ? Skill.GetName(id) : $"Skill {cursor + 1}";
@@ -83,17 +87,21 @@ internal unsafe class SkillReplaceMenu : IDisposable
         }
         else
         {
-            // cursor == count: the "?" slot = decline learning the new skill.
-            body = string.IsNullOrEmpty(newName)
-                ? "Do not learn the new skill."
-                : $"Do not learn {newName}.";
+            // cursor == count: the incoming "Next LV" skill slot. The real "replace a skill" screen
+            // only exists when the persona is FULL (8 skills) — a non-full persona auto-fills its
+            // first empty slot, so there cursor==count is just an empty slot → stay silent (user
+            // 2026-07-02). When full, read the incoming skill: a RAW id at menu+0x6E (found by
+            // struct scan: Gale Slash=145 sat there, stable across cursor). Plain name + description,
+            // no "do not learn"; silent if invalid.
+            if (count < 8) return;
+            int nid = IsReadable(menu + 0x6E, 2) ? *(ushort*)(menu + 0x6E) : 0;
+            if (nid < 1 || nid > 1024) return;
+            string nm = Skill.GetName(nid);
+            string desc = Skill.GetDescription(nid);
+            body = string.IsNullOrEmpty(desc) ? $"{nm}." : $"{nm}. {desc}.";
         }
 
-        // On open, lead with what's being learned so the player has context.
-        string lead = (freshMenu && !string.IsNullOrEmpty(newName))
-            ? $"Replace a skill. Learning {newName}. " : "";
-        Log($"[SkillReplace] cursor={cursor}/{count} newId={newId} '{newName}'");
-        Speech.Say(lead + body, interrupt: true);
+        Speech.Say(body, interrupt: true);
     }
 
     [DllImport("kernel32.dll")]

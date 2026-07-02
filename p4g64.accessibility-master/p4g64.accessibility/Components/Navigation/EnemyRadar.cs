@@ -115,7 +115,7 @@ internal class EnemyRadar
         // M is a persistent intent. Audio plays only while a dungeon floor is
         // loaded (InDungeon excludes battle 240) — so a battle PAUSES the radar
         // and it auto-resumes after, instead of toggling the intent off.
-        if (_active && InDungeon())
+        if (_active && InDungeon() && !FieldTracker.InAreaTransition)   // back off during a transition (crash-safety)
         {
             _pauseGrace = 0;
             DungeonAudio.SetWant(this, true);
@@ -133,7 +133,7 @@ internal class EnemyRadar
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major < 240;   // dungeons 20-239; battles (240-249) excluded
+        return major >= 20 && major < 220;   // dungeon floors 20-69; battles (220-299) excluded
     }
 
     private void Toggle()

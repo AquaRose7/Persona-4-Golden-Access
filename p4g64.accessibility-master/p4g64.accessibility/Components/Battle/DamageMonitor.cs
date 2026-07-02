@@ -20,7 +20,7 @@ namespace p4g64.accessibility.Components.Battle;
 /// being added via a dedicated RE pass; when ready it will prefix these lines.
 ///
 /// Event-driven (only speaks on an HP change), so it isn't a continuous ambient
-/// cue. Battle only (major 240); state resets when battle ends.
+/// cue. Battle only (IsBattleMajor = 220-299); state resets when battle ends.
 /// </summary>
 internal sealed unsafe class DamageMonitor
 {
@@ -70,7 +70,7 @@ internal sealed unsafe class DamageMonitor
 
     private void Tick()
     {
-        if (!FieldTracker.InBattle)   // battle major is per-dungeon (240, 241, …), not just 240
+        if (!FieldTracker.InBattle)   // battle major = 200 + floor major (band 220-299)
         {
             if (_last.Count > 0) _last.Clear();
             if (_lastAction.Count > 0) _lastAction.Clear();

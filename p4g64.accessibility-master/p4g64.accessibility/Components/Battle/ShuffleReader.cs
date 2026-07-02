@@ -62,6 +62,11 @@ internal sealed unsafe class ShuffleReader
     private nint _logic;
     private int _count;
     private int _lastCursor = -1;
+    private string _lastHoverSig = "";   // cursor|cardName of the last hover announce
+    private int _lastTriesSpoken = -999; // last spoken "you can take N cards" value (for settle re-announce)
+    private int _prevTries = -1;         // head[5] from the previous poll (stability gate for the re-announce)
+    private int _unresolvedCursor = -1;  // cursor position currently held as unresolvable (change-card grace)
+    private int _unresolvedPolls = 0;    // consecutive polls that position has been unresolvable
     private const int AnnounceDebounceMs = 800;   // count must sit still this long
 
     private string?[] _cards = Array.Empty<string?>();
@@ -126,9 +131,15 @@ internal sealed unsafe class ShuffleReader
                 {
                     long now = Environment.TickCount64;
                     if (now < _nextScanTick) continue;
-                    _nextScanTick = now + 700;
+                    // Retry FAST at first so a brief scripted tutorial shuffle is caught as its textures
+                    // load, then BACK OFF hard: battle-UI state stays 17 through the REWARD screen too,
+                    // where there's no struct to find — a flat fast retry would scan (~600ms) nonstop for
+                    // the whole reward screen and waste CPU (seen live: 185 fruitless scans in a row).
+                    // _scanAttempts resets on every pick and on leaving state 17, so active shuffling
+                    // (including one-mores) always gets the fast window; only a dead state-17 screen slows.
+                    long cooldown = _scanAttempts < 8 ? 200 : _scanAttempts < 24 ? 1500 : 6000;
+                    _nextScanTick = now + cooldown;
                     FindStruct();
-                    if (_logic == 0) DiagCardScan();   // TEMP: locate the one-more spread
                     continue;
                 }
 
@@ -162,14 +173,31 @@ internal sealed unsafe class ShuffleReader
                     _lastSig = liveSig;
                     _lastRound = liveRound;
                     _lastCursor = -1;
+                    _lastHoverSig = "";                 // a reshuffle may change cards in place
                     _foundAnnounced = false;            // re-announce the new spread
                     _announceTick = Environment.TickCount64 + AnnounceDebounceMs;
                     if (wasReady) Log($"[Shuffle] spread changed (one-more?) → round {liveRound}, {liveCount} cards: {liveSig}");
                     continue;
                 }
 
-                // REMAINING selectable cards — drops as cards are taken in a one-more.
-                int remaining = RemainingCards(_logic, (int)head[1]);
+                int dealt = (int)head[1];
+                int remaining = RemainingCards(_logic, dealt);
+
+                // The game's PANEL slot-map (display order → texture slot) is at a FIXED
+                // offset _logic+0xE7C (verified two runs). It COMPACTS as cards are drawn,
+                // so map[cursor] is the real texture slot — the texture array itself does
+                // NOT keep display order after a draw/change (RE'd live 2026-07-01).
+                int[] pmap = PanelSlotMap();
+                bool validMap = pmap.Length == remaining && ValidMap(pmap);
+
+                // Remember the original spread while it has no created card yet, so the resolver
+                // can later distinguish a CHANGED texture slot from an unchanged one.
+                if (validMap)
+                {
+                    bool anyCreated = false;
+                    foreach (int id in pmap) if (id >= dealt) { anyCreated = true; break; }
+                    if (!anyCreated) CaptureOrig();
+                }
 
                 if (!_foundAnnounced)
                 {
@@ -182,16 +210,70 @@ internal sealed unsafe class ShuffleReader
                 }
 
                 int cursor = (int)head[4];
-                if (cursor != _lastCursor && cursor >= 0 && cursor < remaining)
+                if (cursor >= 0 && cursor < remaining)
                 {
-                    _lastCursor = cursor;
-                    // Read the card FRESH at the live cursor (not from the cached
-                    // array, which can lag a one-more reshuffle → wrong card / off
-                    // by one, user 2026-06-17).
-                    string? cn = ReadCardAt(_logic, cursor);
-                    string name = cn != null ? $", {cn}" : "";
-                    Log($"[Shuffle] announce: Card {cursor + 1} of {remaining}{name}");
-                    Speech.Say($"Card {cursor + 1} of {remaining}{name}", true);
+                    // Resolve the panel display map (logical card-ids) to physical texture
+                    // slots, PER POSITION. Direct ids (< dealt) usually map straight through;
+                    // a created/changed card (id >= dealt) sits at slot (id - dealt). A
+                    // REPLACEMENT change (e.g. Hierophant→Persona) permutes ids↔slots with no
+                    // formula, so ResolveSlots does constraint propagation (the displaced-slot
+                    // resolution) and returns a PER-POSITION array: a real texture slot where it
+                    // can prove the mapping, or null for a genuinely ambiguous position. Only the
+                    // ambiguous position(s) announce without a name — every readable card (incl.
+                    // the unchanged ones) still reads, and we never risk a confident wrong name.
+                    var resolved = validMap ? ResolveSlots(pmap, dealt) : null;
+                    string? cn; string eff;
+                    if (resolved != null && cursor < resolved.Length && resolved[cursor] is (string rn, string re))
+                        (cn, eff) = (rn, re);                                  // this position resolved
+                    else if (validMap)
+                        (cn, eff) = ("card changed, name unavailable", "");    // this position ambiguous only
+                    else
+                        (cn, eff) = ReadCardFull(_logic, cursor);              // no map — old behavior
+                    // "N tries left" = the remaining pick budget, at logic header +0x14 (head[5]).
+                    // Located via snapshot-diff 2026-07-01: it went 3→2→1 as plain cards were taken,
+                    // while cards-remaining went 5→4→3, so it's the tries, not the card count. It's a
+                    // FIXED header field the scan already locates (the old docs only searched
+                    // 0x20..0x1EC0, so they missed it). Rises when a "+draw" card is picked.
+                    int tries = (int)head[5];
+                    bool triesSane = tries >= 1 && tries <= 30;
+                    string triesStr = triesSane ? $" You can take {tries} card{(tries == 1 ? "" : "s")}." : "";
+
+                    // GRACE for a loading change-card: during a change animation the panel map points at
+                    // the created card a poll or two BEFORE its texture is written, so it's briefly
+                    // unresolvable and then resolves (live: map=[…,4] read "changed", then map=[…,5] read
+                    // "Persona Senri"). Hold the "card changed" announce ~300ms so a loading change-card
+                    // doesn't blurt "unavailable" then immediately correct itself. A genuinely
+                    // unresolvable position (rare multi-change) still announces after the grace.
+                    if (validMap && cn == "card changed, name unavailable")
+                    {
+                        if (_unresolvedCursor != cursor) { _unresolvedCursor = cursor; _unresolvedPolls = 0; }
+                        if (++_unresolvedPolls < 6) { _prevTries = tries; continue; }   // still may resolve → wait
+                    }
+                    else { _unresolvedCursor = -1; _unresolvedPolls = 0; }
+
+                    string hoverSig = $"{cursor}|{cn ?? "?"}";
+                    if (hoverSig != _lastHoverSig)
+                    {
+                        _lastHoverSig = hoverSig;
+                        _lastTriesSpoken = triesSane ? tries : _lastTriesSpoken;
+                        _lastCursor = cursor;
+                        string name = cn != null ? $", {cn}" : "";
+                        string effStr = string.IsNullOrEmpty(eff) ? "" : $". {eff}";
+                        Log($"[Shuffle] announce: Card {cursor + 1} of {remaining}{name}{effStr}{triesStr}");
+                        Speech.Say($"Card {cursor + 1} of {remaining}{name}{effStr}{triesStr}", true);
+                    }
+                    else if (triesSane && tries != _lastTriesSpoken && tries == _prevTries)
+                    {
+                        // Same card, but the counter SETTLED to a new value — a BONUS spread reads 1 for a
+                        // moment before the +draw/sweep bonus applies (and a picked "+draw" raises it). The
+                        // `tries == _prevTries` gate means we only speak once it's stable across two polls,
+                        // so the deal's brief 1→3→4→2 fluctuation doesn't spam. Speak just the corrected
+                        // count so the first card no longer stays stuck on the pre-bonus value.
+                        _lastTriesSpoken = tries;
+                        Log($"[Shuffle] announce: You can take {tries} card{(tries == 1 ? "" : "s")}.");
+                        Speech.Say($"You can take {tries} card{(tries == 1 ? "" : "s")}.", true);
+                    }
+                    _prevTries = tries;
                 }
             }
             catch { }
@@ -209,7 +291,13 @@ internal sealed unsafe class ShuffleReader
         _logic = 0;
         _count = 0;
         _lastCursor = -1;
+        _lastHoverSig = "";
         _cards = Array.Empty<string?>();
+        // NOTE: do NOT clear _orig here — DropStruct also fires on a transient struct re-find
+        // mid-shuffle (during a take/change animation), and by the time the struct is re-found
+        // the spread already carries the created card, so CaptureOrig won't re-run. _orig is
+        // keyed by slot and refreshed at every pristine deal, so preserving it is correct; a
+        // stale value can never cause a wrong name (Step 1 pins only on a live-texture match).
         _lastSig = "";
         _lastRound = 0;
         _announcedEntry = false;
@@ -240,9 +328,15 @@ internal sealed unsafe class ShuffleReader
     // (live-verified 2026-06-17 — the one-more reshuffles the SAME struct in place
     // with h[0]=3, which the old `h[0]==1` check rejected → one-more never read).
     // Accept the small round range; the card-path read is the real false-positive gate.
+    // Upper bounds RELAXED 2026-07-01 so a big / high-progression spread isn't rejected outright
+    // (the "card/…" path read in ScanChunk is the real false-positive gate, not these limits):
+    // h[1] dealt ≤ 16 (was 8 — the texture array holds up to MaxCardSlots), h[5] TRIES ≤ 0x3F (was
+    // 0xF — h[5] is the pick counter, which can stack high with +draw/sweep bonuses), h[6] ≤ 0xFF
+    // (was 0x40 — h[6] grows with the player's Shuffle rank). These caps were causing whole
+    // late-game shuffles to go unread.
     private static bool IsLogicHeader(Span<uint> h) =>
-        h[0] >= 1 && h[0] <= 0xF && h[1] >= 2 && h[1] <= 8 && h[2] <= 0x20 && h[3] == 0 &&
-        h[4] < h[1] && h[5] >= 1 && h[5] <= 0xF && h[6] <= 0x40 && h[7] == 0;
+        h[0] >= 1 && h[0] <= 0xF && h[1] >= 2 && h[1] <= 16 && h[2] <= 0x20 && h[3] == 0 &&
+        h[4] < h[1] && h[5] >= 1 && h[5] <= 0x3F && h[6] <= 0xFF && h[7] == 0;
 
     // ---- the scan -------------------------------------------------------------
 
@@ -306,8 +400,10 @@ internal sealed unsafe class ShuffleReader
                 // round/state counters (1 on a normal deal; u[0]=3 one-more,
                 // u[5]=3 during an UPGRADE, live-verified 2026-06-17) — accept the
                 // small range, the card-path read is the real false-positive gate.
-                if (u[0] < 1 || u[0] > 0xF || u[5] < 1 || u[5] > 0xF || u[6] > 0x40 || u[7] != 0) continue;
-                if (u[1] < 2 || u[1] > 8 || u[2] > 0x20 || u[3] != 0 || u[4] >= u[1]) continue;
+                // Bounds RELAXED to match IsLogicHeader (dealt ≤ 16, tries u[5] ≤ 0x3F, u[6] ≤ 0xFF)
+                // so large/high-rank spreads aren't skipped; the card-path read below is the real gate.
+                if (u[0] < 1 || u[0] > 0xF || u[5] < 1 || u[5] > 0x3F || u[6] > 0xFF || u[7] != 0) continue;
+                if (u[1] < 2 || u[1] > 16 || u[2] > 0x20 || u[3] != 0 || u[4] >= u[1]) continue;
                 // +0x20 must hold a plausible low-4GB heap pointer.
                 ulong ptr = *(ulong*)(b + i + 0x20);
                 if (ptr < 0x10000 || ptr >= 0x1_0000_0000UL) continue;
@@ -377,63 +473,6 @@ internal sealed unsafe class ShuffleReader
             $"({regions} regions, {sw.ElapsedMilliseconds}ms)");
     }
 
-    // TEMP DIAGNOSTIC (one-more hunt 2026-06-17): the post-pick scan never finds
-    // the one-more spread. Locate card structs by their card-PATH content instead
-    // of the header signature, and log each candidate struct's header so we can see
-    // why IsLogicHeader rejected the one-more deal. Throttled; dedupes on content.
-    private long _diagTick;
-    private string _diagLast = "";
-    private void DiagCardScan()
-    {
-        long now = Environment.TickCount64;
-        if (now < _diagTick) return;
-        _diagTick = now + 1200;
-        byte[] buf = _scanBuf ??= new byte[0x100000];
-        byte[] needle = { (byte)'c', (byte)'a', (byte)'r', (byte)'d', (byte)'/' };
-        var found = new System.Collections.Generic.List<string>();
-        var seen = new System.Collections.Generic.HashSet<long>();
-        nint addr = 0x10000, hi = unchecked((nint)0x1_0000_0000L);
-        var mbi = new MemoryBasicInformation();
-        while ((ulong)addr < (ulong)hi && found.Count < 30)
-        {
-            if (VirtualQuery(addr, out mbi, (nint)sizeof(MemoryBasicInformation)) == 0) break;
-            nint regionEnd = (nint)((long)mbi.BaseAddress + (long)mbi.RegionSize);
-            if (mbi.State == 0x1000 && mbi.Type == 0x20000 && (mbi.Protect & 0xCC) != 0 && (mbi.Protect & 0x100) == 0)
-            {
-                for (nint p = (nint)mbi.BaseAddress; p < regionEnd; p += buf.Length - 0x40)
-                {
-                    int len = (int)Math.Min(buf.Length, regionEnd - p);
-                    if (!ReadSelf(p, buf.AsSpan(0, len))) break;
-                    var span = buf.AsSpan(0, len);
-                    int off = 0;
-                    while (found.Count < 30)
-                    {
-                        int idx = span[off..].IndexOf(needle);
-                        if (idx < 0) break;
-                        int i = off + idx; off = i + 5;
-                        int e = i; while (e < len && buf[e] != 0) e++;
-                        if (e >= len || e - i >= 0x30) continue;
-                        string s = Encoding.ASCII.GetString(buf, i, e - i);
-                        if (!s.EndsWith(".tmx")) continue;
-                        nint strAddr = p + i;
-                        if (!seen.Add((long)strAddr)) continue;
-                        // Log EVERY card string with its address + the u32 header at
-                        // string−0x1EC0 (so if it IS a real slot-0 we can see why the
-                        // scan rejected it; if not, the addresses reveal the layout).
-                        nint structAddr = strAddr - CardPathBase;
-                        Span<uint> h = stackalloc uint[2];
-                        string hd = ReadSelf(structAddr, h) ? $"hdr@-0x1EC0=[{h[0]},{h[1]}]" : "hdr?";
-                        found.Add($"0x{strAddr:X}({hd})={s}");
-                    }
-                }
-            }
-            addr = regionEnd;
-        }
-        // Log every scan (no dedupe) to capture the upgrade phase, where a new
-        // count=N struct appears but its cards may load late / at another layout.
-        Log($"[ShuffleDiag] {found.Count} card strings: {string.Join("  ", found)}");
-    }
-
     /// <summary>Read and decode each slot's card texture path. Known shapes:
     /// "card/arcana/c_cardXX.tmx" (XX = hex arcana id, 0-based) and
     /// "card/sarcana/&lt;suit&gt;_cNN.tmx" (wand/sword/cup/coin, NN = hex rank).
@@ -473,18 +512,133 @@ internal sealed unsafe class ShuffleReader
         return total;
     }
 
-    private string? ReadCardAt(nint logic, int slot)
+    // ── Panel slot-map (display order → texture slot) ───────────────────────────
+    // The shuffle PANEL keeps a u16 slot-map in on-screen order at a FIXED offset
+    // _logic+0xE7C (verified two runs: panel−logic = 0xE7C both times; the map is right
+    // before the 0xE88 remaining field). It is [0,1,…,dealt-1,0xFFFF] at round 1 and
+    // COMPACTS as cards are drawn, so map[cursor] is the real texture slot even after a
+    // draw/change reorders the texture array. Source: diagnose_shuffle.py,
+    // shuffle_time_structs.md; live-confirmed 2026-07-01.
+    private const int PanelMapOff = 0xE7C;
+
+    // Remembered card (name + effect) per texture slot from when the spread had no created card
+    // (the pristine deal / draw-only states). An original still present in the panel map keeps
+    // this identity even if its slot texture was later collaterally overwritten by a reused slot,
+    // because a REPLACED card's id LEAVES the map — so id-in-map ⟹ unchanged identity.
+    private readonly (string Name, string Effect)?[] _orig = new (string, string)?[MaxCardSlots];
+
+    // Refresh _orig from the current textures — call only when the spread has no created card
+    // (all map ids < dealt), so _orig always holds the last-known stable card at each slot.
+    private void CaptureOrig()
     {
-        Span<byte> buf = stackalloc byte[0x40];
-        if (!ReadSelf(logic + CardPathBase + slot * CardStride, buf)) return null;
-        int end = buf.IndexOf((byte)0);
-        if (end <= 0) return null;
-        string path;
-        try { path = Encoding.ASCII.GetString(buf[..end]); } catch { return null; }
-        return path.StartsWith("card/") ? DecodeCardPath(path) : null;
+        for (int s = 0; s < MaxCardSlots; s++)
+        {
+            var c = ReadCardFull(_logic, s);
+            if (c.Name != null) _orig[s] = (c.Name, c.Effect);
+        }
     }
 
-    private static string DecodeCardPath(string path)
+    // Resolve the panel display map (logical card-ids, on-screen order) to the CARD (name +
+    // effect) at each display position. The game scrambles id→texture-slot on a change with no
+    // formula and even overwrites a bystander card's slot, so we never trust slot arithmetic:
+    //   1. ORIGINALS (id < dealt still in the map): identity is preserved — a REPLACED card's id
+    //      LEAVES the map, so any id < dealt present is still its remembered card _orig[id]. Read
+    //      the live texture when it still matches (keeps the current effect); otherwise fall back
+    //      to the remembered card (its slot was collaterally overwritten by a reused slot).
+    //   2. The CREATED card (id >= dealt): its texture IS the one CHANGED slot (live texture ≠
+    //      remembered). When exactly one created position and one changed slot exist, they must
+    //      correspond — read that slot live. Anything left (a rarer multi-change) stays null →
+    //      "card changed". Every named position is a fact (remembered original, or the single
+    //      created↔changed match), so a wrong name is impossible. null = "card changed".
+    private (string Name, string Effect)?[] ResolveSlots(int[] map, int dealt)
+    {
+        int rem = map.Length;
+        var res = new (string Name, string Effect)?[rem];
+        var live = new (string? Name, string Effect)[MaxCardSlots];
+        for (int s = 0; s < MaxCardSlots; s++) live[s] = ReadCardFull(_logic, s);
+        Span<bool> usedSlot = stackalloc bool[MaxCardSlots];
+
+        // 1 — originals still in the map keep their remembered identity
+        for (int i = 0; i < rem; i++)
+        {
+            int id = map[i];
+            if (id < 0 || id >= dealt || _orig[id] is not (string on, string oe)) continue;
+            if (id < MaxCardSlots && live[id].Name == on)   // slot still shows it → live (fresh effect)
+            { res[i] = (on, live[id].Effect); usedSlot[id] = true; }
+            else res[i] = (on, oe);                          // slot clobbered → remembered card
+        }
+
+        // 2 — the single created card ↔ the single changed slot (a slot with a KNOWN card that
+        // now differs). Multiple of either → can't match safely → leave null ("card changed").
+        var changedSlots = new System.Collections.Generic.List<int>();
+        for (int s = 0; s < MaxCardSlots; s++)
+            if (live[s].Name != null && !usedSlot[s] && _orig[s] is (string cn, _) && live[s].Name != cn)
+                changedSlots.Add(s);
+        var createdPos = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < rem; i++)
+            if (!res[i].HasValue && map[i] >= dealt) createdPos.Add(i);
+        if (changedSlots.Count == 1 && createdPos.Count == 1)
+        {
+            var c = live[changedSlots[0]];
+            res[createdPos[0]] = (c.Name!, c.Effect);
+        }
+        return res;
+    }
+
+
+    // Live display-order slot list (reads u16s until the 0xFFFF terminator).
+    private int[] PanelSlotMap()
+    {
+        if (_logic == 0) return Array.Empty<int>();
+        Span<byte> b = stackalloc byte[16 * 2];
+        if (!ReadSelf(_logic + PanelMapOff, b)) return Array.Empty<int>();
+        var list = new System.Collections.Generic.List<int>(8);
+        for (int i = 0; i < 16; i++)
+        {
+            int v = MemoryMarshal.Read<ushort>(b.Slice(i * 2, 2));
+            if (v == 0xFFFF) break;
+            if (v > 15) return Array.Empty<int>();   // sanity — bail rather than misread
+            list.Add(v);
+        }
+        return list.ToArray();
+    }
+
+    // Map is trustworthy if every entry is a distinct texture slot in [0, 16). A
+    // change/one-more can APPEND new cards to slots beyond the original dealt count
+    // (seen live: dealt=3 but the map referenced slot 3/4), so bound by the record
+    // array capacity, NOT by dealt.
+    private const int MaxCardSlots = 16;
+    private static bool ValidMap(int[] map)
+    {
+        if (map.Length < 1) return false;
+        int seen = 0;
+        foreach (int v in map)
+        {
+            if (v < 0 || v >= MaxCardSlots || (seen & (1 << v)) != 0) return false;
+            seen |= 1 << v;
+        }
+        return true;
+    }
+
+    private (string? Name, string Effect) ReadCardFull(nint logic, int slot)
+    {
+        Span<byte> buf = stackalloc byte[0x40];
+        if (!ReadSelf(logic + CardPathBase + slot * CardStride, buf)) return (null, "");
+        int end = buf.IndexOf((byte)0);
+        if (end <= 0) return (null, "");
+        string path;
+        try { path = Encoding.ASCII.GetString(buf[..end]); } catch { return (null, ""); }
+        if (!path.StartsWith("card/")) return (null, "");
+        return DecodeCard(path);
+    }
+
+    private static string DecodeCardPath(string path) => DecodeCard(path).Name;
+
+    // Decode a card texture path into its display NAME and its EFFECT text. The game
+    // shows NO per-card description on screen, so the effects are a hand-built table
+    // (sourced from the P4G Shuffle Time card list, web-verified 2026-06-30). Effect
+    // is "" when unknown (Fool/Magician/Jester arcana never confirmed) — name only.
+    private static (string Name, string Effect) DecodeCard(string path)
     {
         string stem = path;
         int s = stem.LastIndexOf('/');
@@ -494,7 +648,11 @@ internal sealed unsafe class ShuffleReader
         // major arcana: c_cardXX
         if (stem.StartsWith("c_card") && stem.Length >= 8 &&
             int.TryParse(stem.AsSpan(6, 2), System.Globalization.NumberStyles.HexNumber, null, out int arc))
-            return arc < ArcanaNames.Length ? $"{ArcanaNames[arc]} card" : $"Arcana {arc} card";
+        {
+            string nm = arc < ArcanaNames.Length ? $"{ArcanaNames[arc]} card" : $"Arcana {arc} card";
+            string eff = arc >= 0 && arc < ArcanaEffects.Length ? ArcanaEffects[arc] ?? "" : "";
+            return (nm, eff);
+        }
 
         // persona card: i_prcXXX (XXX = hex persona id; confirmed i_prc02e -> Pixie)
         if (stem.StartsWith("i_prc") &&
@@ -502,24 +660,58 @@ internal sealed unsafe class ShuffleReader
         {
             string? pname = null;
             try { pname = Native.Persona.GetName(pid); } catch { }
-            return string.IsNullOrWhiteSpace(pname) ? $"Persona card {pid}" : $"Persona {pname}";
+            string nm = string.IsNullOrWhiteSpace(pname) ? $"Persona card {pid}" : $"Persona {pname}";
+            return (nm, "Adds this Persona to your stock.");
         }
 
         // suit cards: wand_cNN / sword_cNN / cup_cNN / coin_cNN
-        foreach (var (prefix, suit) in SuitNames)
+        foreach (var (prefix, suit, eff) in SuitNames)
         {
             if (stem.StartsWith(prefix) && stem.Length >= prefix.Length + 2 &&
                 int.TryParse(stem.AsSpan(prefix.Length, 2), System.Globalization.NumberStyles.HexNumber, null, out int rank))
-                return $"{suit} rank {rank}";
+                return ($"{suit} rank {rank}", eff);
         }
-        return stem;   // unknown shape — speak the stem, the log keeps the full path
+        return (stem, "");   // unknown shape — speak the stem, the log keeps the full path
     }
 
-    private static readonly (string Prefix, string Suit)[] SuitNames =
+    private static readonly (string Prefix, string Suit, string Effect)[] SuitNames =
     {
         // the game's own filenames spell Swords as "sord" (seen live: sord_c01.tmx)
-        ("wand_c", "Wands"), ("sord_c", "Swords"), ("sword_c", "Swords"),
-        ("cup_c", "Cups"), ("coin_c", "Coins"),
+        ("wand_c", "Wands",  "Bonus experience."),
+        ("sord_c", "Swords", "Gives a Skill Card."),
+        ("sword_c","Swords", "Gives a Skill Card."),
+        ("cup_c",  "Cups",   "Restores HP and SP."),
+        ("coin_c", "Coins",  "Bonus money."),
+    };
+
+    // Major-arcana Shuffle card effects, indexed to ArcanaNames (web-verified P4G list,
+    // 2026-06-30). null = effect not confirmed → speak the card name only.
+    private static readonly string?[] ArcanaEffects =
+    {
+        /*0  Fool*/        "Changes all cards; plus one draw.",
+        /*1  Magician*/    "Changes your equipped Persona's skill.",
+        /*2  Priestess*/   "Plus one draw; changes an undrawn card to a random arcana.",
+        /*3  Empress*/     "Plus one draw; removes an undrawn card.",
+        /*4  Emperor*/     "Levels up your equipped Persona.",
+        /*5  Hierophant*/  "Plus one draw; turns an undrawn card into a random Persona.",
+        /*6  Lovers*/      "Plus two draws, but loses obtained items.",
+        /*7  Chariot*/     "Raises your equipped Persona's Agility.",
+        /*8  Justice*/     "Raises your equipped Persona's Strength.",
+        /*9  Hermit*/      "Avoid encounters for a while.",
+        /*10 Fortune*/     "Raises your equipped Persona's Luck.",
+        /*11 Strength*/    "Raises your equipped Persona's Magic.",
+        /*12 Hanged Man*/  "Raises your equipped Persona's Endurance.",
+        /*13 Death*/       "Ends Shuffle Time.",
+        /*14 Temperance*/  "Gives one Treasure Key.",
+        /*15 Devil*/       "Plus three draws, but only 1 experience.",
+        /*16 Tower*/       "Plus three draws, but no money from this battle.",
+        /*17 Star*/        "Plus one draw; removes one already-drawn card.",
+        /*18 Moon*/        "Plus two draws, but half experience.",
+        /*19 Sun*/         "Plus two draws, but half money.",
+        /*20 Judgement*/   "No effect.",
+        /*21 World*/       "No effect.",
+        /*22 Jester*/      null,
+        /*23 Aeon*/        "Plus four draws.",
     };
 
     // ---- plumbing ---------------------------------------------------------------

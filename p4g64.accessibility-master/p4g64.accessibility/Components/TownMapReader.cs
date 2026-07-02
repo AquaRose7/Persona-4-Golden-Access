@@ -29,6 +29,7 @@ internal unsafe class TownMapReader : IDisposable
         { 2, "Junes Department Store" },
         { 3, "Samegawa Flood Plain" },
         { 5, "Dojima Residence" },
+        { 6, "Okina City" },
     };
 
     private IHook<RenderDelegate>? _hook;

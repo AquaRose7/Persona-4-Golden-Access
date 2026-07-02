@@ -84,7 +84,7 @@ internal abstract class ProximityBeacon
         // (overworld included, beacon off) — hammering the fieldObj chain
         // through area transitions, which is where the chronic AVE crashes
         // came from (crash-dump stack: ProximityBeacon.Tick → PlayerX2DLive).
-        if (!_active || !InDungeon())
+        if (!_active || !InDungeon() || FieldTracker.InAreaTransition)   // back off during a transition
         {
             _voice.Playing = false;
             DungeonAudio.SetWant(this, false);
@@ -148,7 +148,7 @@ internal abstract class ProximityBeacon
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major != 240 && major < 250;
+        return major >= 20 && major < 220;   // dungeon floors 20-69; battles (220-299) excluded
     }
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);

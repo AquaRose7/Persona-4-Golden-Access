@@ -323,6 +323,11 @@ internal unsafe class Battle
     internal static volatile int PendingEchoItemId = -1;
     internal static long PendingEchoItemTick;
 
+    /// <summary>The skill currently highlighted/selected in the Skill menu (set by SkillSelect,
+    /// NOT consumed) — used by TargetReader to read the targeted enemy's affinity to that skill's
+    /// element during target select.</summary>
+    internal static volatile int SelectedSkillId = -1;
+
     /// <summary>True if the text is one of the battle command names
     /// (Attack/Guard/Skill/...). Their bubbles only echo the player's confirmed
     /// command (and the enemy's basic attack, which the damage attribution line
@@ -358,7 +363,11 @@ internal unsafe class Battle
         if ((r & 0x20000000) != 0) return "repel";
         if ((r & 0x04000000) != 0) return "drain";
         if ((r & 0x01000000) != 0) return "null";
-        if ((r & 0x02000000) != 0) return "block";
+        // 0x02 is a DISTINCT no-damage flag (Ghidra: the merge layer treats 0x01 and 0x02 as two
+        // separate parallel flags, and FUN_1400d2840 zeroes damage for the whole 0x27 group). It was
+        // wrongly read as "null"; USER-CONFIRMED live 2026-07-02 that this affinity actually REPELS
+        // (damage bounced back). So 0x02 = repel (the game's repel encoding on the enemy live-cache).
+        if ((r & 0x02000000) != 0) return "repel";
         if ((r & 0x10000000) != 0) return "resist";
         if ((r & 0x08000000) != 0) return "weak";
         return "normal";
@@ -386,7 +395,8 @@ internal unsafe class Battle
         if ((hi & 0x08) != 0) return "weak";   // CONFIRMED
         if ((hi & 0x20) != 0) return "repel";  // guess
         if ((hi & 0x04) != 0) return "drain";  // guess
-        if ((hi & 0x03) != 0) return "null";   // 0x01 CONFIRMED (null); 0x02 = block→null
+        if ((hi & 0x02) != 0) return "repel";  // 0x02 = repel (user-confirmed on enemy affinities; same high-byte flag layout)
+        if ((hi & 0x01) != 0) return "null";   // 0x01 CONFIRMED (null)
         return "normal";
     }
 
@@ -420,6 +430,98 @@ internal unsafe class Battle
             sb.Append($"{ename} {val}. ");
         }
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>For an ALL-enemies skill, summarises how it lands on the living enemies by counting
+    /// DISCOVERED affinities, e.g. "2 weak, 1 repel". Null when the element has no grid (Almighty /
+    /// status) or nothing notable is known. elemId aligns with Skill.ElementalType.</summary>
+    internal static string AoeAffinitySummary(int elemId)
+    {
+        if (elemId < 0 || elemId == 5 || elemId > 7) return null;
+        int total = 0;
+        var cnt = new System.Collections.Generic.Dictionary<string, int>();
+        foreach (var (unit, side, stat) in EnumerateUnits())
+        {
+            if (side != 1) continue;                                   // enemies
+            if (!IsReadable(stat, 0x10) || *(ushort*)(stat + 0x08) == 0) continue;   // dead
+            total++;
+            // (Discovered-only by design: KnownAffinity gates on the game's own per-SPECIES
+            // permanent discovery flag — a weakness found in ANY past battle stays known,
+            // matching the analyze grid. Verified live 2026-07-03 via a temporary AoEDiag:
+            // same enemy read unknown 4× then "drain" only after the player discovered it.)
+            string aff = KnownAffinity(unit, elemId);
+            if (aff == null || aff == "normal") continue;
+            cnt[aff] = cnt.TryGetValue(aff, out int c) ? c + 1 : 1;
+        }
+        if (total == 0 || cnt.Count == 0) return null;
+        var parts = new System.Collections.Generic.List<string>();
+        foreach (var key in _affOrder)
+            if (cnt.TryGetValue(key, out int c)) parts.Add($"{c} {key}");
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
+    private static readonly string[] _affOrder = { "weak", "resist", "null", "drain", "repel" };
+
+    /// <summary>Active stat buffs/debuffs on a unit as spoken text ("attack up, defense down"), or
+    /// null when none. Stat-node layout (confirmed 2026-06-30 via clean Tarukaja/Rakukaja/Rakunda
+    /// casts): sign byte at +0x1C (attack), +0x1D (defense), +0x1E (agility) — 0 neutral, high bit
+    /// SET = down, clear = up; matching turn counter at +0x25/+0x26/+0x27 (non-zero = active, ticks
+    /// 3→2→1). Gated on the turn counter so an expired/absent buff never speaks.</summary>
+    internal static string BuffText(nint unit)
+    {
+        if (!IsReadable(unit, 0xCF8)) return null;
+        return BuffTextFromStat(*(nint*)(unit + 0xCF0));
+    }
+
+    /// <summary>Buff/debuff text straight from a stat node (for allies, the persistent party record
+    /// IS the in-battle stat node — see PartyStatus).</summary>
+    internal static string BuffTextFromStat(nint stat)
+    {
+        if (!IsReadable(stat, 0x2C)) return null;
+        var b = (byte*)stat;
+        var parts = new System.Collections.Generic.List<string>(4);
+        // Buff array is contiguous: sign byte +0x1C+t, turn counter +0x25+t. t=0/1/2 = atk/def/agi;
+        // t=3 = critical rate (index 3 @ +0x1F/+0x28 — Chie's all-party crit buff, verified 2026-07-02).
+        for (int t = 0; t < 4; t++)
+        {
+            if (b[0x25 + t] == 0) continue;                 // turn counter 0 → not active
+            bool down = (b[0x1C + t] & 0x80) != 0;
+            parts.Add($"{_buffStat[t]} {(down ? "down" : "up")}");
+        }
+        // Mind Charge (Concentrate — 2.5x next magic attack): stat +0x16 bit 0x10. Verified live
+        // 2026-07-02: toggles ON when a Shadow Concentrates, OFF when it fires the charged hit
+        // (two isolated captures). It's a next-attack multiplier flag, not a stat buff, but reads
+        // naturally alongside the buffs on the enemy target / status readouts.
+        if ((b[0x16] & 0x10) != 0) parts.Add("mind charged");
+        // Power Charge (2.5x next physical attack): stat +0x16 bit 0x08 — captured live
+        // 2026-07-02 via the ChargeDiag after the user's controlled Power Charge use
+        // (sibling bit of Mind Charge 0x10, same flag byte).
+        if ((b[0x16] & 0x08) != 0) parts.Add("power charged");
+        // Diag stays for OTHER unknown flag bits in this byte pair (guard? enrage?) — log-only.
+        if ((b[0x16] & ~(0x10 | 0x08)) != 0 || b[0x17] != 0)
+            Log($"[ChargeDiag] stat+0x16=0x{b[0x16]:X2} +0x17=0x{b[0x17]:X2}");
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
+    private static readonly string[] _buffStat = { "attack", "defense", "agility", "critical rate" };
+
+    /// <summary>The enemy's affinity to ONE element ("weak"/"resist"/"null"/"drain"/"repel"/
+    /// "block"/"normal"), or null if the player hasn't analyzed/revealed it yet (so we never
+    /// leak unknown weaknesses — mirrors the game's mark). elemId: Physical=0, Fire=1, Ice=2,
+    /// Electric=3, Wind=4, Light=6, Dark=7 (aligns with Skill.ElementalType).</summary>
+    internal static string KnownAffinity(nint unit, int elemId)
+    {
+        if (!IsReadable(unit, 0xCF8)) return null;
+        nint stat = *(nint*)(unit + 0xCF0);
+        if (!IsReadable(stat, 0x10)) return null;
+        int nameId = *(ushort*)(unit + 0xA4);
+        var known = _getAffinityKnown;
+        var aff = _getAffinity;
+        if (known == null || aff == null) return null;
+        bool isKnown = false;
+        try { isKnown = known(nameId, elemId) != 0; } catch { return null; }
+        if (!isKnown) return null;
+        uint r = 0;
+        try { r = aff(stat, elemId); } catch { return null; }
+        return ClassifyAffinity(r);
     }
 
     // Standard Megaten arcana order (verify Magician=1 vs the analyze screen).
@@ -948,6 +1050,36 @@ internal unsafe class Battle
         return IsReadable(s + 0x52F2, 2) ? s : 0;
     }
 
+    /// <summary>Weakness/affinity note for the enemy <paramref name="unit"/> against the element of
+    /// the command currently being set up (Attack = Physical, Skill = the selected skill's element).
+    /// Returns "weak"/"resists"/"nulls"/"drains"/"repels"/"blocks", or null when the element is
+    /// non-damaging, irrelevant (Item/other), or the affinity hasn't been DISCOVERED yet (only hitting
+    /// the enemy with that element reveals it — <see cref="KnownAffinity"/> gates on that, matching the
+    /// game's mark; Analyze only displays what's already discovered).</summary>
+    internal static string TargetWeaknessNote(nint unit)
+    {
+        int cmd = CurrentCommand;
+        int elem;
+        if (cmd == 3) elem = 0;                          // Attack = Physical
+        else if (cmd == 4)                               // Skill = the selected skill's element
+        {
+            if (SelectedSkillId < 0) return null;
+            try { elem = (int)Native.Skill.GetSkillElement(SelectedSkillId); } catch { return null; }
+        }
+        else return null;                                // Item / other — no element to compare
+        if (elem < 0 || elem == 5 || elem > 7) return null;   // Almighty (5) + status/heal/support: no grid
+
+        return KnownAffinity(unit, elem) switch
+        {
+            "weak"   => "weak",
+            "resist" => "resists",
+            "null"   => "nulls",
+            "drain"  => "drains",
+            "repel"  => "repels",
+            _        => null,
+        };
+    }
+
     /// <summary>True while the in-battle Analyze profile panel is on screen.</summary>
     internal static bool AnalyzePanelOpen()
     {
@@ -1113,6 +1245,8 @@ internal unsafe class Battle
         (0x1, "dizzy"),
         (0x20, "poisoned"),   // CONFIRMED 2026-06-17 (MC "YUKI 0x0 -> 0x20" = Poison)
         (0x8, "silenced"),    // CONFIRMED 2026-06-18 (MC "YUKI 0x0 -> 0x8" = Silence)
+        (0x80, "enervated"),  // CONFIRMED 2026-06-29 (Yukiko "0x0 -> 0x80" + "Enervation" bubble)
+        (0x2, "enraged"),     // CONFIRMED 2026-07-03 (Marukyu: Chie/Kanji/Haru "0x0 -> 0x2" = Rage, user-seen)
     };
 
     /// <summary>Set by the F12 diagnostic to ask the next battle frame (game thread)

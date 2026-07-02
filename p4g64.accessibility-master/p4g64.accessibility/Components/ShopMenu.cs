@@ -76,6 +76,35 @@ internal unsafe class ShopMenu
     private const int ActiveEntryStride    = 0x14;
     private const int ActiveEntryPacked    = 0x04;  // lo16=itemId, hi16=helpBmdIndex
 
+    // Runtime item-stat table (same one the equip menu reads — PlayerMenu.EquipStatTblAddr).
+    // *(0x1411A5940) → base; record = base + globalItemId*0x44:
+    //   rec+0x00 category (0 weapon / 1 armor / 2 accessory)
+    //   weapon: attack rec+0x08, hit rec+0x0A   ·   armor: defense rec+0x10, evade rec+0x12
+    // Values fold in the selected character's bonus, so they match the on-screen At/Hit (Def/Eva).
+    private const long EquipStatTblAddr    = 0x1411A5940;
+    private const long EquipTablePtrAddr   = 0x1411A5948;  // → equipped-items table (= party member array)
+
+    // Daidara's "buy for character" list = recruited members in JOIN order, with
+    // Rise (charId 5, a navigator who can't equip) EXCLUDED. Because you always
+    // recruit in this order, the visible list is always a prefix of this array, so
+    // the char-select cursor (pShop+0x4E0) indexes it directly → internal charId.
+    // Verified live 2026-06-30: cursor 0-4 = You/Yosuke/Chie/Yukiko/Kanji = ids
+    // 1/2/3/4/6; cursor 5 = Teddie (8), 6 = Naoto (7).
+    private static readonly int[] CharSelectCharId = { 1, 2, 3, 4, 6, 8, 7 };
+    // charId → name (authoritative P4 ids; id 1 = protagonist custom name).
+    private static readonly string[] CharIdNames =
+        { "?", "You", "Yosuke", "Chie", "Yukiko", "Rise", "Kanji", "Naoto", "Teddie" };
+
+    internal static int CharSelectToCharId(int cursor) =>
+        cursor >= 0 && cursor < CharSelectCharId.Length ? CharSelectCharId[cursor] : -1;
+
+    internal static string CharSelectName(int cursor)
+    {
+        int id = CharSelectToCharId(cursor);
+        if (id == 1) return ProtagonistName();
+        return id >= 1 && id < CharIdNames.Length ? CharIdNames[id] : $"Member {cursor}";
+    }
+
     // ── Hook state ───────────────────────────────────────────────────────
     private IHook<ShopUpdateDelegate>? _hook;
     private static ShopStruct* _lastPtr;
@@ -152,8 +181,6 @@ internal unsafe class ShopMenu
     // which one moved last (that's the live cursor for AnnounceCurrentItem).
     private short _lastRow = -2;    // pShop+0x9E mirror (-2 = uninitialised)
     private short _lastWho = -1;    // pShop+0x4E0 mirror (selected character)
-    private static readonly string[] CharNames =
-        { "You", "Yosuke", "Chie", "Yukiko", "Kanji", "Rise", "Naoto", "Teddie" };
 
     private static ushort ReadShopState(ShopStruct* pShop)
         => IsReadable((nint)pShop + 4, 2) ? *(ushort*)((nint)pShop + 4) : ST_NONE;
@@ -383,16 +410,12 @@ internal unsafe class ShopMenu
         else if (gameItemId < 2304)  { helpBmd = Dialog.HelpBmd.Item2;     dialogIdx = gameItemId - 2048; }
         else if (gameItemId < 2560)  { helpBmd = Dialog.HelpBmd.Weapon2;   dialogIdx = gameItemId - 2304; }
 
-        string name = Item.GetName(gameItemId), desc = "", effect = "";
+        string name = Item.GetName(gameItemId), desc = "";
         bool full = _shopState == 0x0B;   // description window open → long form
         if (full && helpBmd is { } hb)
-        {
             desc = ReadDescription(hb, dialogIdx);
-            // AddEffect only applies to equipment (weapon/armor/accessory); reading
-            // it for consumables/materials just returns garbage we never speak.
-            if (gameItemId < 768)
-                effect = ReadDescription(Dialog.HelpBmd.AddEffect, dialogIdx);
-        }
+        // The add-effect ("+…" line) is read separately in the full branch below via
+        // ReadAddEffect (record +0x28 → AddEffect[id]), NOT by item index.
         Log($"[ShopMenu] {source}[{index}]: packed=0x{packed:X8} lo16={gameItemId} hi16={hi16} helpBmd={(helpBmd?.ToString() ?? "none")} dialogIdx={dialogIdx} price={price} full={full} name=\"{name}\" desc=\"{desc}\"");
 
         if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(desc))
@@ -414,6 +437,13 @@ internal unsafe class ShopMenu
         if (full)
         {
             text = string.IsNullOrEmpty(desc) ? name : $"{name}. {desc}";
+            // Special add-effect (resists, stat boosts, Auto-buffs) — read by the
+            // real effect-id at record +0x28, NOT the item index (which misaligned).
+            string addEff = ReadAddEffect(gameItemId);
+            if (!string.IsNullOrEmpty(addEff)) text += $". {addEff}";
+            // Selected character (char-select cursor) for the equipped comparison.
+            int charCursor = IsReadable((nint)pShop + 0x4E0, 2) ? *(short*)((nint)pShop + 0x4E0) : -1;
+            text += WeaponArmorStatText(gameItemId, charCursor);  // ". Attack 88, up 11, hit 92"
             if (price > 0) text = $"{text}. {price} yen";
         }
         else
@@ -597,6 +627,91 @@ internal unsafe class ShopMenu
         if ((protect & PAGE_NOACCESS) != 0) return false;
         if ((protect & PAGE_GUARD)    != 0) return false;
         return true;
+    }
+
+    // ── Weapon/armor stats + equipped comparison for the shop description window ──
+    // Reads the candidate item's numbers from the runtime stat table, then appends
+    // up/down deltas against the SELECTED character's currently-equipped item in the
+    // same slot (charCursor = pShop+0x4E0). e.g. ". Attack 88, up 11, hit 92, down 1".
+    private static string WeaponArmorStatText(int gameItemId, int charCursor)
+    {
+        int cat = EquipStats(gameItemId, out int a, out int b);
+        if (cat < 0) return "";                        // not weapon/armor, or stale table
+        string nameA = cat == 0 ? "Attack" : "Defense";
+        string nameB = cat == 0 ? "hit" : "evade";
+
+        // Compare against the selected character's equipped item in this slot
+        // (weapon→slot 0, armor→slot 1). Same table → same character bonus folded in.
+        int ca = 0, cb = 0; bool haveCur = false;
+        int charId = CharSelectToCharId(charCursor);
+        if (charId > 0)
+        {
+            int curId = EquippedItemId(charId, cat);
+            if (curId > 0 && EquipStats(curId, out ca, out cb) == cat) haveCur = true;
+        }
+
+        string text = $". {nameA} {a}";
+        if (haveCur && a != ca) text += a > ca ? $", up {a - ca}" : $", down {ca - a}";
+        text += $", {nameB} {b}";
+        if (haveCur && b != cb) text += b > cb ? $", up {b - cb}" : $", down {cb - b}";
+        return text;
+    }
+
+    // Read an equipment item's ADD-EFFECT (the "+…" line above the description:
+    // stat boosts, Auto-buffs, elemental resists, ailment resists). The effect-id
+    // is an int at stat-record +0x28; AddEffect[id] is the text (already begins with
+    // "+"); id 0 = none. Verified live 2026-06-30 (Knifeproof Coat 0x28=7 → "+2
+    // Endurance"; Miori Shirt 0x28=85 → "+Auto-Sukukaja"; plain items 0x28=0).
+    private static string ReadAddEffect(int gameItemId)
+    {
+        if (gameItemId < 0 || gameItemId >= 768) return "";   // weapon/armor/accessory only
+        if (!IsReadable((nint)EquipStatTblAddr, 8)) return "";
+        nint baseAddr = *(nint*)(nint)EquipStatTblAddr;
+        if (baseAddr == 0) return "";
+        nint rec = baseAddr + (nint)gameItemId * 0x44;
+        if (!IsReadable(rec, 0x44)) return "";
+        int effId = *(int*)(rec + 0x28);
+        if (effId <= 0) return "";
+        string t = ReadDescription(Dialog.HelpBmd.AddEffect, effId);
+        if (string.IsNullOrWhiteSpace(t) || t == "None" || t == "blank" || t == "????") return "";
+        return t;   // e.g. "+2 Endurance", "+Auto-Sukukaja", "+Reduce Fire damage 10%"
+    }
+
+    // Read a weapon/armor's attack/hit (cat 0) or defense/evade (cat 1) from the
+    // runtime stat table. Returns the category, or -1 if not weapon/armor or the
+    // table is stale/unpopulated (category byte cross-checked against the id block).
+    private static int EquipStats(int gameItemId, out int a, out int b)
+    {
+        a = b = 0;
+        if (gameItemId < 0 || gameItemId >= 512) return -1;
+        if (!IsReadable((nint)EquipStatTblAddr, 8)) return -1;
+        nint baseAddr = *(nint*)(nint)EquipStatTblAddr;
+        if (baseAddr == 0) return -1;
+        nint rec = baseAddr + (nint)gameItemId * 0x44;
+        if (!IsReadable(rec, 0x44)) return -1;
+        int cat = *(short*)rec;
+        int expectCat = gameItemId < 256 ? 0 : 1;
+        if (cat != expectCat)
+        {
+            Log($"[ShopMenu] stat table cat {cat} != expected {expectCat} for id {gameItemId} — stats silent");
+            return -1;
+        }
+        if (cat == 0) { a = *(short*)(rec + 0x08); b = *(short*)(rec + 0x0A); }
+        else          { a = *(short*)(rec + 0x10); b = *(short*)(rec + 0x12); }
+        return cat;
+    }
+
+    // Currently-equipped item id for (charId, slot), from the equipped-items table
+    // (*(0x1411A5948) - 0x38 + (charId*0x42 + slot)*2). Mirrors PlayerMenu.
+    private static int EquippedItemId(int charId, int slot)
+    {
+        if (charId < 1 || charId > 16 || slot < 0 || slot > 3) return -1;
+        if (!IsReadable((nint)EquipTablePtrAddr, 8)) return -1;
+        nint tbl = *(nint*)(nint)EquipTablePtrAddr;
+        if (tbl == 0) return -1;
+        nint addr = tbl - 0x38 + (charId * 0x42 + slot) * 2;
+        if (!IsReadable(addr, 2)) return -1;
+        return *(ushort*)addr;
     }
 
     // ── Map shop category code (stride=0x90 format) to HelpBmd ──────────
@@ -822,9 +937,9 @@ internal unsafe class ShopMenu
                         Log($"[ShopMenu] character {_lastWho} -> {who} (state=0x{_shopState:X2})");
                         bool wasNone = _lastWho < 0;
                         _lastWho = who;
-                        if (who >= 0 && who < CharNames.Length && !wasNone && inListExact)
+                        if (who >= 0 && who < CharSelectCharId.Length && !wasNone && inListExact)
                         {
-                            Speech.Say(who == 0 ? ProtagonistName() : CharNames[who], true);
+                            Speech.Say(CharSelectName(who), true);
                             _announceListIn = 3;   // their list rebuilds
                         }
                     }

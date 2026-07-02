@@ -134,6 +134,9 @@ internal class DungeonCursor
     private void Tick()
     {
         if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
+        // Don't run the mapping cursor while the camp menu is open (its keys would fire behind it).
+        if (CommandMenus.PlayerMenu.IsMenuOpen) return;
+        if (FieldTracker.InAreaTransition) return;   // back off during a transition (crash-safety)
         bool inDungeon = InDungeon();
         if (inDungeon != _inDungeonLast)
         {
@@ -165,7 +168,7 @@ internal class DungeonCursor
     private static bool InDungeon()
     {
         int major = FieldTracker.CurrentMajor;
-        return major >= 20 && major < 240;   // dungeons 20-239; battles (240-249) excluded
+        return major >= 20 && major < 220;   // dungeon floors 20-69; battles (220-299) excluded
     }
 
     private void Toggle()

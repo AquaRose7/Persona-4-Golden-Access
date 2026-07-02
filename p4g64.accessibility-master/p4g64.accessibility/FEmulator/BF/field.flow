@@ -33,6 +33,7 @@
 // touch.
 
 import( "tutorial.msg" );   // mod tutorial pop-up text
+import( "rooms.msg" );      // Room Action menu ("What's here?") strings
 
 void order_party_softhook()
 {
@@ -45,6 +46,53 @@ void order_party_softhook()
         HELP_MSG(Welcome1);
         HELP_MSG(Welcome2);
         return;
+    }
+
+    // ── Room Action menu ("What's here?") — opened by Shift+F (C# arms 7905 +
+    //    synth-F). Plain F never sets 7905, so the normal menu is untouched.
+    //    Object picks get their teleport wired in Task 2; Cancel just returns. ──
+    if (BIT_CHK(7905))
+    {
+        BIT_OFF(7905);
+        int pick = 0;
+        // Each object arms its BIT (C# RoomActionMenu reads it post-teleport → nudge, or an
+        // auto-walk handoff in big outdoor areas) and teleports to the entry nearest that
+        // object. Menu depends on which area (major AND minor — 7_2 vs 8_1 etc).
+        if (GET_FIELD_MAJOR() == 7)   // Dojima house
+        {
+            if (GET_FIELD_MINOR() == 3)   // Your room
+            {
+                pick = ADV_SEL(MyRoom_Text, MyRoom, 0);
+                if (pick == 0) { BIT_ON(7910); CALL_FIELD_SAFE(7, 3, 4, 0); return; }   // Futon,       entry 4
+                if (pick == 1) { BIT_ON(7911); CALL_FIELD_SAFE(7, 3, 1, 0); return; }   // Desk,        entry 1
+                if (pick == 2) { BIT_ON(7912); CALL_FIELD_SAFE(7, 3, 2, 0); return; }   // TV,          entry 2
+                if (pick == 3) { BIT_ON(7913); CALL_FIELD_SAFE(7, 3, 3, 0); return; }   // Small desk,  entry 3
+                if (pick == 4) { BIT_ON(7914); CALL_FIELD_SAFE(7, 3, 0, 0); return; }   // Sofa,        entry 0
+                if (pick == 5) { BIT_ON(7915); CALL_FIELD_SAFE(7, 3, 1, 0); return; }   // Calendar,    entry 1
+                return;
+            }
+            if (GET_FIELD_MINOR() == 2)   // Living room
+            {
+                pick = ADV_SEL(LivingRoom_Text, LivingRoom, 0);
+                if (pick == 0) { BIT_ON(7920); CALL_FIELD_SAFE(7, 2, 6, 0); return; }   // Save point,  entry 6
+                if (pick == 1) { BIT_ON(7921); CALL_FIELD_SAFE(7, 2, 0, 0); return; }   // Fridge,      entry 0
+                if (pick == 2) { BIT_ON(7922); CALL_FIELD_SAFE(7, 2, 0, 0); return; }   // Farm (yard), entry 0
+                return;
+            }
+            return;
+        }
+        if (GET_FIELD_MAJOR() == 8)   // Central Shopping District
+        {
+            if (GET_FIELD_MINOR() == 1)   // Shopping District North
+            {
+                pick = ADV_SEL(ShopNorth_Text, ShopNorth, 0);
+                if (pick == 0) { BIT_ON(7930); CALL_FIELD_SAFE(8, 1, 7, 0); return; }   // Aiya diner,     entry 7
+                if (pick == 1) { BIT_ON(7931); CALL_FIELD_SAFE(8, 1, 1, 0); return; }   // Bulletin board, entry 1
+                return;
+            }
+            return;
+        }
+        return;                      // not a set-up room
     }
 
     // ── Calibration: teleport to entry N of the CURRENT area ──

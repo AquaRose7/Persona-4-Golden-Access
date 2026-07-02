@@ -38,6 +38,14 @@ public unsafe class Skill
         return (*_skillElements)[skillId].Type;
     }
 
+    /// <summary>Target scope from ActiveSkillData+0x0C: 0 = single target, 1 = all targets
+    /// (confirmed 2026-06-30 — Bufula 0x00 vs Mabufu 0x01). Side (enemies vs allies) is inferred
+    /// from the element by the caller.</summary>
+    internal static byte GetTargetScope(int skillId)
+    {
+        return ((byte*)GetActiveSkillData(skillId))[0x0C];
+    }
+
     // TODO Support other languages
 
     /// <summary>

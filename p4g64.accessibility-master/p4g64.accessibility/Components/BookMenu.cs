@@ -15,8 +15,9 @@ namespace p4g64.accessibility.Components;
 /// (first arg) layout, all verified live:
 ///   +0x28  byte   flag; bit 0x4 = menu visible/active (the render's own gate)
 ///   +0x1D8 short  book COUNT
-///   +0x1DA short  CURSOR (highlighted book index)
-///   +0x1DC short  scroll (top visible row; 6 rows shown at once)
+///   +0x1DA short  CURSOR — WINDOW-relative row (caps at the visible-row count)
+///   +0x1DC short  scroll (top visible row) — TRUE book index = cursor + scroll
+///                 (the +0x78 array is the full list; long lists scroll, 2026-06-30)
 ///   +0x78 + i*8   book entry i (8 bytes), as shorts:
 ///       +0x00  book ITEM id  -> Item.GetName (the title)
 ///       +0x04  chapters READ   (grey buttons on screen)
@@ -64,8 +65,15 @@ internal unsafe class BookMenu : IDisposable
 
         if (!IsReadable(menu + 0x1D8, 6)) return;
         int count  = *(short*)(menu + 0x1D8);
+        // +0x1DA is the WINDOW-relative row (caps at the visible-row count); the list
+        // scrolls via +0x1DC. The +0x78 array is the FULL book list, so the true book
+        // index = cursor + scroll. Using cursor alone read the wrong entry and (worse)
+        // dedupe-silenced every book reached by scrolling. Verified live 2026-06-30.
         int cursor = *(short*)(menu + 0x1DA);
-        if (count < 1 || count > 64 || cursor < 0 || cursor >= count) return;
+        int scroll = IsReadable(menu + 0x1DC, 2) ? *(short*)(menu + 0x1DC) : 0;
+        if (scroll < 0) scroll = 0;
+        int abs = cursor + scroll;
+        if (count < 1 || count > 64 || abs < 0 || abs >= count) return;
 
         // +0x348 = the "Show Info"/Help panel flag (1 = description showing, 0 = list).
         // Set by FUN_140153000 (list state -> 0, info state -> 1).
@@ -75,19 +83,19 @@ internal unsafe class BookMenu : IDisposable
         if (menu != _lastMenu) { _lastMenu = menu; _lastCursor = -1; _lastInfo = -1; }
 
         // Re-announce when the cursor moves OR when we toggle between list <-> info.
-        if (cursor == _lastCursor && info == _lastInfo) return;
+        if (abs == _lastCursor && info == _lastInfo) return;
         bool infoChanged = info != _lastInfo;
-        _lastCursor = cursor;
+        _lastCursor = abs;
         _lastInfo = info;
 
-        nint entry = menu + 0x78 + cursor * 8;
+        nint entry = menu + 0x78 + abs * 8;
         if (!IsReadable(entry, 8)) return;
         int id    = *(short*)(entry + 0x00);
         int read  = *(short*)(entry + 0x04);
         int total = *(short*)(entry + 0x06);
 
         string name = Item.GetName(id);
-        if (string.IsNullOrEmpty(name)) name = $"Book {cursor + 1}";
+        if (string.IsNullOrEmpty(name)) name = $"Book {abs + 1}";
 
         if (info == 1)
         {
@@ -101,7 +109,7 @@ internal unsafe class BookMenu : IDisposable
             return;
         }
 
-        Speech.Say($"{name}. {Chapters(read, total)}. {cursor + 1} of {count}.", interrupt: true);
+        Speech.Say($"{name}. {Chapters(read, total)}. {abs + 1} of {count}.", interrupt: true);
     }
 
     private static string Chapters(int read, int total)
