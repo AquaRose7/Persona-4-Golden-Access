@@ -388,8 +388,10 @@ internal class DungeonNav
         //   Ctrl+Shift+F7  = undo the most recent mark on this floor
         //   Ctrl+F6        = promote the selected browser entry to a named Event mark
         // (Marks save to BOTH the mod folder and database/ — SaveMarks dual-write.)
-        // NOTE: comment these out before building a public Release (dev-key policy — v1.2.0+
-        // ship without them; the user keeps them in the dev build to author marks while playing).
+        // DEV-KEY POLICY: Debug builds keep the authoring keys; public Release builds
+        // strip them automatically via #if DEBUG (replaces the old "temp-comment before
+        // release" dance — v1.3.5+).
+#if DEBUG
         bool ctrl = IsKeyDown(0x11);
         bool f7 = ctrl && IsKeyDown(0x76);
         if (f7 && !_f7Was) { if (IsKeyDown(0x10)) UndoMark(); else RecordMark(); }
@@ -398,6 +400,7 @@ internal class DungeonNav
         bool f6 = ctrl && IsKeyDown(0x75);
         if (f6 && !_f6Was) PromoteSelectionToEvents();
         _f6Was = f6;
+#endif
     }
 
     private static bool InDungeon()
@@ -415,7 +418,8 @@ internal class DungeonNav
         _entries = BuildCategory(cat);
         Log($"[DungeonNav] category → {cat} entries={_entries.Count}");
         if (cat == Cat.Chests) LogChestArray();
-        if (cat == Cat.Places) LogMasterTable();
+        // (LogMasterTable() diagnostic call removed in the v1.3.5 cleanup — the method
+        // stays below; re-call it here when mapping a new lobby's rows to names.)
         // STAIRS EMPTY diagnostic: a new dungeon's stairs sprite id is unknown until
         // dumped. When Stairs comes up empty on a gridded floor, log the minimap
         // sprites so the value can be added to GridRouter.IsStairSprite (stand on the
@@ -841,6 +845,7 @@ internal class DungeonNav
         [0x012C] = "Chie",     // 300
         [0x0190] = "Yukiko",   // 400 — added when she joined (user-mapped)
         [0x0258] = "Kanji",    // 600 — TV-world entrance (user-mapped 2026-07-02, "Person 600")
+        [0x01F4] = "Rise",     // 500 — TV-world entrance (user-mapped 2026-07-03, "Person 500")
         [0x0384] = "Fox",      // 900 — TV-world entrance (SP heal NPC)
     };
 

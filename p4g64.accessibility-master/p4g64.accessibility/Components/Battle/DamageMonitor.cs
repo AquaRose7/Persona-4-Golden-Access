@@ -28,7 +28,9 @@ internal sealed unsafe class DamageMonitor
 
     private readonly Thread _thread;
     private volatile bool _stopped;
-    private readonly Dictionary<nint, (int hp, bool down, uint status)> _last = new();
+    private readonly Dictionary<nint, (int hp, int sp, bool down, uint status)> _last = new();
+    private nint _lastPartyActing;       // last party unit seen acting (own-cast SP-cost gate)
+    private long _lastPartyActingTick;
 
     // Attacker attribution: the Turn pointer is NULL during enemy turns (verified
     // live — it only tracks player command turns), so the attacker comes from
@@ -97,11 +99,21 @@ internal sealed unsafe class DamageMonitor
         var msgs = new List<string>();
         var damagedParty = new List<nint>();
         bool partyDamaged = false;
+        // Needed inside the loop for the SP-drain gate AND after it for attacker
+        // attribution: Turn is party-side during the player's own action, null on
+        // enemy turns. The pointer moves on BEFORE the cast's SP deduction lands,
+        // so also remember WHO acted recently — Chie's own Mabufu cost announced
+        // as "Chie lost 10 SP" without it (user 2026-07-04).
+        nint acting = Battle.ActingUnit();
+        bool playerActing = acting != 0 && Battle.UnitSide(acting) == 0;
+        long nowTick = Environment.TickCount64;
+        if (playerActing) { _lastPartyActing = acting; _lastPartyActingTick = nowTick; }
 
         foreach (var (unit, side, stat) in units)
         {
             if (!IsReadable(stat, 0x10)) continue;
             int hp = *(ushort*)((byte*)stat + 0x08);
+            int sp = *(ushort*)((byte*)stat + 0x0A);
             uint status = *(uint*)((byte*)stat + 0x0C);
             bool down = (status & Battle.StatusDown) != 0;
             present.Add(unit);
@@ -123,7 +135,7 @@ internal sealed unsafe class DamageMonitor
 
             if (!_last.TryGetValue(unit, out var prev))
             {
-                _last[unit] = (hp, down, status); // first sighting — baseline, don't announce
+                _last[unit] = (hp, sp, down, status); // first sighting — baseline, don't announce
                 continue;
             }
 
@@ -133,8 +145,8 @@ internal sealed unsafe class DamageMonitor
             if (status != prev.status)
                 Log($"[Status] {Battle.UnitDisplayName(unit) ?? "?"} 0x{prev.status:X} -> 0x{status:X}");
 
-            if (hp == prev.hp && down == prev.down && status == prev.status) continue;
-            _last[unit] = (hp, down, status);
+            if (hp == prev.hp && sp == prev.sp && down == prev.down && status == prev.status) continue;
+            _last[unit] = (hp, sp, down, status);
 
             var parts = new List<string>();
             if (hp != prev.hp)
@@ -157,6 +169,29 @@ internal sealed unsafe class DamageMonitor
                     if (side == 0) { partyDamaged = true; damagedParty.Add(unit); }
                 }
                 else parts.Add($"recovered {-delta} HP");
+            }
+            // SP deltas (v1.3.5 — the "Spirit Drain reads nothing" report). A unit's
+            // SP drop during ITS OWN side's action is a cast cost (silent — the skill
+            // name is already spoken); a drop during the OTHER side's action is a
+            // drain, which had no readout at all. Party SP gains = restores, spoken.
+            if (sp != prev.sp)
+            {
+                int d = prev.sp - sp;
+                if (side == 0)
+                {
+                    // Own cast cost = "spent N SP" (mirrors the HP-cost wording, user
+                    // 2026-07-04); an enemy draining you = "lost N SP". A drop on the
+                    // member who was acting within the last ~2.5s is their own cast
+                    // (the Turn pointer often clears before the deduction lands).
+                    bool ownCast = playerActing ||
+                                   (unit == _lastPartyActing && nowTick - _lastPartyActingTick < 2500);
+                    if (d > 0) parts.Add(ownCast ? $"spent {d} SP" : $"lost {d} SP");
+                    else if (d < 0) parts.Add($"recovered {-d} SP");
+                }
+                else if (d > 0 && playerActing)
+                {
+                    parts.Add($"lost {d} SP");   // the party drained an enemy
+                }
             }
             // A weakness or critical hit knocks the target down (→ "1 More") — the
             // real-time "you hit a weakness" cue.
@@ -191,9 +226,8 @@ internal sealed unsafe class DamageMonitor
             // blamed on an enemy (live bug 2026-06-10). Turn is null on enemy
             // turns, so the gate lets real enemy hits through.
             // Fallbacks: action-transition attacker → enemy targeting a victim →
-            // the only living enemy → banner actor.
-            nint acting = Battle.ActingUnit();
-            bool playerActing = acting != 0 && Battle.UnitSide(acting) == 0;
+            // the only living enemy → banner actor. (acting/playerActing computed
+            // once before the unit loop — also gates the SP-drain readout.)
             if (partyDamaged && !playerActing)
             {
                 long now = Environment.TickCount64;

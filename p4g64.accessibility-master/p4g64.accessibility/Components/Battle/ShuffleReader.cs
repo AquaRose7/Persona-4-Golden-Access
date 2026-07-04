@@ -58,6 +58,13 @@ internal sealed unsafe class ShuffleReader
     /// flow keeps battle-UI state at 17 for both screens).</summary>
     internal static volatile bool ShuffleActive;
 
+    /// <summary>True while the battle-UI state machine is on the Shuffle/reward screen
+    /// (state 17), updated every poll. ShuffleText gates on THIS (not ShuffleActive):
+    /// a SKIPPED deal writes neither texture paths NOR the panel map, so the struct may
+    /// never latch at all — but the game's info panel still renders, and the panel text
+    /// alone can carry the reading (2026-07-04).</summary>
+    internal static volatile bool ShuffleStateActive;
+
     // Located struct for the current shuffle (0 = not found).
     private nint _logic;
     private int _count;
@@ -67,6 +74,17 @@ internal sealed unsafe class ShuffleReader
     private int _prevTries = -1;         // head[5] from the previous poll (stability gate for the re-announce)
     private int _unresolvedCursor = -1;  // cursor position currently held as unresolvable (change-card grace)
     private int _unresolvedPolls = 0;    // consecutive polls that position has been unresolvable
+    private int _invalidPolls;           // consecutive polls the latched header failed validation
+    private string _pendHoverSig = "";   // hover awaiting the info panel to settle (ShuffleText)
+    private long _pendHoverTick;
+    // Created-card (change) tracking for the current spread:
+    //   _createdResolved: created id → (texture slot, name, effect) once proven — lets a LATER
+    //   change resolve too (incremental promotion; closes the old double-change gap).
+    //   _announcedCreated / _pendingCreated: which created ids have been announced / how long
+    //   an unresolved one has been waiting for its texture.
+    private readonly System.Collections.Generic.Dictionary<int, (int Slot, string Name, string Effect)> _createdResolved = new();
+    private readonly System.Collections.Generic.HashSet<int> _announcedCreated = new();
+    private readonly System.Collections.Generic.Dictionary<int, int> _pendingCreated = new();
     private const int AnnounceDebounceMs = 800;   // count must sit still this long
 
     private string?[] _cards = Array.Empty<string?>();
@@ -98,6 +116,7 @@ internal sealed unsafe class ShuffleReader
             try
             {
                 int state = CurrentState();
+                ShuffleStateActive = state == StateShuffle;
                 if (state != StateShuffle)
                 {
                     // RESCUE (2026-06-11): the deferred "Shuffle Time" announce
@@ -121,6 +140,14 @@ internal sealed unsafe class ShuffleReader
                     }
                     if (state != 18) { _pickedSig = null; _pickedRound = 0; _everAnnounced = false; }
                     DropStruct(announcePick: true);
+                    // Reset the scan pacing even when nothing was ever latched — DropStruct
+                    // early-returns when _logic==0, so a fruitless shuffle used to leave
+                    // _scanAttempts high and the NEXT shuffle started pre-starved in the
+                    // 1.5s/6s backoff tiers (live log 2026-07-03: attempts 1→5 spanning two
+                    // separate shuffles).
+                    _scanAttempts = 0;
+                    _nextScanTick = 0;
+                    _noPathHits.Clear();
                     continue;
                 }
 
@@ -144,40 +171,89 @@ internal sealed unsafe class ShuffleReader
                 }
 
                 // Re-validate every poll — the struct is freed the instant the pick
-                // resolves, and the arena page can be reused for anything.
+                // resolves, and the arena page can be reused for anything. Validation is
+                // the RELAXED header (a skipped deal never regains the strict shape) plus
+                // the card paths themselves — the paths are the struct's identity, so a
+                // reused page can't impersonate it even with a stale-valid header.
                 Span<uint> head = stackalloc uint[8];
-                if (!ReadSelf(_logic, head) || !IsLogicHeader(head))
+                bool headOk = ReadSelf(_logic, head) && RelaxedHeader(head);
+                int liveCount = headOk ? (int)head[1] : _count;
+                var liveCards = ReadCardNames(_logic, liveCount, quiet: true);
+                bool anyLive = false;
+                foreach (var c in liveCards) if (c != null) { anyLive = true; break; }
+                if (anyLive && _pathless)
                 {
+                    // The paths arrived after all (very late deal) — upgrade to named mode.
+                    Log("[Shuffle] paths appeared on a path-less spread — names available now");
+                    _pathless = false;
+                }
+                if (!headOk || (!anyLive && !_pathless))
+                {
+                    // TRANSIENT vs REAL invalidation (v1.3.5 — the "skip breaks the whole
+                    // shuffle" fix). The header flickers invalid for a few frames during the
+                    // deal-SKIP / take / change animations while the struct stays alive at
+                    // this address. The old immediate drop marked the LIVE spread as "just
+                    // picked" (_pickedSig), so the rescan refused to re-latch it while the
+                    // round hadn't advanced — the rest of the shuffle read NOTHING. Tolerate
+                    // a short invalid window; only a persistent invalidation (a real pick
+                    // frees the struct) drops.
+                    if (++_invalidPolls < 10) continue;   // ~500ms
+                    Log($"[Shuffle] struct invalid {_invalidPolls} polls (headOk={headOk} paths={anyLive}) — dropping (pick). " +
+                        $"h=[{head[0]:X},{head[1]:X},{head[2]:X},{head[3]:X},{head[4]:X},{head[5]:X},{head[6]:X},{head[7]:X}]");
                     _pickedSig = _lastSig;                     // pick done — skip its ghost
                     _pickedRound = _lastRound;                 // …only while the round hasn't advanced
                     DropStruct(announcePick: true);
                     continue;
                 }
+                if (_invalidPolls > 0)
+                    Log($"[Shuffle] struct recovered after {_invalidPolls} invalid polls (transient — kept the spread)");
+                _invalidPolls = 0;
 
-                // Re-read the spread every poll and compare the card CONTENT, not just
-                // the count: the deal grows the count as cards land (2→4), AND a
-                // "One More!" RESHUFFLES the cards in place — usually with the SAME
-                // count, so a count-only check reads the new spread as "the same cards"
-                // (user bug 2026-06-17: one-more not recognised).
-                int liveCount = (int)head[1];
+                // Compare the card CONTENT, not just the count: the deal grows the count
+                // as cards land (2→4), AND a "One More!" RESHUFFLES the cards in place —
+                // usually with the SAME count, so a count-only check reads the new spread
+                // as "the same cards" (user bug 2026-06-17: one-more not recognised).
                 int liveRound = (int)head[0];
-                var liveCards = ReadCardNames(_logic, liveCount, quiet: true);
                 string liveSig = SpreadSig(liveCards, liveCount);
                 // A "One More!" advances the ROUND (h[0] 1→3) and reshuffles in place
                 // — sometimes to the SAME cards, so also trigger on a round change.
                 if (liveCount != _count || liveSig != _lastSig || liveRound != _lastRound)
                 {
-                    bool wasReady = _foundAnnounced;
+                    // How many card slots actually differ? A REAL one-more re-DEALS the
+                    // spread (most slots change / count changes); the post-pick REVEAL
+                    // merely bumps the round counter and touches ≤1-2 slots — announcing
+                    // "One more" on a round bump alone was the false-one-more bug
+                    // (user 2026-07-03: took a normal card, heard "One more").
+                    int diffs = 0;
+                    for (int i = 0; i < liveCards.Length; i++)
+                        if (i >= _cards.Length || liveCards[i] != _cards[i]) diffs++;
+                    bool redealt = liveCount != _count || diffs > 2;
+                    if (liveRound != _lastRound && !redealt)
+                        Log($"[Shuffle] round {_lastRound} → {liveRound}, spread ~unchanged ({diffs} diffs) — reveal, not one-more");
+                    _lastRound = liveRound;
+
+                    if (!_foundAnnounced || redealt)
+                    {
+                        // Deal still settling, or a genuine re-deal → (re)arm the spread announce.
+                        bool wasReady = _foundAnnounced;
+                        _count = liveCount;
+                        _cards = liveCards;
+                        _lastSig = liveSig;
+                        _lastCursor = -1;
+                        _lastHoverSig = "";                 // a reshuffle may change cards in place
+                        _foundAnnounced = false;            // re-announce the new spread
+                        _announceTick = Environment.TickCount64 + AnnounceDebounceMs;
+                        if (redealt) { _createdResolved.Clear(); _announcedCreated.Clear(); _pendingCreated.Clear(); }
+                        if (wasReady) Log($"[Shuffle] spread re-dealt (one-more) → round {liveRound}, {liveCount} cards: {liveSig}");
+                        continue;
+                    }
+                    // Small in-place mutation after the spread was announced: a picked
+                    // change card rewrote a texture (or a reveal cleared a slot). Track
+                    // silently; the created-card announcement below names real changes.
                     _count = liveCount;
                     _cards = liveCards;
                     _lastSig = liveSig;
-                    _lastRound = liveRound;
-                    _lastCursor = -1;
-                    _lastHoverSig = "";                 // a reshuffle may change cards in place
-                    _foundAnnounced = false;            // re-announce the new spread
-                    _announceTick = Environment.TickCount64 + AnnounceDebounceMs;
-                    if (wasReady) Log($"[Shuffle] spread changed (one-more?) → round {liveRound}, {liveCount} cards: {liveSig}");
-                    continue;
+                    Log($"[Shuffle] spread mutated in place ({diffs} slots): {liveSig}");
                 }
 
                 int dealt = (int)head[1];
@@ -209,22 +285,69 @@ internal sealed unsafe class ShuffleReader
                     Speech.Say($"{lead}{remaining} cards", true);
                 }
 
-                int cursor = (int)head[4];
-                if (cursor >= 0 && cursor < remaining)
+                // Resolve the panel display map (logical card-ids) to the card at each
+                // display position. Direct ids (< dealt) keep their remembered identity;
+                // a created/changed card resolves by the single-created↔single-changed-slot
+                // match, or by an EARLIER resolution remembered in _createdResolved
+                // (incremental promotion). null = genuinely ambiguous → "card changed";
+                // a confident wrong name is impossible.
+                var resolved = validMap ? ResolveSlots(pmap, dealt) : null;
+
+                // PROACTIVE change announcements (v1.3.5 — "the mod isn't good at pointing
+                // out the changed card"). When a picked change card creates a new id in the
+                // panel map, name it as soon as its texture resolves: "Card N changed to X."
+                // The user no longer has to re-browse the spread to discover the change.
+                if (validMap && _foundAnnounced && resolved != null && !_pathless)
                 {
-                    // Resolve the panel display map (logical card-ids) to physical texture
-                    // slots, PER POSITION. Direct ids (< dealt) usually map straight through;
-                    // a created/changed card (id >= dealt) sits at slot (id - dealt). A
-                    // REPLACEMENT change (e.g. Hierophant→Persona) permutes ids↔slots with no
-                    // formula, so ResolveSlots does constraint propagation (the displaced-slot
-                    // resolution) and returns a PER-POSITION array: a real texture slot where it
-                    // can prove the mapping, or null for a genuinely ambiguous position. Only the
-                    // ambiguous position(s) announce without a name — every readable card (incl.
-                    // the unchanged ones) still reads, and we never risk a confident wrong name.
-                    var resolved = validMap ? ResolveSlots(pmap, dealt) : null;
+                    for (int i = 0; i < pmap.Length && i < resolved.Length; i++)
+                    {
+                        int cid = pmap[i];
+                        if (cid < dealt || _announcedCreated.Contains(cid)) continue;
+                        if (resolved[i] is (string chName, string chEff))
+                        {
+                            _announcedCreated.Add(cid);
+                            _pendingCreated.Remove(cid);
+                            // If the cursor is sitting on this position, sync the hover sig so
+                            // the hover block doesn't instantly re-announce over this message.
+                            if (i == (int)head[4]) _lastHoverSig = $"{i}|{chName}";
+                            string msg = $"Card {i + 1} changed to {chName}." +
+                                         (string.IsNullOrEmpty(chEff) ? "" : $" {chEff}");
+                            Log($"[Shuffle] change announce: {msg}");
+                            Speech.Say(msg, true);
+                        }
+                        else
+                        {
+                            // Texture not written yet (loading) — or a mass-change (Fool).
+                            // Give it ~700ms to resolve, then announce position-only.
+                            _pendingCreated.TryGetValue(cid, out int polls);
+                            _pendingCreated[cid] = ++polls;
+                            if (polls >= 14)
+                            {
+                                _announcedCreated.Add(cid);
+                                _pendingCreated.Remove(cid);
+                                Log($"[Shuffle] change announce (unresolved): card {i + 1} id={cid}");
+                                Speech.Say($"Card {i + 1} changed.", true);
+                            }
+                        }
+                    }
+                }
+
+                // The cursor can range over MORE positions than `remaining`: already-taken
+                // cards stay on screen and hoverable (live 2026-07-03 — positions 4/5 of a
+                // 3-remaining spread were unreadable). The info panel names whatever is
+                // hovered, so announce for any sane cursor; the display total shows at
+                // least the hovered position.
+                int cursor = (int)head[4];
+                if (cursor >= 0 && cursor < 16)
+                {
+                    int totalDisp = Math.Max(remaining, cursor + 1);
                     string? cn; string eff;
-                    if (resolved != null && cursor < resolved.Length && resolved[cursor] is (string rn, string re))
+                    if (_pathless)
+                        (cn, eff) = (null, "");                                // skipped deal — no names exist
+                    else if (resolved != null && cursor < resolved.Length && resolved[cursor] is (string rn, string re))
                         (cn, eff) = (rn, re);                                  // this position resolved
+                    else if (validMap && cursor >= pmap.Length)
+                        (cn, eff) = (null, "");                                // beyond the live map (taken card) — panel names it
                     else if (validMap)
                         (cn, eff) = ("card changed, name unavailable", "");    // this position ambiguous only
                     else
@@ -254,13 +377,52 @@ internal sealed unsafe class ShuffleReader
                     string hoverSig = $"{cursor}|{cn ?? "?"}";
                     if (hoverSig != _lastHoverSig)
                     {
+                        // GAME-TRUTH NAMES (v1.3.5, user's idea): the info panel renders the
+                        // hovered card's title + description as text (ShuffleText). Prefer it —
+                        // it exists on SKIPPED deals (no texture paths) and after any change.
+                        // Wait briefly for the panel to re-render for THIS hover and settle one
+                        // window (so a mid-transition merge is never spoken); fall back to the
+                        // struct-derived name on timeout.
+                        long nowH = Environment.TickCount64;
+                        if (_pendHoverSig != hoverSig) { _pendHoverSig = hoverSig; _pendHoverTick = nowH; }
+                        string? panel = ShuffleText.LatestPanel;
+                        // Per-frame reconstruction is stable frame-to-frame, so 50ms of
+                        // stillness suffices (was 130ms of window churn — "feels slow").
+                        bool panelReady = panel != null
+                                          && ShuffleText.LatestChangedTick >= _pendHoverTick - 60
+                                          && nowH - ShuffleText.LatestChangedTick >= 50;
+                        if (!panelReady && nowH - _pendHoverTick < 300) { _prevTries = tries; continue; }
+                        if (!panelReady && panel != null && nowH - ShuffleText.LatestSeenTick < 300)
+                            panelReady = true;   // panel live but text identical (duplicate card) — trust it
                         _lastHoverSig = hoverSig;
                         _lastTriesSpoken = triesSane ? tries : _lastTriesSpoken;
                         _lastCursor = cursor;
-                        string name = cn != null ? $", {cn}" : "";
-                        string effStr = string.IsNullOrEmpty(eff) ? "" : $". {eff}";
-                        Log($"[Shuffle] announce: Card {cursor + 1} of {remaining}{name}{effStr}{triesStr}");
-                        Speech.Say($"Card {cursor + 1} of {remaining}{name}{effStr}{triesStr}", true);
+                        string name, effStr;
+                        if (panelReady)
+                        {
+                            string p2 = panel!;
+                            // The game's panel omits the SUIT RANK (bigger rank = bigger
+                            // bonus — user 2026-07-04). Inject it from the struct-decoded
+                            // name when available; skipped deals have no paths → no rank.
+                            if (cn != null)
+                            {
+                                var mr = System.Text.RegularExpressions.Regex.Match(cn, @" rank (\d+)$");
+                                if (mr.Success && !p2.Contains("rank", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    int dot = p2.IndexOf('.');
+                                    string ins = $", rank {mr.Groups[1].Value}";
+                                    p2 = dot > 0 ? p2.Insert(dot, ins) : p2 + ins;
+                                }
+                            }
+                            name = $", {p2}"; effStr = "";
+                        }
+                        else
+                        {
+                            name = cn != null ? $", {cn}" : "";
+                            effStr = string.IsNullOrEmpty(eff) ? "" : $". {eff}";
+                        }
+                        Log($"[Shuffle] announce: Card {cursor + 1} of {totalDisp}{name}{effStr}{triesStr}");
+                        Speech.Say($"Card {cursor + 1} of {totalDisp}{name}{effStr}{triesStr}", true);
                     }
                     else if (triesSane && tries != _lastTriesSpoken && tries == _prevTries)
                     {
@@ -304,6 +466,9 @@ internal sealed unsafe class ShuffleReader
         _lastRejected = 0;
         _foundAnnounced = false;
         _scanAttempts = 0;
+        _invalidPolls = 0;
+        _pathless = false;
+        _pendHoverSig = "";
         ShuffleActive = false;
         // _pickedSig / _everAnnounced persist across a pick (cleared on state exit).
     }
@@ -338,19 +503,45 @@ internal sealed unsafe class ShuffleReader
         h[0] >= 1 && h[0] <= 0xF && h[1] >= 2 && h[1] <= 16 && h[2] <= 0x20 && h[3] == 0 &&
         h[4] < h[1] && h[5] >= 1 && h[5] <= 0x3F && h[6] <= 0xFF && h[7] == 0;
 
+    // RELAXED header (v1.3.5 — the "skip leaves the header out of strict shape" fix; live log
+    // 2026-07-03: a skipped deal never matched IsLogicHeader across 15+ scans, so the whole
+    // shuffle went unread). Only the structurally-load-bearing fields: dealt count, two zero
+    // words, and a sane cursor. The card-path check is the real identity proof; the strict
+    // header remains the PREFERRED match so normal deals behave exactly as before.
+    private static bool RelaxedHeader(Span<uint> h) =>
+        h[1] >= 2 && h[1] <= 16 && h[3] == 0 && h[4] < 16 && h[7] == 0;
+
     // ---- the scan -------------------------------------------------------------
 
     private int _scanAttempts;
+
+    // First relaxed-only candidate seen during the current walk (strict header failed but the
+    // card paths verify). Consumed only when the whole walk finds no strict match.
+    private nint _relaxCand;
+    private int _relaxCount;
+    private string _relaxLog = "";
 
     private void FindStruct()
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         int regions = 0;
+        _relaxCand = 0;
         // Low 4GB first (where every observed arena lived), then the rest of
         // user space as a fallback — a whole shuffle went unfound 2026-06-11,
         // consistent with the arena landing above 4GB late in a long session.
         if (FindStructInRange(0x10000, unchecked((nint)0x1_0000_0000L), ref regions)) { LogFound(sw, regions); return; }
         if (FindStructInRange(unchecked((nint)0x1_0000_0000L), unchecked((nint)0x7FFF_FFF00000L), ref regions)) { LogFound(sw, regions); return; }
+
+        // No strict match anywhere — accept the relaxed candidate (a SKIPPED deal's header
+        // stays out of strict shape, but its card paths can't lie). Log the header verbatim
+        // so the skip-shape can be learned and the strict filter widened later.
+        if (_relaxCand != 0)
+        {
+            LatchStruct(_relaxCand, _relaxCount);
+            Log($"[Shuffle] RELAXED latch @ 0x{_relaxCand:X}: {_relaxLog}");
+            LogFound(sw, regions);
+            return;
+        }
 
         _scanAttempts++;
         if (!_announcedEntry || _scanAttempts % 5 == 0)
@@ -395,29 +586,30 @@ internal sealed unsafe class ShuffleReader
             for (int i = 0; i + 0x30 <= len; i += 4)
             {
                 uint* u = (uint*)(b + i);
-                // count >= 2: count=1 lookalikes flooded the scan (2026-06-11)
-                // and no real shuffle deals a single card. u[0] AND u[5] are
-                // round/state counters (1 on a normal deal; u[0]=3 one-more,
-                // u[5]=3 during an UPGRADE, live-verified 2026-06-17) — accept the
-                // small range, the card-path read is the real false-positive gate.
-                // Bounds RELAXED to match IsLogicHeader (dealt ≤ 16, tries u[5] ≤ 0x3F, u[6] ≤ 0xFF)
-                // so large/high-rank spreads aren't skipped; the card-path read below is the real gate.
-                if (u[0] < 1 || u[0] > 0xF || u[5] < 1 || u[5] > 0x3F || u[6] > 0xFF || u[7] != 0) continue;
-                if (u[1] < 2 || u[1] > 16 || u[2] > 0x20 || u[3] != 0 || u[4] >= u[1]) continue;
+                // RELAXED pre-filter — only the structurally required fields (count, two
+                // zero words, sane cursor). count >= 2: count=1 lookalikes flooded the
+                // scan (2026-06-11) and no real shuffle deals a single card.
+                if (u[1] < 2 || u[1] > 16 || u[3] != 0 || u[4] >= 16 || u[7] != 0) continue;
                 // +0x20 must hold a plausible low-4GB heap pointer.
                 ulong ptr = *(ulong*)(b + i + 0x20);
                 if (ptr < 0x10000 || ptr >= 0x1_0000_0000UL) continue;
+                // STRICT extras — the preferred match, i.e. a normally-dealt spread. A
+                // SKIPPED deal leaves the header out of this shape (live log 2026-07-03:
+                // 15+ scans never matched), so a strict miss can still latch via the
+                // relaxed fallback below — its card paths are the real identity proof.
+                // h[6] can read 0xFFFFFFFF at higher progression (live 2026-07-03 — a NORMAL
+                // deal only latched via the relaxed fallback because of it); accept both shapes.
+                bool strict = u[0] >= 1 && u[0] <= 0xF && u[2] <= 0x20 && u[4] < u[1] &&
+                              u[5] >= 1 && u[5] <= 0x3F && (u[6] <= 0xFF || u[6] == 0xFFFFFFFF);
+                if (!strict && _relaxCand != 0) continue;   // already holding a fallback
                 if (!ReadSelf((nint)ptr, probe)) continue;
 
-                // The 32-byte header alone false-positives on unrelated objects (seen
-                // live: a permanent count=2 match at 0xAD5FB10). The definitive check:
-                // the real struct has its card texture paths at +0x1EC0 (stride 0x138)
-                // — an ASCII "card/" prefix there can't happen by accident. (The old
-                // 64KB-page "arena evidence" read failed whenever the allocation didn't
-                // start at the page boundary, which silently broke whole shuffles.)
-                // During the deal animation the paths aren't written yet — we just
-                // keep rescanning until they appear, which also means the announce
-                // lands right as the cards settle.
+                // The header alone false-positives on unrelated objects (seen live: a
+                // permanent count=2 match at 0xAD5FB10). The definitive check: the real
+                // struct has its card texture paths at +0x1EC0 (stride 0x138) — an ASCII
+                // "card/" prefix there can't happen by accident. During the deal animation
+                // the paths aren't written yet — we keep rescanning until they appear,
+                // which also means the announce lands right as the cards settle.
                 nint cand = baseVa + i;
                 int count = (int)u[1];
                 var cards = ReadCardNames(cand, count, quiet: true);
@@ -425,10 +617,31 @@ internal sealed unsafe class ShuffleReader
                 foreach (var c in cards) if (c != null) { any = true; break; }
                 if (!any)
                 {
+                    if (!strict) continue;
+                    // (No DumpDiag here — garbage candidates cycling through fresh addresses,
+                    // e.g. our own LOG TEXT in memory, spammed dumps in a feedback loop,
+                    // live 2026-07-03. Dumps only fire on a real latch now.)
                     if (cand != _lastRejected)
                     {
                         _lastRejected = cand;
                         Log($"[Shuffle] candidate @ 0x{cand:X} count={count} has no card paths yet — waiting");
+                    }
+                    // PATH-LESS LATCH (v1.3.5 — the real skip effect, log-proven 2026-07-03:
+                    // a SKIPPED deal's struct keeps a strict-valid header but the deal
+                    // animation never writes the card texture paths, so the path wait
+                    // starved forever and the shuffle read NOTHING). A normal deal gains
+                    // its paths within a scan or two; when a strict candidate stays
+                    // path-less across a couple of scans AND its panel map validates, it
+                    // IS the live skipped spread — latch it (names come from ShuffleText's
+                    // info-panel capture). Hits are counted PER ADDRESS — see field note.
+                    int hits = _noPathHits.TryGetValue(cand, out int h) ? h + 1 : 1;
+                    if (_noPathHits.Count < 64) _noPathHits[cand] = hits;
+                    if (hits >= 2 && PanelMapValidAt(cand, count))
+                    {
+                        Log($"[Shuffle] PATH-LESS latch @ 0x{cand:X} count={count} (skipped deal) " +
+                            $"h=[{u[0]:X},{u[1]:X},{u[2]:X},{u[3]:X},{u[4]:X},{u[5]:X},{u[6]:X},{u[7]:X}]");
+                        LatchStruct(cand, count, cards, SpreadSig(cards, count), (int)u[0], pathless: true);
+                        return true;
                     }
                     continue;
                 }
@@ -439,8 +652,9 @@ internal sealed unsafe class ShuffleReader
                 // reveal/reward phase). BUT a "One More!" reshuffles it in place with
                 // the SAME cards and an ADVANCED round (h[0]) — so only skip while the
                 // round hasn't advanced past the one we picked (else the one-more is
-                // never re-latched, user 2026-06-17).
-                if (_pickedSig != null && sig == _pickedSig && (int)u[0] <= _pickedRound)
+                // never re-latched, user 2026-06-17). A relaxed candidate's h[0] may be
+                // junk, so it skips on the signature alone.
+                if (_pickedSig != null && sig == _pickedSig && (!strict || (int)u[0] <= _pickedRound))
                 {
                     if (cand != _lastRejected)
                     {
@@ -450,20 +664,76 @@ internal sealed unsafe class ShuffleReader
                     continue;
                 }
 
-                _pickedSig = null;
-                _logic = cand;
-                _count = count;
-                _lastCursor = -1;            // force the first announcement
-                _cards = cards;
-                _lastSig = sig;
-                _lastRound = (int)u[0];
-                _foundAnnounced = false;
-                _announceTick = Environment.TickCount64 + AnnounceDebounceMs;
-                ShuffleActive = true;
+                if (!strict)
+                {
+                    // Remember as the walk's fallback; keep going in case a strict match
+                    // exists elsewhere. Consumed by FindStruct after the full walk.
+                    _relaxCand = cand;
+                    _relaxCount = count;
+                    _relaxLog = $"h=[{u[0]:X},{u[1]:X},{u[2]:X},{u[3]:X},{u[4]:X},{u[5]:X},{u[6]:X},{u[7]:X}] " +
+                                $"cards=[{string.Join(" | ", cards)}]";
+                    continue;
+                }
+
+                LatchStruct(cand, count, cards, sig, (int)u[0]);
                 return true;
             }
         }
         return false;
+    }
+
+    private void LatchStruct(nint cand, int count, string?[]? cards = null, string? sig = null,
+                             int round = -1, bool pathless = false)
+    {
+        cards ??= ReadCardNames(cand, count);
+        if (round < 0)
+        {
+            Span<uint> h = stackalloc uint[8];
+            round = ReadSelf(cand, h) ? (int)h[0] : 1;
+        }
+        _pickedSig = null;
+        _logic = cand;
+        _count = count;
+        _lastCursor = -1;            // force the first announcement
+        _cards = cards;
+        _lastSig = sig ?? SpreadSig(cards, count);
+        _lastRound = round;
+        _foundAnnounced = false;
+        _announceTick = Environment.TickCount64 + AnnounceDebounceMs;
+        _invalidPolls = 0;
+        _pathless = pathless;
+        _noPathHits.Clear();
+        ShuffleActive = true;
+    }
+
+    // Path-less (skipped-deal) tracking: PER-ADDRESS bare-scan counts. ⚠ A single
+    // last-candidate slot ping-ponged between a permanent path-less header LOOKALIKE
+    // (lower address, scanned first) and the real struct, so the count never reached
+    // the threshold and skipped shuffles stayed silent (log-proven 2026-07-04).
+    // _pathless = the latched spread has no texture paths (names come from the panel).
+    private readonly System.Collections.Generic.Dictionary<nint, int> _noPathHits = new();
+    private bool _pathless;
+
+    /// <summary>The candidate's panel slot-map at +0xE7C validates (distinct u16 slots
+    /// &lt; 16, 0xFFFF-terminated) and its remaining count at +0xE88 is sane — the identity
+    /// gate for a path-less latch (a header lookalike has neither).</summary>
+    private static bool PanelMapValidAt(nint cand, int count)
+    {
+        Span<byte> b = stackalloc byte[16 * 2];
+        if (!ReadSelf(cand + PanelMapOff, b)) return false;
+        int n = 0, seen = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            int v = MemoryMarshal.Read<ushort>(b.Slice(i * 2, 2));
+            if (v == 0xFFFF) break;
+            if (v > 15 || (seen & (1 << v)) != 0) return false;
+            seen |= 1 << v;
+            n++;
+        }
+        if (n < 1 || n > count + 8) return false;
+        Span<uint> rb = stackalloc uint[1];
+        if (!ReadSelf(cand + RemainingOff, rb)) return false;
+        return rb[0] >= 1 && rb[0] <= 16;
     }
 
     private void LogFound(System.Diagnostics.Stopwatch sw, int regions)
@@ -472,6 +742,9 @@ internal sealed unsafe class ShuffleReader
         Log($"[Shuffle] struct @ 0x{_logic:X} count={_count} cards=[{string.Join(" | ", _cards)}] " +
             $"({regions} regions, {sw.ElapsedMilliseconds}ms)");
     }
+    // (The ShufDiag identity dumps are GONE — the hunt ended 2026-07-03 when the card
+    // records proved to be texture bookkeeping only; names come from the info-panel
+    // text now (ShuffleText). Do not re-add record/type-array scans.)
 
     /// <summary>Read and decode each slot's card texture path. Known shapes:
     /// "card/arcana/c_cardXX.tmx" (XX = hex arcana id, 0-based) and
@@ -536,6 +809,11 @@ internal sealed unsafe class ShuffleReader
             var c = ReadCardFull(_logic, s);
             if (c.Name != null) _orig[s] = (c.Name, c.Effect);
         }
+        // A pristine spread has no created ids, so the change-tracking state is stale
+        // by definition (created ids are small ints and get reused across spreads).
+        _createdResolved.Clear();
+        _announcedCreated.Clear();
+        _pendingCreated.Clear();
     }
 
     // Resolve the panel display map (logical card-ids, on-screen order) to the CARD (name +
@@ -568,11 +846,31 @@ internal sealed unsafe class ShuffleReader
             else res[i] = (on, oe);                          // slot clobbered → remembered card
         }
 
-        // 2 — the single created card ↔ the single changed slot (a slot with a KNOWN card that
-        // now differs). Multiple of either → can't match safely → leave null ("card changed").
+        // 1.5 — created cards resolved EARLIER in this spread keep their identity too
+        // (incremental promotion). Without this, the SECOND change of a spread saw two
+        // created ids and every one degraded to "card changed" (the old double-change gap).
+        for (int i = 0; i < rem; i++)
+        {
+            int id = map[i];
+            if (res[i].HasValue || id < dealt) continue;
+            if (_createdResolved.TryGetValue(id, out var cr))
+            {
+                if (cr.Slot >= 0 && cr.Slot < MaxCardSlots && live[cr.Slot].Name == cr.Name)
+                { res[i] = (cr.Name, live[cr.Slot].Effect); usedSlot[cr.Slot] = true; }
+                else res[i] = (cr.Name, cr.Effect);
+            }
+        }
+
+        // 2 — the single UNRESOLVED created card ↔ the single changed slot. "Changed" =
+        // a slot whose live card differs from the remembered one, OR a slot that gained
+        // its FIRST texture (the game sometimes appends the new card to a slot beyond the
+        // deal instead of clobbering a bystander — map referencing slot 3/4 with dealt=3,
+        // seen live). A drawn card's lingering texture equals _orig, so it can't be
+        // mistaken for a change. Multiple of either → can't match safely → null.
         var changedSlots = new System.Collections.Generic.List<int>();
         for (int s = 0; s < MaxCardSlots; s++)
-            if (live[s].Name != null && !usedSlot[s] && _orig[s] is (string cn, _) && live[s].Name != cn)
+            if (live[s].Name != null && !usedSlot[s] &&
+                (_orig[s] is not (string cn, _) || live[s].Name != cn))
                 changedSlots.Add(s);
         var createdPos = new System.Collections.Generic.List<int>();
         for (int i = 0; i < rem; i++)
@@ -581,9 +879,24 @@ internal sealed unsafe class ShuffleReader
         {
             var c = live[changedSlots[0]];
             res[createdPos[0]] = (c.Name!, c.Effect);
+            // PROMOTE: remember this created id ↔ slot ↔ card, and fold it into _orig so
+            // the NEXT change sees this slot as a known quantity. Sequential changes now
+            // resolve one at a time; only a simultaneous mass-change (Fool) still degrades.
+            int cid = map[createdPos[0]];
+            if (!_createdResolved.ContainsKey(cid))
+                Log($"[Shuffle] resolved created id {cid} → slot {changedSlots[0]} ({c.Name})");
+            _createdResolved[cid] = (changedSlots[0], c.Name!, c.Effect);
+            _orig[changedSlots[0]] = (c.Name!, c.Effect);
+        }
+        else if (createdPos.Count > 1 && createdPos.Count != _lastMultiLogged)
+        {
+            _lastMultiLogged = createdPos.Count;
+            Log($"[Shuffle] multi-change: {createdPos.Count} unresolved created ids, " +
+                $"{changedSlots.Count} changed slots — degrading to \"card changed\" (Fool?)");
         }
         return res;
     }
+    private int _lastMultiLogged;
 
 
     // Live display-order slot list (reads u16s until the 0xFFFF terminator).
@@ -660,7 +973,28 @@ internal sealed unsafe class ShuffleReader
         {
             string? pname = null;
             try { pname = Native.Persona.GetName(pid); } catch { }
-            string nm = string.IsNullOrWhiteSpace(pname) ? $"Persona card {pid}" : $"Persona {pname}";
+            string nm;
+            if (string.IsNullOrWhiteSpace(pname)) nm = $"Persona card {pid}";
+            else
+            {
+                nm = $"Persona {pname}";
+                // Enrich with arcana + species base level (user 2026-07-04) — the
+                // species table *(0x140EC0958), stride 0xE: arcana @+2, level @+3.
+                try
+                {
+                    string parc = Battle.PersonaArcanaName(pid);
+                    if (!string.IsNullOrEmpty(parc) && !parc.StartsWith("arcana ")) nm += $", {parc}";
+                }
+                catch { }
+                Span<byte> pb = stackalloc byte[8];
+                if (ReadSelf(unchecked((nint)0x140EC0958L), pb))
+                {
+                    nint t = (nint)BitConverter.ToInt64(pb);
+                    Span<byte> lb = stackalloc byte[1];
+                    if (t != 0 && ReadSelf(t + pid * 0xE + 3, lb) && lb[0] > 0 && lb[0] < 100)
+                        nm += $", level {lb[0]}";
+                }
+            }
             return (nm, "Adds this Persona to your stock.");
         }
 

@@ -69,6 +69,7 @@ public class Mod : ModBase // <= Do not Remove.
     private SkillReplaceMenu _skillReplaceMenu;
     private VelvetMenu _velvetMenu;
     private VelvetFusion _velvetFusion;
+    private Components.CompendiumInfoText _compInfoText;   // TEMP diag — rooted (hook delegate)
     private DifficultyMenu _difficultyMenu;
     private EarlyMenu _earlyMenu;
     private SubtitleReader _subtitleReader;
@@ -206,6 +207,7 @@ public class Mod : ModBase // <= Do not Remove.
         // to its obj+0xF0 panel flag, and best-effort speaks the persona-pick
         // list. See memory/velvet_room_fusion_re.md.
         _velvetFusion = new VelvetFusion(_hooks!);
+        _compInfoText = new Components.CompendiumInfoText(_hooks!);
         _difficultyMenu = new DifficultyMenu(_hooks!);
         _earlyMenu = new EarlyMenu(_hooks!);
         _subtitleReader = new SubtitleReader(_hooks!);

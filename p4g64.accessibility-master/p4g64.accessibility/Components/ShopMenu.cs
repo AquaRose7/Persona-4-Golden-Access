@@ -84,19 +84,37 @@ internal unsafe class ShopMenu
     private const long EquipStatTblAddr    = 0x1411A5940;
     private const long EquipTablePtrAddr   = 0x1411A5948;  // → equipped-items table (= party member array)
 
-    // Daidara's "buy for character" list = recruited members in JOIN order, with
-    // Rise (charId 5, a navigator who can't equip) EXCLUDED. Because you always
-    // recruit in this order, the visible list is always a prefix of this array, so
-    // the char-select cursor (pShop+0x4E0) indexes it directly → internal charId.
-    // Verified live 2026-06-30: cursor 0-4 = You/Yosuke/Chie/Yukiko/Kanji = ids
-    // 1/2/3/4/6; cursor 5 = Teddie (8), 6 = Naoto (7).
-    private static readonly int[] CharSelectCharId = { 1, 2, 3, 4, 6, 8, 7 };
+    // The GAME'S OWN char-select list lives in the shop struct (snapshot-found live
+    // 2026-07-04 while the user parked on the screen): u16 char ids at pShop+0x4C8
+    // (zero-padded, e.g. [1,2,3,4,6,8]), COUNT at +0x4DC, cursor at +0x4E0. Reading
+    // it makes cursor→charId authoritative for ANY roster or ordering (incl. wherever
+    // the game slots Naoto when she joins). Dead ends: a static join-order array
+    // (wrong once Naoto joins) and deriving "recruited" from the member records
+    // (+0x00 bit0 is VOLATILE battle-party state — Teddie read 0 at the shop →
+    // spoke "Member 5").
+    private const int CharSelListOff  = 0x4C8;
+    private const int CharSelCountOff = 0x4DC;
     // charId → name (authoritative P4 ids; id 1 = protagonist custom name).
     private static readonly string[] CharIdNames =
         { "?", "You", "Yosuke", "Chie", "Yukiko", "Rise", "Kanji", "Naoto", "Teddie" };
 
-    internal static int CharSelectToCharId(int cursor) =>
-        cursor >= 0 && cursor < CharSelectCharId.Length ? CharSelectCharId[cursor] : -1;
+    // Daidara's field (8/4 outside, 8/5 inside) — where DaidaraCharSelect's hook
+    // owns the char-select names; every other shop's 0x08 is spoken by the poll.
+    private static bool DaidaraFieldActive =>
+        FieldTracker.CurrentMajor == 8 && FieldTracker.CurrentMinor is 4 or 5;
+
+    internal static int CharSelectToCharId(int cursor)
+    {
+        var p = _lastPtr;
+        if (p == null || cursor < 0) return -1;
+        nint b = (nint)p;
+        if (!IsReadable(b + CharSelCountOff, 2) || !IsReadable(b + CharSelListOff + cursor * 2, 2))
+            return -1;
+        int count = *(ushort*)(b + CharSelCountOff);
+        if (count < 1 || count > 10 || cursor >= count) return -1;
+        int id = *(ushort*)(b + CharSelListOff + (nint)cursor * 2);
+        return id >= 1 && id <= 16 ? id : -1;
+    }
 
     internal static string CharSelectName(int cursor)
     {
@@ -225,9 +243,15 @@ internal unsafe class ShopMenu
         }
         else if (state == 0x08)
         {
-            // the REAL character-select state (Daidara equip flow). Shiroku
-            // goes 0x09->0x0A directly and must not hear this.
-            Speech.Say("Character select.", true);
+            // the REAL character-select state (Daidara equip flow; also the Okina
+            // clothes shop). Shiroku goes 0x09->0x0A directly and must not hear
+            // this. Outside Daidara the DaidaraCharSelect hook is field-gated off
+            // and the poll owns the names (v1.3.5) — orient with the initially-
+            // selected member too (at Daidara the hook announces it itself).
+            short who = *(short*)((nint)pShop + 0x4E0);
+            string nm = !DaidaraFieldActive && CharSelectToCharId(who) > 0
+                ? $" {CharSelectName(who)}." : "";
+            Speech.Say($"Character select.{nm}", true);
         }
         else if (state == 0x0C)
         {
@@ -925,10 +949,13 @@ internal unsafe class ShopMenu
                 }
                 else _lastRow = -2;
 
-                // character switch. ONLY announced while the LIST is focused
-                // (in-list L/R switching) — on the character-select screen
-                // DaidaraCharSelect's hook speaks the names, and announcing
-                // here too caused the name repeat (user 2026-06-12).
+                // character switch. Announced while the LIST is focused (in-list
+                // L/R switching), and — OUTSIDE Daidara only — on the character-
+                // select screen itself (0x08): the Okina clothes shop uses the
+                // same shop struct but the DaidaraCharSelect hook is field-gated
+                // to Daidara, so its char-select was silent (v1.3.5 fix). At
+                // Daidara the hook still owns 0x08 (announcing here too caused
+                // the name repeat, user 2026-06-12).
                 if (inBuy)
                 {
                     short who = *(short*)((nint)ptr + 0x4E0);
@@ -937,10 +964,12 @@ internal unsafe class ShopMenu
                         Log($"[ShopMenu] character {_lastWho} -> {who} (state=0x{_shopState:X2})");
                         bool wasNone = _lastWho < 0;
                         _lastWho = who;
-                        if (who >= 0 && who < CharSelectCharId.Length && !wasNone && inListExact)
+                        bool charSelScreen = _shopState == 0x08 && !DaidaraFieldActive;
+                        if (CharSelectToCharId(who) > 0 && !wasNone
+                            && (inListExact || charSelScreen))
                         {
                             Speech.Say(CharSelectName(who), true);
-                            _announceListIn = 3;   // their list rebuilds
+                            if (inListExact) _announceListIn = 3;   // their list rebuilds
                         }
                     }
                 }

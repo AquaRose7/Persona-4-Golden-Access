@@ -145,9 +145,11 @@ internal unsafe class VelvetFusion : IDisposable
     {
         // L3 fusion-method menu. Option id (a glyph index, stable per option) @
         // obj+0x1D0 + cursor*4 (RE'd from FUN_140226A20). Ids confirmed live:
-        // 7=Search, 0=Normal, 1=Triangle, 6=Back → ID-based, robust to options changing.
-        new(0x001, 0x1F0, 0x1F2, 0x1D0, 4, "method-menu", new[] { 7, 0, 1, 6 },
-            new[] { "Search", "Normal", "Triangle", "Back" }),
+        // 7=Search, 0=Normal, 1=Triangle, 6=Back. Cross/Pentagon/Hexagon (the
+        // spread fusions, unlocked 2026-07-03) = 2/3/4 by the glyph-id sequence —
+        // an UNKNOWN id logs itself so a wrong guess is caught in one visit.
+        new(0x001, 0x1F0, 0x1F2, 0x1D0, 4, "method-menu", new[] { 7, 0, 1, 2, 3, 4, 6 },
+            new[] { "Search", "Normal", "Triangle", "Cross", "Pentagon", "Hexagon", "Back" }),
         // L2 fusion facility menu, id-based (ids confirmed live 6/56/61/63 @ +0xFA).
         new(0x400, 0x188, 0x18A, 0x0FA, 0x18, "fuse-menu", new[] { 6, 56, 61, 63 },
             new[] { "Fuse", "Fusion Forecast", "Talk", "Back" }),
@@ -416,11 +418,15 @@ internal unsafe class VelvetFusion : IDisposable
         else if (!g) _gWas = false;
     }
 
+    /// <summary>TickCount64 of the last frame the compendium persona PROFILE (Info/
+    /// Status tabs) was open — the gate for CompendiumInfoText's flavor-text capture.</summary>
+    internal static long CompendiumProfileTick;
+
     private void ReadCompendium(nint obj)
     {
         if (obj == 0 || !IsReadable(obj + COMP_FLAG)) return;
         uint flag = *(uint*)(obj + COMP_FLAG);
-        if (flag != _compLastFlag) { _compLastFlag = flag; Log($"[VelvetFusion] compendium flag=0x{flag:X} obj=0x{(ulong)obj:X}"); }
+        _compLastFlag = flag;   // (per-change flag log removed in the v1.3.5 cleanup)
 
         // REGISTER PERSONAS (bit 0x04, FUN_1402628F0) — your personas to register.
         // Checked first: its flags (0x04/0x05/0x2C) are distinct from View Compendium.
@@ -435,7 +441,12 @@ internal unsafe class VelvetFusion : IDisposable
 
         // Persona PROFILE in the compendium (bit 0x08 added over the list) — read the
         // selected persona's full panel. Checked before the list (0x1A has both).
-        if ((flag & 0x08) != 0) { ReadCompendiumProfile(obj); return; }
+        if ((flag & 0x08) != 0)
+        {
+            CompendiumProfileTick = Environment.TickCount64;   // gate for the Info-text capture
+            ReadCompendiumProfile(obj);
+            return;
+        }
         _compProfId = -1;
 
         // "All Personas" persona LIST (bit 0x02, FUN_14025E1D0) — the deeper screen.
@@ -601,6 +612,7 @@ internal unsafe class VelvetFusion : IDisposable
         if (id < 1 || id > 400) return;
         int lvl = *(byte*)(e + 4);
 
+        CompendiumProfileId = id;   // keys the Info-tab flavor-text capture
         if (id != _compProfId)
         {
             _compProfId = id;
@@ -608,8 +620,14 @@ internal unsafe class VelvetFusion : IDisposable
             _panelSec = 0; _panelItem = 0;
             AnnounceSection();
         }
+        // (The Info tab's flavor text is spoken by CompendiumInfoText itself, on every
+        // render of the tab — the user preferred that over an I/K "Description" section.)
         PanelInput();
     }
+
+    /// <summary>Persona id currently shown in the compendium profile (0 = none) —
+    /// keys CompendiumInfoText's flavor-text capture.</summary>
+    internal static volatile int CompendiumProfileId;
 
     private List<(string, string, List<string>)> BuildCompendiumProfile(nint e, int id, int lvl)
     {
@@ -644,14 +662,35 @@ internal unsafe class VelvetFusion : IDisposable
 
         var skNames = new List<string>();
         var skDetail = new List<string>();
-        List<int> learned; try { learned = Battle.Battle.PersonaLearnedSkills(id, lvl); } catch { learned = new List<int>(); }
-        foreach (int sid in learned)
+        // The REGISTERED instance's REAL skills: u16[8] @ entry+0x0C (decoded 2026-07-04
+        // from the CompDiag dump vs the Hua Po screenshot — [2,222,512,4,40,42,195,97] =
+        // Agilao, Rakukaja, Dodge Ice, Maragi, Zionga, Mazio, Media, Makajam, the exact
+        // on-screen order; exp u32 @+0x08). The old species-LEARNSET derivation spoke the
+        // wrong skills whenever the registered set differed (user report).
+        if (IsReadable(e + 0x1C))
         {
-            if (sid < 1 || sid > 900) continue;
-            string n2; try { n2 = Skill.GetName(sid); } catch { n2 = null; }
-            if (string.IsNullOrEmpty(n2)) continue;
-            skNames.Add(n2);
-            skDetail.Add(SkillLine(sid));
+            for (int s = 0; s < 8; s++)
+            {
+                int sid = *(ushort*)(e + 0x0C + s * 2);
+                if (sid < 1 || sid > 2000) continue;
+                string n2; try { n2 = Skill.GetName(sid); } catch { n2 = null; }
+                if (string.IsNullOrEmpty(n2)) continue;
+                skNames.Add(n2);
+                skDetail.Add(SkillLine(sid));
+            }
+        }
+        if (skNames.Count == 0)
+        {
+            // fallback (unreadable entry): the species learnset — better than silence
+            List<int> learned; try { learned = Battle.Battle.PersonaLearnedSkills(id, lvl); } catch { learned = new List<int>(); }
+            foreach (int sid in learned)
+            {
+                if (sid < 1 || sid > 900) continue;
+                string n2; try { n2 = Skill.GetName(sid); } catch { n2 = null; }
+                if (string.IsNullOrEmpty(n2)) continue;
+                skNames.Add(n2);
+                skDetail.Add(SkillLine(sid));
+            }
         }
         if (skNames.Count > 0) secs.Add(("Skills", string.Join(", ", skNames), skDetail));
 
@@ -721,6 +760,7 @@ internal unsafe class VelvetFusion : IDisposable
     // level @+0x04 (byte); arcana from the species table via PanelArcana(id). (All
     // RE'd from FUN_14022CFB0 + the shared row drawer FUN_140257B20.)
     private const uint SEARCH_BIT    = 0x2000;
+    private const uint SPREAD_BIT    = 0x10;    // Cross/Pentagon/Hexagon summon screens (2026-07-03)
     private const int  SR_COUNT      = 0x33C14;
     private const int  SR_CURSOR     = 0x33C16;
     private const int  SR_SCROLL     = 0x33C18;
@@ -728,6 +768,66 @@ internal unsafe class VelvetFusion : IDisposable
     private const int  SR_ENTRY_STRIDE = 0x278;
     private const int  SR_SUB        = 0x30;
     private int _searchLast = -1;
+
+    // Cross/Pentagon/Hexagon spread summon list — layout SNAPSHOT-HUNTED live 2026-07-03
+    // (0/1/0/1/2 cursor zigzag across Cross+Pentagon; entries verified against the
+    // on-screen lists: Cross = Neko Shogun 32 / Tam Lin 53, Pentagon = Yoshitsune 75 /
+    // Black Frost 38 / Futsunushi 80 / Yatsufusa 49 with 5-material recipes):
+    //   count  @obj+0x10B0 (u16), cursor @obj+0x10B2 (u16)  [mirror at +0x10E2/+0x10E6]
+    //   result entry k @obj+0x8E2 + k*0x30: persona id u16 @+0, level u16 @+2,
+    //     (u32 @+6 = cost?, 5 stat bytes @+0x1A)
+    //   recipe ptr   k @obj+0xB28 + k*0x70 → block: result id u16 @+0 (validated
+    //     against the entry — a stale block can never misread), material persona ids
+    //     u16[] @+0x0C, zero-terminated (4/5/6 for Cross/Pentagon/Hexagon).
+    private const int SP_COUNT = 0x10B0, SP_CURSOR = 0x10B2;
+    private const int SP_ENTRY = 0x8E2, SP_ENTRY_STRIDE = 0x30;
+    private const int SP_PTR = 0xB28, SP_PTR_STRIDE = 0x70, SP_MATS = 0x0C;
+    private int _spreadLast = -1;
+
+    private void ReadSpread(nint obj)
+    {
+        if (!IsReadable(obj + SP_COUNT)) return;
+        int count = *(ushort*)(obj + SP_COUNT);
+        int cursor = IsReadable(obj + SP_CURSOR) ? *(ushort*)(obj + SP_CURSOR) : -1;
+        if (count < 1 || count > 64 || cursor < 0 || cursor >= count) { _spreadLast = -1; return; }
+        nint e = obj + SP_ENTRY + (nint)cursor * SP_ENTRY_STRIDE;
+        if (!IsReadable(e + 4)) return;
+        int id = *(ushort*)(e + 0);
+        int lvl = *(ushort*)(e + 2);
+        if (id < 1 || id > 400 || lvl < 1 || lvl > 99) return;
+        _spreadPanelId = -1;   // back on the list — reopening F re-reads the panel
+        int key = (cursor << 16) | id;
+        if (key == _spreadLast) return;
+        _spreadLast = key;
+
+        string name; try { name = Persona.GetName(id); } catch { name = $"persona {id}"; }
+        string arc = PanelArcana(id);
+        var sb = new StringBuilder(name);
+        if (!string.IsNullOrEmpty(arc)) sb.Append(", ").Append(arc);
+        sb.Append($", level {lvl}.");
+
+        nint slot = obj + SP_PTR + (nint)cursor * SP_PTR_STRIDE;
+        if (IsReadable(slot))
+        {
+            nint blk = *(nint*)slot;
+            if (blk != 0 && IsReadable(blk + 0x20) && *(ushort*)blk == id)
+            {
+                var mats = new List<string>();
+                for (int i = 0; i < 6; i++)
+                {
+                    int mid = *(ushort*)(blk + SP_MATS + i * 2);
+                    if (mid < 1 || mid > 400) break;
+                    string mn; try { mn = Persona.GetName(mid); } catch { mn = $"persona {mid}"; }
+                    if (!string.IsNullOrEmpty(mn)) mats.Add(mn);
+                }
+                if (mats.Count > 0) sb.Append(" From ").Append(string.Join(", ", mats)).Append('.');
+            }
+        }
+        // Position LAST (user pref 2026-07-03: name/arcana/level, then materials, then "k of M").
+        sb.Append($" {cursor + 1} of {count}.");
+        Log($"[VelvetFusion] spread: {sb}");
+        Speech.Say(sb.ToString(), interrupt: true);
+    }
 
     private void ReadSearch(nint obj)
     {
@@ -776,6 +876,88 @@ internal unsafe class VelvetFusion : IDisposable
     // (Battle.PersonaLearnedSkills) since the +0x12D8 panel array is stale here.
     // Resistances / arcana / next-learn are all by id.
     private int _searchPanelId = -1;
+
+    // ── FUSION FORECAST (2026-07-03). The screen's VALUES are baked sprites (unreadable
+    // as text/data — RE'd: FUN_140233570 draws only fixed label sprites; the per-day
+    // content is pre-rendered textures at obj+0x34120..48 with no enum left behind).
+    // But the forecast is DATE-DETERMINISTIC, so we read the community-validated
+    // fusion_forecast.json by the in-game date instead — the weather_schedule.json
+    // precedent exactly. Golden table (GameFAQs FAQ 81937) incl. Jan/Feb epilogue days;
+    // a date absent from the sheet = no forecast. Day tab (Today=0 / Tomorrow=1)
+    // @obj+0x1748; FieldTracker.GameDate(tab) gives the calendar date.
+    private int _fcstLastTab = -1;
+    private static System.Collections.Generic.Dictionary<string, (string Trigger, string Effect)>? _fcst;
+    private static readonly string[] _monthNames =
+        { "", "January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December" };
+
+    private static void LoadForecast()
+    {
+        _fcst = new();
+        try
+        {
+            string p = DataPath("fusion_forecast.json");
+            if (!System.IO.File.Exists(p)) { Log("[VelvetFusion] fusion_forecast.json not found"); return; }
+            using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(p));
+            if (doc.RootElement.TryGetProperty("schedule", out var s))
+                foreach (var kv in s.EnumerateObject())
+                    _fcst[kv.Name] = (kv.Value.GetProperty("trigger").GetString() ?? "None",
+                                      kv.Value.GetProperty("effect").GetString() ?? "");
+            Log($"[VelvetFusion] fusion forecast loaded ({_fcst.Count} days)");
+        }
+        catch (Exception e) { Log($"[VelvetFusion] fusion forecast load failed: {e.Message}"); }
+    }
+
+    private void ReadForecast(nint obj)
+    {
+        if (!IsReadable(obj + 0x1748)) return;
+        int tab = *(int*)(obj + 0x1748);
+        if (tab != 0 && tab != 1) return;
+        if (tab == _fcstLastTab) return;
+        _fcstLastTab = tab;
+        if (_fcst == null) LoadForecast();
+
+        var (m, d) = FieldTracker.GameDate(tab);
+        string dayWord = tab == 0 ? "Today" : "Tomorrow";
+        string line;
+        if (m == 0)
+            line = $"{dayWord}: date not known yet.";
+        else if (_fcst != null && _fcst.TryGetValue($"{m}-{d}", out var f))
+            line = f.Trigger == "None"
+                ? $"{dayWord}, {_monthNames[m]} {d}: {f.Effect}."
+                : $"{dayWord}, {_monthNames[m]} {d}: {f.Trigger}: {f.Effect}.";
+        else
+            line = $"{dayWord}, {_monthNames[m]} {d}: no fusion forecast.";
+        Log($"[VelvetFusion] forecast: {line}");
+        Speech.Say(line, interrupt: true);
+    }
+
+    /// <summary>Spread result's F "Persona Status" panel — same navigable sections as
+    /// the Search result panel (I/K sections, J/L items), built from the SPREAD entry's
+    /// id + level (flags 0x34/0x134 carry no 0x40 bit, so the shared profile path never
+    /// sees them).</summary>
+    private int _spreadPanelId = -1;
+
+    private void ReadSpreadPersonaPanel(nint obj)
+    {
+        if (!IsReadable(obj + SP_COUNT)) return;
+        int count = *(ushort*)(obj + SP_COUNT);
+        int cursor = IsReadable(obj + SP_CURSOR) ? *(ushort*)(obj + SP_CURSOR) : -1;
+        if (count < 1 || count > 64 || cursor < 0 || cursor >= count) { _spreadPanelId = -1; return; }
+        nint e = obj + SP_ENTRY + (nint)cursor * SP_ENTRY_STRIDE;
+        if (!IsReadable(e + 4)) return;
+        int id = *(ushort*)(e + 0);
+        int lvl = *(ushort*)(e + 2);
+        if (id < 1 || id > 400 || lvl < 1 || lvl > 99) return;
+        if (id != _spreadPanelId)
+        {
+            _spreadPanelId = id;
+            _panelSecs = BuildSearchSections(obj, id, lvl);
+            _panelSec = 0; _panelItem = 0;
+            AnnounceSection();
+        }
+        PanelInput();
+    }
 
     private void ReadSearchPersonaPanel(nint obj)
     {
@@ -901,11 +1083,7 @@ internal unsafe class VelvetFusion : IDisposable
     {
         if (obj == 0 || !IsReadable(obj + FLAG)) return;
         uint flag = *(uint*)(obj + FLAG);
-        if (flag != _lastFlag)
-        {
-            _lastFlag = flag;
-            Log($"[VelvetFusion] panel flag=0x{flag:X} obj=0x{(ulong)obj:X}");
-        }
+        _lastFlag = flag;   // (the per-change flag log was removed in the v1.3.5 cleanup)
 
         // Skill-INHERITANCE screen (bit 0x4000) is drawn by FUN_140234B20 and read
         // by its own hook (OnInhDraw) — skip here so the profile reader below doesn't
@@ -935,7 +1113,23 @@ internal unsafe class VelvetFusion : IDisposable
 
         // FUSION SEARCH (guided fusion) — bit 0x2000, drawn by FUN_14022CFB0.
         if ((flag & SEARCH_BIT) != 0) { ReadSearch(obj); return; }
+        // SPREAD summon lists (Cross/Pentagon/Hexagon, 2026-07-03) — EXACT low-word
+        // match on the two observed screen states (0x80040010 / 0x80040014) only.
+        // ⚠ A loose "bit 0x10 set" test STOLE other fusion states that carry 0x10
+        // alongside their own bits (persona-pick, transitions) and broke
+        // Normal/Triangle reading entirely (regression, user 2026-07-03) — keep this
+        // exact until the flag semantics are decoded.
+        if ((flag & 0xFFFF) is 0x0010 or 0x0014) { ReadSpread(obj); return; }
+        // Spread result's F "Persona Status" panel (log-observed low words 0x34/0x134;
+        // no 0x40 bit here, unlike every other velvet profile — exact match again).
+        if ((flag & 0xFFFF) is 0x0034 or 0x0134) { ReadSpreadPersonaPanel(obj); return; }
+        // FUSION FORECAST screen (low word 0x8200; the 0x8600/0x8400 transitions carry
+        // the L2 bit 0x400 and stay with the menu panel).
+        if ((flag & 0xFFFF) == 0x8200) { ReadForecast(obj); return; }
         _searchLast = -1;
+        _spreadLast = -1;
+        _spreadPanelId = -1;
+        _fcstLastTab = -1;
 
         // Persona list takes priority when active (it's the deepest/focused panel).
         if ((flag & PLIST_BIT) != 0 && ReadPersonaList(obj)) return;
@@ -960,6 +1154,11 @@ internal unsafe class VelvetFusion : IDisposable
                 int id = *(short*)(obj + p.IdOff + (nint)cursor * p.Stride);
                 int idx = System.Array.IndexOf(p.Ids, id);
                 spoken = idx >= 0 ? p.Names[idx] : $"Option {cursor + 1} of {count}";
+                if (idx < 0 && _idLogs < 24)
+                {
+                    _idLogs++;
+                    Log($"[VelvetFusion] {p.Tag} UNKNOWN id {id} at cursor {cursor}/{count} — name it");
+                }
             }
             else
             {
@@ -979,16 +1178,15 @@ internal unsafe class VelvetFusion : IDisposable
             return;
         }
 
-        // Unmapped panel that looks like a menu — dump it so its cursor/labels can
-        // be decoded (this is how the persona list L4 + option names get solved).
+        // Unmapped panel state: log the flag word once (no hex dumps — the v1.3.5
+        // cleanup removed them; re-add the +0x0F0/+0x740/+0x10A0 HexAscii dump here
+        // if a NEW velvet screen ever needs decoding — that's how every screen so
+        // far was solved).
         if (_dumps < 10 && flag != _lastDumpedFlag)
         {
             _lastDumpedFlag = flag;
             _dumps++;
-            Log($"[VelvetFusion] UNMAPPED panel flag=0x{flag:X}");
-            Log($"[VelvetFusion]   +0x0F0:{HexAscii(obj + 0x0F0, 32)}");
-            Log($"[VelvetFusion]   +0x740:{HexAscii(obj + 0x740, 16)}");
-            Log($"[VelvetFusion]   +0x10A0:{HexAscii(obj + 0x10A0, 32)}");
+            Log($"[VelvetFusion] unmapped panel flag=0x{flag:X}");
         }
     }
 

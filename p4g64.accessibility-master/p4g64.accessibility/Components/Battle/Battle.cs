@@ -33,6 +33,7 @@ internal unsafe class Battle
     private SkillInfoSelect _skillInfoSelect;
     private ResultReader _resultReader;
     private ShuffleReader _shuffleReader;
+    private ShuffleText _shuffleText;   // TEMP diag — rooted here (hook delegate must not be GC'd)
     private EnemyActionHook _enemyActionHook;
 
     /// <summary>
@@ -462,10 +463,9 @@ internal unsafe class Battle
     private static readonly string[] _affOrder = { "weak", "resist", "null", "drain", "repel" };
 
     /// <summary>Active stat buffs/debuffs on a unit as spoken text ("attack up, defense down"), or
-    /// null when none. Stat-node layout (confirmed 2026-06-30 via clean Tarukaja/Rakukaja/Rakunda
-    /// casts): sign byte at +0x1C (attack), +0x1D (defense), +0x1E (agility) — 0 neutral, high bit
-    /// SET = down, clear = up; matching turn counter at +0x25/+0x26/+0x27 (non-zero = active, ticks
-    /// 3→2→1). Gated on the turn counter so an expired/absent buff never speaks.</summary>
+    /// null when none. Layout: NIBBLE-PAIRED channels in +0x1C..+0x1F (signed-nibble stage) with
+    /// per-nibble turn counters in +0x25..+0x28 — see the channel map in BuffTextFromStat
+    /// (re-cracked 2026-07-03 after the Suku pair misread).</summary>
     internal static string BuffText(nint unit)
     {
         if (!IsReadable(unit, 0xCF8)) return null;
@@ -476,17 +476,53 @@ internal unsafe class Battle
     /// IS the in-battle stat node — see PartyStatus).</summary>
     internal static string BuffTextFromStat(nint stat)
     {
-        if (!IsReadable(stat, 0x2C)) return null;
+        if (!IsReadable(stat, 0x30)) return null;
         var b = (byte*)stat;
         var parts = new System.Collections.Generic.List<string>(4);
-        // Buff array is contiguous: sign byte +0x1C+t, turn counter +0x25+t. t=0/1/2 = atk/def/agi;
-        // t=3 = critical rate (index 3 @ +0x1F/+0x28 — Chie's all-party crit buff, verified 2026-07-02).
-        for (int t = 0; t < 4; t++)
+        // Buff bytes are NIBBLE-PAIRED (cracked live 2026-07-03: Rakunda alone → +0x1D=0xE0 /
+        // +0x26=0x30 ticking 0x30→0x20 in the HIGH nibble; Sukunda added → 0xEE / 0x23 — the LOW
+        // nibble joins with an independent timer; Sukukaja → low nibble 0x1). Each stage byte
+        // +0x1C..+0x1F holds TWO channels: a SIGNED-NIBBLE stage (0x1 = up, 0xE = down → nibble
+        // bit 3 = down) with its turn counter in the SAME nibble of +0x25..+0x28. Channels:
+        // attack = +0x1C hi · defense = +0x1D hi · hit = +0x1D lo · evasion = +0x1E lo ·
+        // crit = +0x1F (either nibble). The old "byte high bit = down" only held for HIGH-nibble
+        // channels and misread the Suku pair as "up" (player report 2026-07-03).
+        string Chan(int t, bool hiNibble)
         {
-            if (b[0x25 + t] == 0) continue;                 // turn counter 0 → not active
-            bool down = (b[0x1C + t] & 0x80) != 0;
-            parts.Add($"{_buffStat[t]} {(down ? "down" : "up")}");
+            int timer = hiNibble ? (b[0x25 + t] >> 4) : (b[0x25 + t] & 0xF);
+            if (timer == 0) return null;                    // not active
+            int stage = hiNibble ? (b[0x1C + t] >> 4) : (b[0x1C + t] & 0xF);
+            if (stage == 0) return null;
+            return (stage & 0x8) != 0 ? "down" : "up";
         }
+        string atk = Chan(0, true);
+        if (atk != null) parts.Add($"attack {atk}");
+        string def = Chan(1, true);
+        if (def != null) parts.Add($"defense {def}");
+        // Suku spells set hit + evasion together — speak the pair as the familiar
+        // "agility"; a lone half (some boss skills) reads by its own name.
+        string hit = Chan(1, false), eva = Chan(2, false);
+        if (hit != null && hit == eva) parts.Add($"agility {hit}");
+        else
+        {
+            if (hit != null) parts.Add($"hit {hit}");
+            if (eva != null) parts.Add($"evasion {eva}");
+        }
+        string crit = Chan(3, true) ?? Chan(3, false);
+        // Enemy Rebellion (crit up) uses a FIFTH channel with a different pairing:
+        // stage @+0x1E HIGH nibble, timer @+0x14 HIGH nibble (dump-diffed 2026-07-03:
+        // buffed +0x14=0x20/+0x1E=0x10, expired both 0, identical on the re-buff —
+        // NOT the +0x27-hi timer the +9 pattern predicts).
+        if (crit == null && (b[0x14] >> 4) != 0)
+        {
+            int st = b[0x1E] >> 4;
+            if (st != 0) crit = (st & 0x8) != 0 ? "down" : "up";
+        }
+        if (crit != null) parts.Add($"critical rate {crit}");
+        // Channel never observed yet (+0x1C lo): log if it ever activates so it can
+        // be named instead of guessed.
+        if (Chan(0, false) != null)
+            Log($"[BuffDiag] UNMAPPED channel: +1C={b[0x1C]:X2} +25={b[0x25]:X2}");
         // Mind Charge (Concentrate — 2.5x next magic attack): stat +0x16 bit 0x10. Verified live
         // 2026-07-02: toggles ON when a Shadow Concentrates, OFF when it fires the charged hit
         // (two isolated captures). It's a next-attack multiplier flag, not a stat buff, but reads
@@ -496,12 +532,10 @@ internal unsafe class Battle
         // 2026-07-02 via the ChargeDiag after the user's controlled Power Charge use
         // (sibling bit of Mind Charge 0x10, same flag byte).
         if ((b[0x16] & 0x08) != 0) parts.Add("power charged");
-        // Diag stays for OTHER unknown flag bits in this byte pair (guard? enrage?) — log-only.
-        if ((b[0x16] & ~(0x10 | 0x08)) != 0 || b[0x17] != 0)
-            Log($"[ChargeDiag] stat+0x16=0x{b[0x16]:X2} +0x17=0x{b[0x17]:X2}");
+        // (The ChargeDiag unknown-bits log was removed in the v1.3.5 cleanup; the
+        // remaining bits in 0x16/0x17 — guard? enrage? — are still unmapped.)
         return parts.Count == 0 ? null : string.Join(", ", parts);
     }
-    private static readonly string[] _buffStat = { "attack", "defense", "agility", "critical rate" };
 
     /// <summary>The enemy's affinity to ONE element ("weak"/"resist"/"null"/"drain"/"repel"/
     /// "block"/"normal"), or null if the player hasn't analyzed/revealed it yet (so we never
@@ -524,18 +558,26 @@ internal unsafe class Battle
         return ClassifyAffinity(r);
     }
 
-    // Standard Megaten arcana order (verify Magician=1 vs the analyze screen).
+    // Standard Megaten arcana order, ids 1..22 (Fool=1 .. World=22).
     private static readonly string[] _arcana =
     {
         "Fool", "Magician", "Priestess", "Empress", "Emperor", "Hierophant", "Lovers",
         "Chariot", "Justice", "Hermit", "Fortune", "Strength", "Hanged Man", "Death",
-        "Temperance", "Devil", "Tower", "Star", "Moon", "Sun", "Judgement", "World",
-        "Aeon", "Jester", "Hunger"
+        "Temperance", "Devil", "Tower", "Star", "Moon", "Sun", "Judgement", "World"
     };
 
-    /// <summary>Arcana display name from a 1-based arcana id (Fool=1).</summary>
-    internal static string ArcanaName(int aid) =>
-        aid >= 1 && aid <= _arcana.Length ? _arcana[aid - 1] : $"arcana {aid}";
+    /// <summary>Arcana display name from a 1-based arcana id (Fool=1). Golden's added
+    /// arcana sit at 25=Jester (live-verified on the SLink screen, Adachi) / 26=Hunger
+    /// (Jester's evolution) / 27=Aeon (live-verified, Marie + Ame-no-Uzume) — the old
+    /// 25-entry table had them at 23/24/25, two slots early, so Aeon read "arcana 27".</summary>
+    internal static string ArcanaName(int aid) => aid switch
+    {
+        >= 1 and <= 22 => _arcana[aid - 1],
+        25 => "Jester",
+        26 => "Hunger",
+        27 => "Aeon",
+        _ => $"arcana {aid}"
+    };
 
     /// <summary>Enemy level (statNode+0x06), or -1.</summary>
     internal static int EnemyLevel(nint unit)
@@ -557,7 +599,7 @@ internal unsafe class Battle
         nint rec = *(nint*)tblG + eid * 0x3C;
         if (!IsReadable(rec + 2, 1)) return null;
         int aid = *(byte*)(rec + 2); // arcana ids are 1-based (Fool=1, Magician=2…)
-        return aid >= 1 && aid <= _arcana.Length ? _arcana[aid - 1] : $"arcana {aid}";
+        return ArcanaName(aid);
     }
 
     /// <summary>Enemy max HP/SP from the static table. False if unavailable.</summary>
@@ -584,11 +626,6 @@ internal unsafe class Battle
         uint r = 0;
         try { r = aff(stat, elemId); } catch { }
         string cls = ClassifyAffinity(r);
-        // TEMP DIAGNOSTIC (enemy affinity misread hunt 2026-06-17): capture the raw
-        // affinity word for every NON-normal affinity (Phantom Mage read Fire/Ice/Wind
-        // as "weak" when only Electric is — need the raw r to fix the multiplier decode).
-        if (cls != "normal")
-            Log($"[AffDump] {elemName}: nameId={nameId} elem={elemId} r=0x{r:X8} -> {cls}");
         return $"{elemName} {cls}";
     }
 
@@ -981,7 +1018,7 @@ internal unsafe class Battle
         nint rec = *(nint*)tG + personaId * 0x0E;
         if (!IsReadable(rec + 2, 1)) return null;
         int aid = *(byte*)(rec + 2);
-        return aid >= 1 && aid <= _arcana.Length ? _arcana[aid - 1] : $"arcana {aid}";
+        return ArcanaName(aid);
     }
 
     /// <summary>The persona BtlUnitInfo* shown on the in-battle Persona DETAIL
@@ -1273,6 +1310,7 @@ internal unsafe class Battle
         _skillInfoSelect = new SkillInfoSelect(hooks);
         _resultReader = new ResultReader(hooks);
         _shuffleReader = new ShuffleReader();
+        _shuffleText = new ShuffleText(hooks);
         _enemyActionHook = new EnemyActionHook(hooks);
         // Tactics member screen: NO reader by user decision (2026-06-11) — the
         // real cursor is render-only and the virtual key-tracking cursor was

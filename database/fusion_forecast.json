@@ -1,0 +1,569 @@
+{
+ "_source": "GameFAQs FAQ 81937 'Daily Fusion Forecast' (P4 Golden; includes Jan/Feb epilogue days). Dates absent = no forecast that day.",
+ "schedule": {
+  "1-11": {
+   "trigger": "Use an Aeon Persona as a fusion material",
+   "effect": "Learn Enduring Soul"
+  },
+  "1-13": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "1-14": {
+   "trigger": "Use Fool and Judgement Personas as fusion materials",
+   "effect": "Learn Salvation"
+  },
+  "1-16": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "1-17": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "1-18": {
+   "trigger": "Fuse Suparna",
+   "effect": "Stats increase; Learn Evade Elec"
+  },
+  "1-21": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "1-24": {
+   "trigger": "None",
+   "effect": "Skill change; Stats increase"
+  },
+  "1-27": {
+   "trigger": "Use a Fortune Persona as a fusion material",
+   "effect": "Stats increase; Learn an Ice skill"
+  },
+  "1-28": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "1-31": {
+   "trigger": "Use a Death Persona as a fusion material",
+   "effect": "Learn a Recovery skill"
+  },
+  "2-1": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "2-3": {
+   "trigger": "Fuse a Moon Persona",
+   "effect": "Learn Unshaken Will"
+  },
+  "2-13": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "4-18": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "4-19": {
+   "trigger": "Use a Magician Persona as a fusion material",
+   "effect": "Learn Zio"
+  },
+  "4-21": {
+   "trigger": "Fuse Archangel",
+   "effect": "Stats increase; Learn Agi"
+  },
+  "4-23": {
+   "trigger": "Use Ghoul and Orobas as fusion materials",
+   "effect": "Learn Rakunda"
+  },
+  "4-24": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "4-25": {
+   "trigger": "Use Orobas and Cu Sith as fusion materials",
+   "effect": "Stats increase; Learn Media"
+  },
+  "4-27": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "4-28": {
+   "trigger": "Fuse Berith",
+   "effect": "Learn Mabufu"
+  },
+  "4-29": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "5-1": {
+   "trigger": "Fuse Jack Frost",
+   "effect": "Learn Resist Fire; Stats increase"
+  },
+  "5-2": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "5-3": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "5-4": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "5-6": {
+   "trigger": "Fuse a Hierophant Persona",
+   "effect": "Learn Dodge Fire"
+  },
+  "5-7": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "5-12": {
+   "trigger": "Fuse Ara Mitama",
+   "effect": "Learn Auto-Tarukaja"
+  },
+  "5-18": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "5-19": {
+   "trigger": "Fuse a Justice Persona",
+   "effect": "Increased Social Link EXP Bonus; Learn Maragi"
+  },
+  "5-20": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "5-21": {
+   "trigger": "Fuse a Priestess Persona",
+   "effect": "Increased Social Link EXP Bonus; Learn Resist Dizzy"
+  },
+  "5-24": {
+   "trigger": "Use Andras as fusion material",
+   "effect": "Learn a Wind skill"
+  },
+  "5-25": {
+   "trigger": "Fuse an Aeon Persona",
+   "effect": "Learn Agilao"
+  },
+  "5-28": {
+   "trigger": "Fuse King Frost",
+   "effect": "Learn Growth 1"
+  },
+  "5-31": {
+   "trigger": "Use Shiisaa as fusion material",
+   "effect": "Stats increaseIncreased Social Link EXP Bonus"
+  },
+  "6-2": {
+   "trigger": "Fuse a Magician Persona",
+   "effect": "Learn a Recovery skill; Stats increase"
+  },
+  "6-3": {
+   "trigger": "Fuse Ares",
+   "effect": "Learn Null Poison"
+  },
+  "6-4": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "6-7": {
+   "trigger": "Use a Hanged Man Persona as a fusion material",
+   "effect": "Learn an Ice skill; Stats increase"
+  },
+  "6-9": {
+   "trigger": "Ues a Moon Persona and a Devil Persona as fusion material",
+   "effect": "Learn Wind Boost"
+  },
+  "6-10": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "6-12": {
+   "trigger": "Fuse Incubus",
+   "effect": "Learn Null Ice"
+  },
+  "6-13": {
+   "trigger": "Use Rakshasa and Matador as fusion material",
+   "effect": "Learn Resist Ice; Stats increase"
+  },
+  "6-14": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "6-21": {
+   "trigger": "None",
+   "effect": "Increased Social Link EXP Bonus; Stats increase; Learn a Recovery skill"
+  },
+  "6-24": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "6-27": {
+   "trigger": "Fuse a Jester Persona",
+   "effect": "Stats increaseIncreased Social Link EXP Bonus"
+  },
+  "6-28": {
+   "trigger": "Use Yomotsu-Ikusa as a fusion material",
+   "effect": "Learn a Wind skill"
+  },
+  "6-30": {
+   "trigger": "Use Titania and Makami as fusion material",
+   "effect": "Learn Bufula; Stats increase"
+  },
+  "7-4": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "7-5": {
+   "trigger": "Fuse an Emperor Persona",
+   "effect": "Learn a Support skill"
+  },
+  "7-8": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "7-9": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "7-12": {
+   "trigger": "Use Unicorn as a fusion material",
+   "effect": "Stats increase; Learn a Fire skill"
+  },
+  "7-14": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "7-15": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "7-16": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "7-18": {
+   "trigger": "Fuse Flauros",
+   "effect": "Learn Power Charge"
+  },
+  "7-24": {
+   "trigger": "Use Pyro Jack as a fusion material",
+   "effect": "Learn an Ice skill"
+  },
+  "7-26": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "7-29": {
+   "trigger": "Use a Sun Persona as a fusion material",
+   "effect": "Learn Growth 2"
+  },
+  "7-30": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-1": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "8-2": {
+   "trigger": "Use Samael as a fusion material",
+   "effect": "Skill change"
+  },
+  "8-4": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-5": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-6": {
+   "trigger": "Use Orthrus and Yatagarasu as fusion materials",
+   "effect": "Learn Null EnervateIncreased Social Link bonus EXP"
+  },
+  "8-7": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "8-10": {
+   "trigger": "None",
+   "effect": "Learn a Support skill"
+  },
+  "8-11": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "8-12": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "8-13": {
+   "trigger": "Fuse a Death Persona",
+   "effect": "Learn MediaramaIncreased Social Link bonus EXP"
+  },
+  "8-14": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "8-22": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-23": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-24": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "8-25": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "8-26": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "8-27": {
+   "trigger": "Fuse Rangda",
+   "effect": "Learn Null Ice"
+  },
+  "8-29": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "9-1": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-2": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "9-3": {
+   "trigger": "Use a Moon Persona as a fusion material",
+   "effect": "Learn a Support skill; Stats increase"
+  },
+  "9-4": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-5": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-6": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "9-7": {
+   "trigger": "Fuse Cu Chulainn",
+   "effect": "Learn Null Elec; Stats increase"
+  },
+  "9-13": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "9-14": {
+   "trigger": "Use Hanuman and Hitokotonusi as fusion materials",
+   "effect": "Learn Arms Master"
+  },
+  "9-16": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-17": {
+   "trigger": "Use Leanan Sidhe as a fusion material",
+   "effect": "Learn an Ice skillIncreased Social Link bonus EXP"
+  },
+  "9-18": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-21": {
+   "trigger": "Fuse Tam Lin",
+   "effect": "Learn Amrita; Stats increasIncreased Social Link bonus EXP"
+  },
+  "9-22": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "9-25": {
+   "trigger": "Use Throne as a fusion material",
+   "effect": "Learn an Ice skillIncreased Social Link bonus EXPSkill change"
+  },
+  "9-27": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "9-28": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "9-30": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "10-1": {
+   "trigger": "Use a Hermit Persona as a fusion material",
+   "effect": "Learn a Recovery skillIncreased Social Link bonus EXP"
+  },
+  "10-3": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "10-4": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "10-5": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "10-8": {
+   "trigger": "Fuse Raphael",
+   "effect": "Learn Mind Charge"
+  },
+  "10-11": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "10-12": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "10-16": {
+   "trigger": "Use Justice and Priestess Personas as fusion materials",
+   "effect": "Learn Repel Fire"
+  },
+  "10-21": {
+   "trigger": "Use an Empress Persona as a fusion material",
+   "effect": "Stats increaseIncreased Social Link bonus EXP"
+  },
+  "10-22": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "10-23": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "10-25": {
+   "trigger": "Fuse Garuda",
+   "effect": "Stats increaseIncreased Social Link bonus EXPLearn Spell Master"
+  },
+  "10-26": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "10-31": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "11-2": {
+   "trigger": "Use Cerberus as a fusion material",
+   "effect": "Stats increase; Learn Samarecarm"
+  },
+  "11-3": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXPSkill change"
+  },
+  "11-4": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "11-7": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "11-8": {
+   "trigger": "Fuse Daisoujou",
+   "effect": "Learn Mind Charge"
+  },
+  "11-9": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "11-11": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "11-12": {
+   "trigger": "Use a Magician Persona as a fusion material",
+   "effect": "Learn an Elec skillIncreased Social Link bonus EXP"
+  },
+  "11-13": {
+   "trigger": "None",
+   "effect": "Stats increase; Skill change"
+  },
+  "11-15": {
+   "trigger": "Fuse Siegfried",
+   "effect": "Learn Enduring Soul; Stats increase"
+  },
+  "11-18": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "11-19": {
+   "trigger": "Fuse Nebiros",
+   "effect": "Learn Ali DanceIncreased Social Link bonus EXP"
+  },
+  "11-20": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "11-24": {
+   "trigger": "Fuse Kartikeya",
+   "effect": "Learn Angelic Grace"
+  },
+  "11-26": {
+   "trigger": "Fuse a Magician Persona",
+   "effect": "Learn Marakukaja"
+  },
+  "12-8": {
+   "trigger": "Fuse Hell Biker",
+   "effect": "Learn Evade Ice; Stats increase"
+  },
+  "12-11": {
+   "trigger": "Use a Judgement Persona as a fusion material",
+   "effect": "Learn a Fire skill; Learn an Elec skillIncreased Social Link bonus EXP"
+  },
+  "12-12": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "12-13": {
+   "trigger": "None",
+   "effect": "Skill change"
+  },
+  "12-15": {
+   "trigger": "Fuse Alice",
+   "effect": "Learn Angelic Grace"
+  },
+  "12-16": {
+   "trigger": "None",
+   "effect": "Stats increase"
+  },
+  "12-17": {
+   "trigger": "None",
+   "effect": "Increased Social Link bonus EXP"
+  },
+  "12-19": {
+   "trigger": "Fuse Yoshitsune",
+   "effect": "Learn Arms Master"
+  },
+  "12-21": {
+   "trigger": "Fuse Ishtar",
+   "effect": "Learn Insta-Heal; Learn a Fire skill"
+  },
+  "12-23": {
+   "trigger": "None",
+   "effect": "Stats increaseIncreased Social Link bonus EXP"
+  },
+  "12-24": {
+   "trigger": "Fuse Yoshitsune",
+   "effect": "Learn Debilitate"
+  }
+ }
+}

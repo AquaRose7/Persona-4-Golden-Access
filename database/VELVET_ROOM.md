@@ -115,8 +115,73 @@ switch as more Golden arcana surface).
   Cursor `+0x2A4` + scroll `+0x2A6`; entry at `obj+0x6FC + abs*0x0C`, id @ `+0`; "Register all"
   sentinel id = 1536; Buy price = `entry+0x08`.
 
+## SPREAD FUSIONS — Cross / Pentagon / Hexagon (unlocked + wired 2026-07-03, pending user test)
+
+The three multi-persona spread fusions appeared at the user's rank. Findings (from the UNMAPPED-
+flag dumps while the user browsed):
+- **Method menu (L3)**: the new options are ID-based like the rest — mapped 2=Cross, 3=Pentagon,
+  4=Hexagon by the glyph-id sequence (7=Search, 0=Normal, 1=Triangle, 6=Back verified); an UNKNOWN
+  id now logs `method-menu UNKNOWN id` so a wrong guess is caught in one hover.
+- **Summon screens** ("What will you summon?", result column + numbered MATERIAL column, F =
+  Persona Status, Registered marks + Forecast Bonus footer): routed by **EXACT low-word flag match
+  `0x0010` / `0x0014`** (observed `0x80040010`/`0x80040014`). ⚠ REGRESSION LESSON (2026-07-03): a
+  loose "bit 0x10 set" test STOLE other fusion states that carry 0x10 alongside their own bits and
+  broke Normal/Triangle reading — velvet flag WORDS are state combos, route by exact match unless a
+  bit is proven exclusive.
+  **LAYOUT (snapshot-hunted live 2026-07-03, 0/1/0/1/2 cursor zigzag over Cross+Pentagon; NOT the
+  Search offsets — those read 0 here):**
+  - count `obj+0x10B0` (u16), cursor `obj+0x10B2` (u16); a mirror pair sits at `+0x10E2/+0x10E6`
+    (if long Hexagon lists ever cap the cursor, try `+0x10E6` as the absolute row).
+  - result entry k @ `obj+0x8E2 + k*0x30`: persona id u16 @+0, level u16 @+2, u32 @+6 (cost?),
+    5 stat bytes @+0x1A (St/Ma/En/Ag/Lu of the result).
+  - recipe ptr k @ `obj+0xB28 + k*0x70` → heap block: result id u16 @+0 (**validate against the
+    entry id** — blocks go stale across screen switches, the check makes misreads impossible),
+    material persona ids u16[] @+0x0C zero-terminated (4/5/6 = Cross/Pentagon/Hexagon).
+  Verified against screenshots: Cross = Neko Shogun(23) lv32 ← [53,13,73,102], Tam Lin(87) lv53;
+  Pentagon = Yoshitsune(82) lv75 ← 5 mats, Black Frost(119), Futsunushi(38), Yatsufusa(20).
+  `ReadSpread` speaks "Name, Arcana, level N. k of M. From mat1, mat2, …".
+  **F "Persona Status" on a spread result** = flag low words **0x34 / 0x134** (⚠ carries NO 0x40
+  profile bit, unlike every other velvet profile) → `ReadSpreadPersonaPanel` builds the same
+  navigable I/K/J/L panel as the Search result (`BuildSearchSections`) from the spread entry's
+  id+level. `_spreadPanelId` resets when the list re-focuses so reopening F re-reads.
+- Also seen in the dumps: `obj+0xF0` (u16) = the fusion MODE id on these screens (2/3/4 as the
+  user entered Cross/Pentagon/Hexagon).
+
+## FUSION FORECAST — ✅ SOLVED 2026-07-03 (data-file route, pending user test)
+
+The sprite-enum RE was a dead end by design: `FUN_140233570` draws only FIXED label sprites
+(headers, Today/Tomorrow = `0x5D+day` via FUN_1402332E0, "Trigger/Effect" boxes); the per-day
+VALUES are pre-rendered textures at `obj+0x34120/34128/34148` with no readable enum behind them.
+**The forecast is DATE-DETERMINISTIC, so the reader uses `database/fusion_forecast.json`**
+(the weather_schedule.json precedent): the GOLDEN daily table from GameFAQs FAQ 81937 (141
+forecast days incl. the Jan/Feb epilogue; cross-checked against the vanilla wikidot table —
+overlaps agree modulo wording; Golden's changed/added days like 5/25 Aeon are real changes).
+A date absent from the sheet = "no fusion forecast." Reader: flag low word **0x8200** (0x8600/
+0x8400 = transitions carrying the L2 bit) → `ReadForecast`: day tab @`obj+0x1748` (0=Today,
+1=Tomorrow), date = `FieldTracker.GameDate(tab)` (new static mirror of the game-day counter),
+speaks "Tomorrow, July 4: Skill change." **Bundle `fusion_forecast.json` flat in the mod folder
+every release** (already copied to the live mod dir).
+
+## COMPENDIUM PROFILE — real skills + Description (2026-07-04, pending user test)
+
+- **Registered entry layout DECODED** (CompDiag dump vs the Hua Po screenshot): the 0x38-stride
+  list entry = `+0x00 u16 flags?(1)` · `+0x02 u16 persona id` · `+0x04 u16 level` · `+0x08 u32 exp`
+  · **`+0x0C u16 skills[8]`** (real REGISTERED skills, on-screen order; passives are ids ≥ 512) ·
+  `+0x1C byte stats[5]` · `+0x30 u32 summon cost` · `+0x34 flags (bit0 = NOT registered)`.
+  `BuildCompendiumProfile` now reads the real skills (learnset only as unreadable-entry fallback) —
+  the old learnset derivation spoke wrong skills whenever the registered set differed.
+- **Description (flavor text)**: the Info tab's text renders as glyph runs through FUN_140450C60
+  (every p6==0 full on this screen is list scratch). `CompendiumInfoText.cs` (rooted in Mod.cs)
+  captures the ordered body lines, keyed by `VelvetFusion.CompendiumProfileId`, gated on
+  `CompendiumProfileTick` freshness. **It SPEAKS the settled text itself (appended, no interrupt)
+  on EVERY render of the Info tab** — the tab redraws the text each time it's (re)entered, and
+  "glyph activity after >400ms idle" = a fresh render pass → recollect + re-announce (user pref
+  2026-07-04; the I/K "Description" section variant was removed). Two hard-won details: the body
+  draws ONCE (not per frame) so the LAST line needs a ~100ms staleness flush (heartbeat = the
+  list side's constant p6==0 draws), and announcing waits for a 250ms-settled capture so the
+  tail is guaranteed in.
+
 ## STILL OPEN (next session)
-1. **Fusion Forecast** (L2 option, bit 0x8000+0x200, content draw FUN_140233570): Today/
-   Tomorrow tab (day idx @obj+0x1748), Trigger + Effect. VALUES are **baked sprites**
-   (FUN_1402332E0 draws sprite `0x5D+enum`), so reading needs the per-day trigger/effect
-   ENUM (snapshot-diff toggling Today/Tomorrow) + a hand-mapped enum→text table.
+1. Spread-fusion extras: the material "Registered" mark + compendium level (Phoenix "22" in
+   the screenshot), and the greyed not-owned state.
+2. Buy/Give Skill Cards sub-screens (see the skill-cards section).

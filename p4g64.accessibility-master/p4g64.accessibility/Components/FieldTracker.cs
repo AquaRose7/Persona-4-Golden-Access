@@ -733,13 +733,31 @@ internal unsafe class FieldTracker
     private IAsmHook? _playerPosHook;
 
     // 3D position (dungeon/Midnight Channel): X at [rbx+0x70], Z at [rbx+0x78]
-    private static unsafe float PlayerX3D =>
-        _playerXformStorage != IntPtr.Zero && *(nint*)_playerXformStorage != 0
-            ? *(float*)((byte*)*(nint*)_playerXformStorage + 0x70) : float.NaN;
+    // ⚠ The captured entity pointer goes STALE when the game frees the entity
+    // (menu close / floor change / battle transitions) — reading it unguarded
+    // AVE'd and killed the process from WallBump's poll thread (dump-proven
+    // 2026-07-03, P4G.exe.82376). Every hop must pass IsReadable.
+    private static unsafe float PlayerX3D
+    {
+        get
+        {
+            if (_playerXformStorage == IntPtr.Zero) return float.NaN;
+            nint ent = *(nint*)_playerXformStorage;
+            if (ent == 0 || !IsReadable(ent + 0x70, 4)) return float.NaN;
+            return *(float*)(ent + 0x70);
+        }
+    }
 
-    private static unsafe float PlayerZ3D =>
-        _playerXformStorage != IntPtr.Zero && *(nint*)_playerXformStorage != 0
-            ? *(float*)((byte*)*(nint*)_playerXformStorage + 0x78) : float.NaN;
+    private static unsafe float PlayerZ3D
+    {
+        get
+        {
+            if (_playerXformStorage == IntPtr.Zero) return float.NaN;
+            nint ent = *(nint*)_playerXformStorage;
+            if (ent == 0 || !IsReadable(ent + 0x78, 4)) return float.NaN;
+            return *(float*)(ent + 0x78);
+        }
+    }
 
     // ── 2.5D player position (overworld: Shopping District, school, Junes, etc.) ──
     // Write site: MOVUPS [rbx+0x30], xmm1 at VA 0x14050468F (file offset 0x503C8F).
@@ -752,13 +770,29 @@ internal unsafe class FieldTracker
     // Per-frame 2D position from the new hook: X at [r14+0x50], Z at [r14+0x54].
     // xmm0 stores two packed 32-bit floats, confirmed by F8 scan finding both X and Z
     // as adjacent floats at session addresses 0x12781308 (X) and 0x1278130C (Z).
-    private static unsafe float PlayerX2DAsmHook =>
-        _playerXform2DStorage != IntPtr.Zero && *(nint*)_playerXform2DStorage != 0
-            ? *(float*)((byte*)*(nint*)_playerXform2DStorage + 0x50) : float.NaN;
+    // IsReadable-guarded: the captured pointer goes stale when the game frees the
+    // transform (same AVE class as PlayerX3D — dump-proven 2026-07-03).
+    private static unsafe float PlayerX2DAsmHook
+    {
+        get
+        {
+            if (_playerXform2DStorage == IntPtr.Zero) return float.NaN;
+            nint ent = *(nint*)_playerXform2DStorage;
+            if (ent == 0 || !IsReadable(ent + 0x50, 4)) return float.NaN;
+            return *(float*)(ent + 0x50);
+        }
+    }
 
-    private static unsafe float PlayerZ2DAsmHook =>
-        _playerXform2DStorage != IntPtr.Zero && *(nint*)_playerXform2DStorage != 0
-            ? *(float*)((byte*)*(nint*)_playerXform2DStorage + 0x54) : float.NaN;
+    private static unsafe float PlayerZ2DAsmHook
+    {
+        get
+        {
+            if (_playerXform2DStorage == IntPtr.Zero) return float.NaN;
+            nint ent = *(nint*)_playerXform2DStorage;
+            if (ent == 0 || !IsReadable(ent + 0x54, 4)) return float.NaN;
+            return *(float*)(ent + 0x54);
+        }
+    }
 
 // Live 2D position: sub_obj+0xD0/+0xD4 (confirmed via Frida heap scan).
     // Falls back to AsmHook, then the spawn-point chain if the primary read fails.
@@ -846,6 +880,15 @@ internal unsafe class FieldTracker
         *(nint*)_playerXformStorage = 0;
         var storAddr = (nuint)(void*)_playerXformStorage;
 
+        // ⚠ NEVER use a bare memory operand with an absolute address here
+        // (`mov [imm], reg`): the assembler emits it RIP-RELATIVE and silently
+        // TRUNCATES the 32-bit displacement when AllocHGlobal lands >±2GB from
+        // the stub — the write then hits P4G's image → AV → 0xC0000409 fail-fast
+        // on the first frame that runs the write site (the recurring "dead
+        // seconds after the save loads" crash, dump-proven 2026-07-03, dump
+        // P4G.exe.93420: stub wrote 0x1406E2420 = the truncated heap cell).
+        // Load the 64-bit address into a scratch register instead (the
+        // ConfigMenu/LoadScreenTracker pattern, safe at any heap address).
         SigScan("F3 0F 11 4B 70 F3 0F 58 D3 0F 57 C9", "EntityPositionWrite", address =>
         {
             _playerPosHook = hooks.CreateAsmHook(new[]
@@ -854,7 +897,10 @@ internal unsafe class FieldTracker
                 "pushfq",
                 "cmp r12, 0",
                 "jne _epw_skip",
-                $"mov qword [{storAddr}], rbx",
+                "push rax",
+                $"mov rax, 0x{(ulong)storAddr:X16}",
+                "mov [rax], rbx",
+                "pop rax",
                 "_epw_skip:",
                 "popfq",
             }, address, AsmHookBehaviour.ExecuteFirst).Activate();
@@ -880,7 +926,10 @@ internal unsafe class FieldTracker
             {
                 "use64",
                 "pushfq",
-                $"mov qword [{storAddr2D}], r14",
+                "push rax",
+                $"mov rax, 0x{(ulong)storAddr2D:X16}",   // see the truncation warning above
+                "mov [rax], r14",
+                "pop rax",
                 "popfq",
             }, address + 8, AsmHookBehaviour.ExecuteFirst).Activate();
             Log($"[FieldTracker] Player position hook (2.5D per-frame) activated at 0x{address + 8:X}");
@@ -2711,6 +2760,7 @@ internal unsafe class FieldTracker
         if (curGameDay > 0 && curGameDay != _lastGameDay && inField)
         {
             _lastGameDay = curGameDay;
+            _gameDayStatic = curGameDay;
             string msg = FormatDate(curGameDay);
             string weather = ReadWeatherName();
             if (!string.IsNullOrEmpty(weather)) msg += $", {weather}";
@@ -4892,6 +4942,10 @@ internal unsafe class FieldTracker
 
     private static string GetAreaName(int major, int minor) => major switch
     {
+        // The travel/destination-select field you pass through when riding to
+        // Okina City etc. (seen live as 1/1 right before Okina 11/1, 2026-07-03).
+        // Announced as a prompt, per user request — this is where you pick a stop.
+        1 => "Choose where to go",
         6 => minor switch
         {
             1  => "School, Front Entrance",
@@ -5134,6 +5188,20 @@ internal unsafe class FieldTracker
     // Confirmed: day=15 on April 16 Evening save (F2 dump ✓).
     // Epoch April 1, 2011: AddDays(15) = April 16 ✓
     private static readonly DateTime _epoch = new DateTime(2011, 4, 1);
+
+    // Static mirror of the instance's _lastGameDay so other components can resolve the
+    // in-game calendar date (VelvetFusion's Fusion Forecast reader, 2026-07-03).
+    private static volatile short _gameDayStatic = -1;
+
+    /// <summary>The in-game calendar date shifted by <paramref name="plusDays"/>
+    /// (0 = today, 1 = tomorrow), or (0,0) when the day counter isn't known yet.</summary>
+    internal static (int Month, int Day) GameDate(int plusDays = 0)
+    {
+        int gd = _gameDayStatic;
+        if (gd <= 0) return (0, 0);
+        var date = _epoch.AddDays(gd + plusDays);
+        return (date.Month, date.Day);
+    }
 
     private static string FormatDate(short gameDay)
     {

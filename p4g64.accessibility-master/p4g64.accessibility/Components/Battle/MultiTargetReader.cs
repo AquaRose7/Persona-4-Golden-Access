@@ -19,6 +19,13 @@ internal sealed class MultiTargetReader
     private const long ListClosedMs = 250;
     private bool _announced;
     private bool _listWasOpen;   // the skill list was actually opened this cycle (a real confirm, not a stale id)
+    // PRE-CAST snapshot of the discovered-affinity summary per element, taken while the
+    // skill list is still open. The game sets the species discovery flags the INSTANT a
+    // cast resolves, so computing the summary at confirm time read the flags the cast
+    // itself was about to reveal — announcing "2 weak" for an element the analyze grid
+    // still showed as unknown (user 2026-07-04, Mabufu on Mighty Cyclops).
+    private readonly Dictionary<int, (string? Aoe, long Tick)> _preCast = new();
+    private int _lastHoverSid = -1;      // last skill id snapshotted while the list was open
 
     internal MultiTargetReader()
     {
@@ -39,14 +46,36 @@ internal sealed class MultiTargetReader
 
     private void Tick()
     {
-        if (!GameHasFocus() || Battle.ActiveBtlInfo == 0) { _announced = false; _listWasOpen = false; return; }
+        if (!GameHasFocus() || Battle.ActiveBtlInfo == 0)
+        { _announced = false; _listWasOpen = false; _preCast.Clear(); _lastHoverSid = -1; return; }
 
         // Leaving the Skill command (ring moved elsewhere) clears everything — a later return to Skill
         // must re-open the list to count.
-        if (Battle.CurrentCommand != 4) { _announced = false; _listWasOpen = false; return; }
+        if (Battle.CurrentCommand != 4) { _announced = false; _listWasOpen = false; _lastHoverSid = -1; return; }
 
         bool listOpen = Environment.TickCount64 - Battle.PendingEchoSkillTick < ListClosedMs;
-        if (listOpen) { _listWasOpen = true; _announced = false; return; }   // in the skill list — picking
+        if (listOpen)
+        {
+            bool opened = !_listWasOpen;
+            _listWasOpen = true; _announced = false;
+            // Snapshot ONLY on the list-open edge and on hover CHANGES — moments that
+            // provably precede the confirm. Snapshotting every poll re-read the flags
+            // during the ~250ms list-closed lag AFTER the confirm, when the cast had
+            // already resolved and set the discovery flags — the leak survived the
+            // first fix that way (user 2026-07-04, wind re-leak).
+            int hsid = Battle.SelectedSkillId;
+            if ((opened || hsid != _lastHoverSid) && hsid >= 0)
+            {
+                _lastHoverSid = hsid;
+                if (SafeScope(hsid) == 1)
+                {
+                    int helem = SafeElement(hsid);
+                    if (helem >= 0 && helem != 5 && helem <= 7)
+                        _preCast[helem] = (Battle.AoeAffinitySummary(helem), Environment.TickCount64);
+                }
+            }
+            return;   // in the skill list — picking
+        }
 
         // List closed while still on Skill: a real confirm into target-select ONLY if the list was
         // actually open this cycle. Just hovering "Skill" in the ring with a stale all-skill id does
@@ -61,7 +90,11 @@ internal sealed class MultiTargetReader
         if (elem == (int)Skill.ElementalType.Healing) msg = "All allies.";
         else if (elem >= 0 && elem != 5 && elem <= 7)
         {
-            string aoe = Battle.AoeAffinitySummary(elem);
+            // Use the pre-cast snapshot ONLY — recomputing here reads post-resolution
+            // flags. 30s freshness: discovery can only change via a cast, which closes
+            // the list, so a snapshot stays valid for the whole browse session.
+            string? aoe = _preCast.TryGetValue(elem, out var pc)
+                          && Environment.TickCount64 - pc.Tick < 30000 ? pc.Aoe : null;
             msg = aoe != null ? $"All enemies. {aoe}." : "All enemies.";
         }
         else if (elem >= 0 && elem <= 15) msg = "All enemies.";   // ailment offensive

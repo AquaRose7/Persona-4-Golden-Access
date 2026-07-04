@@ -1002,8 +1002,10 @@ internal sealed unsafe class PlayerMenu
             Speak(StatusVitals(charId));
         }
 
-        // Row 4 = social stats, MC only (they're the protagonist's).
-        int maxRow = charId == 1 ? 4 : 3;
+        // Rows: 0 vitals · 1 atk/def · 2 persona · 3 elements · 4 stats ·
+        // 5 skills · 6 experience · 7 equipment · 8 social stats (MC only —
+        // they're the protagonist's).
+        int maxRow = charId == 1 ? 8 : 7;
         bool i = NavKey(0x49), k = NavKey(0x4B), j = NavKey(0x4A), l = NavKey(0x4C);
         if (i && !_stiW) { _stRow = Math.Max(0, _stRow - 1); _stItem = -1; StatusAnnounceRow(charId); }
         if (k && !_stkW) { _stRow = Math.Min(maxRow, _stRow + 1); _stItem = -1; StatusAnnounceRow(charId); }
@@ -1026,10 +1028,81 @@ internal sealed unsafe class PlayerMenu
         if (items.Length == 0) return;
         _stItem = _stItem < 0 ? (dir > 0 ? 0 : items.Length - 1)
                               : Math.Clamp(_stItem + dir, 0, items.Length - 1);
-        Speak(items[_stItem]);
+        string text = items[_stItem];
+        nint m = StatusMember(charId);
+        // Skills row: J/L speaks element + cost + description (like the battle
+        // persona panel); the row overview stays a short name list.
+        if (_stRow == 5) text = StatusSkillDetail(charId, m, _stItem) ?? text;
+        // Experience row's "learns ..." item: add the skill's description.
+        if (_stRow == 6 && text.StartsWith("learns "))
+        {
+            var (entry, pid) = StatusPersona(charId, m);
+            text = Battle.Battle.PersonaNextLearnDetail(entry, pid) ?? text;
+        }
+        Speak(text);
     }
 
     private static nint StatusMember(int charId) => (nint)PartyArrayAddr + (nint)(charId - 1) * 0x84;
+
+    /// <summary>The Status character's live PersonaInfo (entry, species id):
+    /// ally = the EMBEDDED entry at member+0x54 (id +0x56 — same layout as MC
+    /// stock: level +0x04, exp +0x08, skills +0x0C, stat arrays +0x1C/21/26);
+    /// MC = the equipped stock persona.</summary>
+    private static (nint entry, int pid) StatusPersona(int charId, nint m)
+    {
+        if (charId == 1) return McEquippedPersona();
+        if (!IsReadable(m + 0x54, 0x30)) return (0, -1);
+        return (m + 0x54, *(ushort*)(m + 0x56));
+    }
+
+    /// <summary>"Name: Element skill that costs N SP. Description" for the
+    /// index-th non-empty skill on the Status persona — the camp equivalent of
+    /// PersonaNav's RichSkillDetail (cost from the member record directly; no
+    /// battle acting-unit here). Null on any failure (caller keeps the name).</summary>
+    private static string StatusSkillDetail(int charId, nint m, int index)
+    {
+        var (entry, _) = StatusPersona(charId, m);
+        if (!IsReadable(entry, 0x30)) return null;
+        short* sk = (short*)(entry + 0x0C);
+        int sid = -1, seen = -1;
+        for (int s = 0; s < 8 && sid < 0; s++)
+        {
+            if (sk[s] <= 0) continue;
+            if (++seen == index) sid = sk[s];
+        }
+        if (sid <= 0) return null;
+        string nm = Skill.GetName(sid);
+        if (string.IsNullOrEmpty(nm)) return null;
+        var sb = new System.Text.StringBuilder(nm);
+        try
+        {
+            if (Skill.GetSkillType(sid) == Skill.SkillType.Passive)
+            {
+                sb.Append(": Passive skill.");
+            }
+            else
+            {
+                var elem = Skill.GetSkillElement(sid);
+                string elemText = elem > Skill.ElementalType.Dark ? "Support" : elem.ToString();
+                sb.Append($": {elemText} skill");
+                var costType = Skill.GetActiveSkillData(sid)->CostType;
+                if (costType != Skill.SkillCostType.None && IsReadable(m, 0x84))
+                {
+                    int cost = PartyMember.GetSkillCost((PartyMember.PartyMemberInfo*)m, sid);
+                    if (cost > 0) sb.Append($" that costs {cost} {costType}");
+                }
+                sb.Append('.');
+            }
+        }
+        catch { return nm; }
+        try
+        {
+            string d = Skill.GetDescription(sid);
+            if (!string.IsNullOrEmpty(d)) sb.Append(' ').Append(d);
+        }
+        catch { }
+        return sb.ToString();
+    }
 
     private static int StatusLevel(int charId, nint m)
     {
@@ -1073,10 +1146,7 @@ internal sealed unsafe class PlayerMenu
             }
             case 2:
             {
-                // Persona: ally = embedded (+0x56); MC = equipped stock persona.
-                int pid; nint entry;
-                if (charId == 1) (entry, pid) = McEquippedPersona();
-                else { pid = *(ushort*)(m + 0x56); entry = m + 0x54; }
+                var (entry, pid) = StatusPersona(charId, m);
                 if (pid < 1 || pid > 512) return ("Persona", new[] { "none" });
                 var items = new List<string>();
                 string name = GetName(pid);
@@ -1087,7 +1157,54 @@ internal sealed unsafe class PlayerMenu
                 if (plv > 0) items.Add($"level {plv}");
                 return ("Persona", items.ToArray());
             }
+            // Rows 3-6 = the persona DETAIL panel (v1.3.5): same content as the
+            // battle PersonaNav I/K/J/L panel, built from the PersonaInfo entry
+            // (ally embedded @m+0x54 / MC equipped stock) + the species tables.
             case 3:
+            {
+                var (_, pid) = StatusPersona(charId, m);
+                if (pid < 1 || pid > 512) return ("Elements", new[] { "no persona" });
+                var items = new List<string>();
+                foreach (var (eid, nm) in Battle.Battle.ProfileElements)
+                    items.Add(Battle.Battle.PersonaElementAffinityText(pid, eid, nm));
+                return ("Elements", items.ToArray());
+            }
+            case 4:
+            {
+                var (entry, _) = StatusPersona(charId, m);
+                var t = Battle.Battle.PersonaTotalStats(entry);
+                if (t == null) return ("Stats", new[] { "unknown" });
+                return ("Stats", new[]
+                {
+                    $"Strength {t[0]}", $"Magic {t[1]}", $"Endurance {t[2]}",
+                    $"Agility {t[3]}", $"Luck {t[4]}"
+                });
+            }
+            case 5:
+            {
+                var (entry, _) = StatusPersona(charId, m);
+                var names = new List<string>();
+                if (IsReadable(entry, 0x30))
+                {
+                    short* sk = (short*)(entry + 0x0C);   // PersonaInfo.Skills[8]
+                    for (int s = 0; s < 8; s++)
+                    {
+                        int sid = sk[s];
+                        if (sid <= 0) continue;
+                        string snm = Skill.GetName(sid);
+                        if (!string.IsNullOrEmpty(snm)) names.Add(snm);
+                    }
+                }
+                if (names.Count == 0) names.Add("no skills");
+                return ("Skills", names.ToArray());
+            }
+            case 6:
+            {
+                var (entry, pid) = StatusPersona(charId, m);
+                if (pid < 1 || pid > 512) return ("Experience", new[] { "no persona" });
+                return Battle.Battle.PersonaGrowthRow(entry, pid);
+            }
+            case 7:
                 return ("Equipment", new[]
                 {
                     $"Weapon, {EquipName(*(ushort*)(m + 0x4C))}",
@@ -1095,7 +1212,7 @@ internal sealed unsafe class PlayerMenu
                     $"Accessory, {EquipName(*(ushort*)(m + 0x50))}",
                     $"Clothes, {EquipName(*(ushort*)(m + 0x52))}"
                 });
-            case 4: // social stats (MC only)
+            case 8: // social stats (MC only)
                 return ("Social stats", SocialStats(m));
         }
         return (null, Array.Empty<string>());

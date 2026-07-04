@@ -579,6 +579,11 @@ internal class OverworldNav
         if (areaKey == "8_2" && id == 0x0C3E) return "Yumi";               // was "Drama club member"
         if (areaKey == "6_1" && id == 0x0C32) return "Naoki Konishi";       // was "Boy"
         if (areaKey == "10_1" && id == 0x0C06) return "Konishi Liquor Store manager"; // was "Townsperson 4"
+        // From database/fixed characters IDs.txt (user-recorded via the `;` diagnostic, 2026-07-03):
+        if (areaKey == "8_1" && id == 0x0C36) return "Kou";                  // was "Townsperson 2"
+        if (areaKey == "6_6" && id == 0x0C02) return "Timid female student"; // was "Townsperson 2"
+        if (areaKey == "6_2" && id == 0x0C04) return "Shady student";        // was "Townsperson 4"
+        if (areaKey == "6_4" && id == 0x0C02) return "Male student";         // was "Townsperson 2"
         return baseName;
     }
 
@@ -939,14 +944,33 @@ internal class OverworldNav
                     return;
                 }
 
-                // ── direction in a FIXED WORLD frame — the sound sits at the
-                //    interactable's world position (east/west = pan, north/south =
-                //    muffle), independent of which way the player is turned. Matches
-                //    the spoken "northeast"-style compass cues. ──
-                float ux = dist > 1e-3f ? dx / dist : 0f;   // world +X → left/right
-                float uz = dist > 1e-3f ? dz / dist : 0f;   // world +Z → ahead/behind (muffle)
-                float pan = Math.Clamp(ux * PanSign, -1f, 1f);
-                float openness = Math.Clamp((uz * FrontSign + 1f) * 0.5f, 0f, 1f);
+                // ── direction ──
+                // TOWN (2.5D, fixed camera): FIXED WORLD frame — the sound sits at the
+                // interactable's world position (east/west = pan, north/south = muffle),
+                // matching the spoken compass cues. (Camera-relative was tried and
+                // user-rejected for the town.)
+                // SCHOOL (major 6, REAL 3D — the camera rotates): the world frame is wrong
+                // relative to the player's view ("hear it left but need to go right",
+                // user 2026-07-03) → use the dungeon NavBeacon's CAMERA-relative math
+                // (same CameraForward3D the school auto-walker steers by, same
+                // user-verified pan sign).
+                float ux = dist > 1e-3f ? dx / dist : 0f;
+                float uz = dist > 1e-3f ? dz / dist : 0f;
+                float pan, openness;
+                var (cfx, cfz) = FieldTracker.CurrentMajor == 6
+                    ? FieldTracker.CameraForward3D() : (0f, 0f);
+                if ((cfx != 0f || cfz != 0f) && dist > 1f)
+                {
+                    float fwd = ux * cfx + uz * cfz;              // ahead(+1) … behind(-1)
+                    float rgt = ux * cfz + uz * (-cfx);           // right = (fz,-fx)
+                    pan = Math.Clamp(rgt * -1f, -1f, 1f);         // NavBeacon's verified sign
+                    openness = Math.Clamp((fwd + 1f) * 0.5f, 0f, 1f);
+                }
+                else
+                {
+                    pan = Math.Clamp(ux * PanSign, -1f, 1f);
+                    openness = Math.Clamp((uz * FrontSign + 1f) * 0.5f, 0f, 1f);
+                }
                 float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist; // 1 near … 0 far
                 float gain = FarGain + (NearGain - FarGain) * prox;        // louder as you approach
                 int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));

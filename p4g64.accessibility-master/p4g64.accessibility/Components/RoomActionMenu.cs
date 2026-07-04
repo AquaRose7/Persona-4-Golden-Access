@@ -48,7 +48,7 @@ internal sealed unsafe class RoomActionMenu : IDisposable
         {
             (7920, "Save point", System.Array.Empty<(char, int)>()),
             (7921, "Fridge",     new[] { ('D', 600), ('W', 300) }),
-            (7922, "Farm",       new[] { ('S', 1500), ('D', 600) }),   // yard from entry 0: S 1.5s, D 0.6s (user-timed)
+            (7922, "Farm",       new[] { ('S', 1000), ('D', 600) }),   // yard from entry 0: S 1.0s (was 1.5 — overshot, user 2026-07-03), D 0.6s
         },
         ["8_1"] = new (int, string, (char, int)[])[]   // Shopping District North (auto-walk handoff)
         {

@@ -32,12 +32,38 @@ STAT BUFFS only, found via a clean live diff (cast in isolation, watch the stat 
   repel. Was previously (wrongly) "block" then "null". Fixed in both `ClassifyAffinity` and
   `ClassifyPersonaRaw`. Confirmed flags: `0x08`=weak, `0x10`=resist, `0x01`=null, `0x02`=repel; `0x04`/
   `0x20` (drain/repel) still unverified guesses.
-- **Stat buffs** atk/def/agi (`Battle.BuffText(unit)` / `BuffTextFromStat(stat)`): per-stat **sign byte
-  at stat+0x1C (atk) / +0x1D (def) / +0x1E (agi)** — 0 neutral, **high bit set = down**, clear = up;
-  **turn counter at stat+0x25/+0x26/+0x27** (non-zero = active, ticks 3→2→1, gate on this). Wired into
-  the enemy-target read, U-key `EnemyStatus`, and `PartyStatus.DescribeMember` (O / `;` / `'`).
-  A **4th buff slot, index 3 = critical rate** (sign +0x1F, turn +0x28), was added 2026-07-02 (Chie's
-  all-party crit buff); `BuffTextFromStat` loops `t < 4` with `_buffStat[3]="critical rate"`.
+- **Stat buffs (`Battle.BuffText(unit)` / `BuffTextFromStat(stat)`) — RE-CRACKED 2026-07-03: the
+  bytes are NIBBLE-PAIRED.** Each stage byte `+0x1C..+0x1F` holds TWO channels (high/low nibble,
+  signed-nibble stage: `0x1` = up, `0xE` = down → **nibble bit 3 = down**), with per-nibble turn
+  counters in the SAME nibble of `+0x25..+0x28` (tick 3→2→1 within their nibble). Channel map:
+  **attack = +0x1C hi · defense = +0x1D hi · hit = +0x1D lo · evasion = +0x1E lo · crit = +0x1F**
+  (+0x1C lo and +0x1E hi never observed — logged if they ever activate). Suku spells set hit+evasion
+  together; spoken as **"agility up/down"** when the pair matches, individually otherwise. Live
+  evidence: Rakunda alone → `+0x1D=0xE0 / +0x26=0x30` (high nibble, timer ticked `0x30→0x20`);
+  Sukunda added → `0xEE / 0x23` (low nibble joins, independent timer); Sukukaja → low nibbles `0x1`.
+  ⚠ The OLD "byte high bit = down" rule only held for HIGH-nibble channels (Taru/Raku) and misread
+  the whole Suku pair as "defense up, agility up" (player report). Wired into the enemy-target read,
+  U-key `EnemyStatus`, and `PartyStatus.DescribeMember` (O / `;` / `'`).
+  **FIFTH channel (enemy Rebellion crit-up, dump-diffed 2026-07-03): stage @+0x1E HIGH nibble,
+  timer @+0x14 HIGH nibble** — breaks the +9 stage↔timer pattern (its +9 slot +0x27-hi stays 0);
+  U-dump evidence: buffed `+0x14=0x20/+0x1E=0x10`, expired both 0, identical on re-buff. A transient
+  `+0x1A=0x08` was also seen between buffs (guard stance? — unmapped, not spoken). Party crit
+  (Chie's buff) remains the +0x1F/+0x28 channel. User-confirmed working: the agility pair fix.
+- **SP deltas (`DamageMonitor`, 2026-07-03):** SP tracked alongside HP (stat+0x0A). A unit's SP drop
+  during the OTHER side's action = a drain → "X lost N SP" (Spirit Drain was silent before); own-side
+  drops = cast costs, silent. Party SP gains read "recovered N SP". **2026-07-04 fix:** the Turn
+  pointer clears BEFORE the cast's SP deduction lands, so `playerActing` alone misfired ("Chie lost
+  10 SP" on her own Mabufu) — a drop on the member who was ACTING within the last ~2.5s
+  (`_lastPartyActing`) is treated as their own cost.
+- **AoE summary discovery-leak fix (2026-07-04, TWO rounds):** the game sets the species discovery
+  flags the INSTANT a cast resolves (SP already deducted before our confirm-time poll), so computing
+  `AoeAffinitySummary` at confirm announced the weakness THE CAST ITSELF was about to reveal
+  ("Ice unknown" on analyze, "2 weak" spoken on the Mabufu confirm). Round 1 (snapshot every poll
+  while the list is open) STILL leaked: `listOpen` is a 250ms-lagged test (PendingEchoSkillTick
+  age), so post-confirm polls kept snapshotting with post-resolution flags. Round 2 (final):
+  snapshot ONLY on the list-OPEN edge and on hover CHANGES — moments that provably precede the
+  confirm (confirming never changes the hovered id). 30s snapshot freshness (discovery can only
+  change via a cast, which closes the list).
 - **Mind Charge (Concentrate)** = **`stat+0x16` bit `0x10`** — VERIFIED live 2026-07-02 (an enemy that
   self-Concentrates: the bit toggled `00→10` on the charge and `10→00` on the discharge across two
   isolated captures; it is NOT in the 0x1C buff array). Announced as "mind charged" in `BuffTextFromStat`.
@@ -246,7 +272,36 @@ Time arena hunt. Candidate next session.
 
 ---
 
-## ✅ Shuffle Time card narration — CLOSED 2026-07-01 (both issues solved, user-verified)
+## ✅✅ Shuffle Time — FINISHED FOR GOOD 2026-07-03 ("working better than ever", user-verified)
+
+The 2026-07-03 marathon (full trail: `memory/next_session_shuffle_time.md` parts 1-6) ended with a
+**paradigm change**: card names now come from the game's own INFO-PANEL TEXT (the user's idea), not
+the texture paths. Summary of the final architecture, all in `ShuffleReader.cs` + `ShuffleText.cs`:
+
+- **`ShuffleText.cs`** hooks the shared UI-text fn `FUN_140450C60` (QuestMenu pattern), gated on
+  `ShuffleReader.ShuffleActive`. Per RENDER FRAME it reconstructs the hovered card's panel: p6=0
+  full strings = category footer (all-caps ARCANA/WAND/CUP/PERSONA) + title lines (personas give
+  name+arcana+"LvN"); p6≠0 glyph runs = wrapped description. Frame boundary: fulls arriving after
+  glyphs = next frame's header; frame closes when the next frame's first glyph starts. Publishes
+  `LatestPanel` (composed "Title[, …][ card]. Description") on change only. Hover announce waits
+  ≤300ms for a post-hover, 50ms-stable panel — never a mid-transition merge, never a wrong name.
+  **Game-truth names on SKIPPED deals, changed cards, double-change, Fool — everything.**
+- **Skipped deals**: the deal animation is what writes the texture paths — a skip means NO paths
+  ever. Detection: strict header preferred, RELAXED fallback (paths as proof), and a PATH-LESS
+  latch (strict header + valid panel map, no paths) so even a pathless spread reads positions;
+  the panel text supplies the names. `h[6]` can be 0xFFFFFFFF at high progression; `h[5]` can be
+  0 on skipped deals (both accepted).
+- **Struct roles now**: counts (`+0xE88` remaining), cursor (`h[4]`, ranges over TAKEN cards too —
+  announce for cursor<16 with `totalDisp=max(remaining,cursor+1)`), tries (`h[5]`), rounds.
+- **Reveal ≠ one-more**: the reader stays latched through the post-pick reveal (transient-header
+  tolerance, 10 polls); the round counter bumps there, so "One more" requires an actual RE-DEAL
+  (count change or >2 slots differing).
+- **Resolver kept** as the no-panel fallback: incremental promotion (`_createdResolved` + `_orig`
+  update) resolves sequential double-changes; proactive "Card N changed to X" announcements.
+- **Scan pacing**: `_scanAttempts`/`_nextScanTick` reset on state exit even when nothing latched
+  (a fruitless shuffle used to pre-starve the next one's scans).
+
+## Shuffle Time card narration — the 2026-07-01 struct-only build (superseded above)
 
 Everything in this section below is the original 2026-06-10 build; the two hard problems were solved
 2026-07-01. All logic is in `Components/Battle/ShuffleReader.cs`.
