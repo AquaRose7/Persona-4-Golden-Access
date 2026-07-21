@@ -43,6 +43,23 @@ internal static class ModSettings
         Save();
     }
 
+    internal static int GetInt(string key, int def)
+    {
+        lock (_lock)
+            if (_values.TryGetValue(key, out var v)
+                && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int i))
+                return i;
+        return def;
+    }
+
+    internal static void SetInt(string key, int value)
+    {
+        lock (_lock) _values[key] = JsonSerializer.SerializeToElement(value);
+        Save();
+    }
+
+    private static bool _saveWarned;
+
     private static void Save()
     {
         try
@@ -52,6 +69,14 @@ internal static class ModSettings
             lock (_lock) snap = new(_values);
             System.IO.File.WriteAllText(FilePath, JsonSerializer.Serialize(snap, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception e) { Utils.Log($"[Settings] save failed: {e.Message}"); }
+        catch (Exception e)
+        {
+            Utils.Log($"[Settings] save failed: {e.Message}");
+            if (!_saveWarned)
+            {
+                _saveWarned = true;
+                try { Speech.Say("Settings could not be saved.", false); } catch { }
+            }
+        }
     }
 }

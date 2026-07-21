@@ -11,6 +11,7 @@ internal sealed class ChestBeacon : ProximityBeacon
     protected override int Vk => 0xBC;                  // , (comma) — chest beacon (rebound from C, 2026-06-11)
     protected override string SoundFile => "chest.wav";
     protected override string Label => "Chest beacon";
+    protected override float VolumeScale => SoundSettings.ChestVol;   // SettingsMenu knob
 
     protected override bool FindTarget(float px, float pz, out float tx, out float tz)
     {

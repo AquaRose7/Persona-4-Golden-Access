@@ -29,10 +29,20 @@ internal static class Speech
     private const long SpamWindowMs = 300;
     private static readonly Dictionary<string, long> _recentSaid = new();
 
+    // The game's text separates words with the Japanese IDEOGRAPHIC SPACE (U+3000),
+    // not an ASCII space — some screen readers stumble on it (words run together /
+    // odd pauses). Swap it for a normal space so EVERY announcement reads cleanly.
+    // Applied centrally (all readers route through Say/Record) so nothing is missed.
+    // The IndexOf guard avoids allocating when there's no full-width space (the norm).
+    // Verified 2026-07-09: "Custom　Sub　Menu" → "Custom Sub Menu".
+    private static string Normalize(string s)
+        => s.IndexOf('　') >= 0 ? s.Replace('　', ' ') : s;
+
     /// <summary>Speak a line AND record it to history. Drop-in for the old <c>Tolk.Output</c>.</summary>
     internal static void Say(string text, bool interrupt = true)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
+        text = Normalize(text);
         if (Components.FieldTracker.InBattle)   // spam guard is battle-only (see note above)
         {
             lock (_lock)
@@ -60,6 +70,7 @@ internal static class Speech
     internal static void Record(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
+        text = Normalize(text);   // history/repeat should read the same clean text as Say
         lock (_lock)
         {
             if (_hist.Count > 0 && _hist[^1] == text) { _navIdx = _hist.Count; return; }  // skip consecutive dupes

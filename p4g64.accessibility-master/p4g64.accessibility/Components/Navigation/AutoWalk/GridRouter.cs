@@ -180,7 +180,7 @@ internal static class GridRouter
     /// arrive on — Bathhouse 0x0D, Marukyu 0x09) is left out so travel targets the progress
     /// stairs, not the one you came from. Add per dungeon as found (the DungeonNav "STAIRS EMPTY"
     /// sprite dump surfaces an unmapped dungeon's value).</summary>
-    private static bool IsStairSprite(byte sprite) => sprite == 0x0C || sprite == 0x0E || sprite == 0x0A;
+    internal static bool IsStairSprite(byte sprite) => sprite == 0x0C || sprite == 0x0E || sprite == 0x0A;
 
     /// <summary>
     /// World position of the nearest stairs cell (flag=1, stair sprite — see

@@ -38,9 +38,9 @@ internal sealed unsafe class RoomActionMenu : IDisposable
         ["7_3"] = new (int, string, (char, int)[])[]   // Your room
         {
             (7910, "Futon",      new[] { ('S', 600) }),
-            (7911, "Desk",       System.Array.Empty<(char, int)>()),
+            (7911, "Small desk", System.Array.Empty<(char, int)>()),   // label swap 2026-07-09 (was "Desk" — reversed with 7913)
             (7912, "TV",         new[] { ('D', 600) }),
-            (7913, "Small desk", new[] { ('S', 600), ('A', 1200) }),
+            (7913, "Desk",       new[] { ('S', 600), ('A', 1200) }),   // label swap 2026-07-09 (was "Small desk")
             (7914, "Sofa",       new[] { ('A', 600) }),
             (7915, "Calendar",   new[] { ('W', 300) }),
         },
@@ -54,6 +54,19 @@ internal sealed unsafe class RoomActionMenu : IDisposable
         {
             (7930, "Aiya Chinese Diner", System.Array.Empty<(char, int)>()),
             (7931, "Bulletin board",     System.Array.Empty<(char, int)>()),
+        },
+        ["8_2"] = new (int, string, (char, int)[])[]   // Shopping District South (user-timed 2026-07-06)
+        {
+            (7940, "Bus stop", new[] { ('A', 200) }),   // entry 0
+        },
+        // ⚠ 7950 is the TUTORIAL's WelcomeSeenFlag (Tutorial.cs) — Okina bits start at
+        // 7960 to clear it (the 7950 collision made the tutorial spam on every walk +
+        // the nudge fire everywhere, user 2026-07-06). BIT budget: skip 7900 & 7950.
+        ["11_1"] = new (int, string, (char, int)[])[]   // Okina City (user-timed 2026-07-06)
+        {
+            (7960, "Okina clothing store", new[] { ('W', 300) }),                            // entry 1 (W 200→300, user 2026-07-06)
+            (7961, "Okina theater",        new[] { ('W', 2600) }),                           // entry 0 (W 2000→2600, user-timed 2026-07-06)
+            (7962, "Okina Cafe",           new[] { ('S', 150), ('A', 700), ('W', 200) }),    // entry 1 (A 500→700, W 100→200)
         },
     };
 
@@ -100,7 +113,7 @@ internal sealed unsafe class RoomActionMenu : IDisposable
                 // DEV scout key is UNBOUND for shipping builds. To set up a NEW room's entries,
                 // re-enable this (Ctrl+F9 cycles teleport to entry 0..7 of the current area):
                 //   bool scout = Down(0x11) && Down(0x78);
-                //   if (scout && !_scoutWas && !_busy && (FieldTracker.CurrentMajor == 7 || FieldTracker.CurrentMajor == 8)) ScoutNextEntry();
+                //   if (scout && !_scoutWas && !_busy && FieldTracker.CurrentMajor >= 6) ScoutNextEntry();
                 //   _scoutWas = scout;
 
                 CheckObjectBits();

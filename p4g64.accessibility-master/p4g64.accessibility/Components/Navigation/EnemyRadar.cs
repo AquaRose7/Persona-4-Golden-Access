@@ -35,6 +35,13 @@ internal class EnemyRadar
     private const float MaxRange = 4000f;
     private const float DistanceScale = 700f;
     private const float MasterGain = 0.10f;
+    // ⚠ 140/300 is EAR-PROVEN — do not widen. The 2026-07-19 try at 100/450 made
+    // shadows INAUDIBLE under the wall hum ("can't hear them at all", reverted
+    // same day): 100 Hz sank below the audible mix and 450 blended into it. If
+    // shadows-vs-walls needs more separation, duck the HUM while a shadow is in
+    // radar range instead of moving these pitches.
+    // Since 2026-07-19 the SettingsMenu can override these via SoundSettings
+    // (defaults stay 140/300); these constants remain the shipped defaults.
     private const float FreqFacingYou = 140f;   // low growl (sine + tremolo)
     private const float FreqFacingAway = 300f;  // soft higher steady sine
     private const float StrikeRange = 500f;      // back-attack / ambush window
@@ -108,7 +115,7 @@ internal class EnemyRadar
         }
         // Shift-up so Shift+. (the radar's period key) is reserved for the
         // movie-description toggle and never fires the radar.
-        bool m = IsKeyDown(VK_M) && !IsKeyDown(0x10 /*VK_SHIFT*/);
+        bool m = !SettingsMenu.IsOpen && IsKeyDown(VK_M) && !IsKeyDown(0x10 /*VK_SHIFT*/);
         if (m && !_mWas) Toggle();
         _mWas = m;
 
@@ -169,6 +176,14 @@ internal class EnemyRadar
             : DungeonNav.ShadowsWithFacing();
 
         // ── continuous tones + nearest-for-strike ──
+        // CAMERA-relative pan (2026-07-11, user request — one model for all dungeon
+        // beacons; the old world-axis pan was also mirrored vs the fixed spoken
+        // compass, +X = WEST). Same math + sign as NavBeacon. The PITCH channel is
+        // unchanged: it carries the facing-you (growl) / facing-away (soft) danger
+        // info, not direction. Falls back to the old cardinal pan if no camera.
+        var (camFx, camFz) = FieldTracker.CameraForward3D();
+        bool hasCam = camFx != 0f || camFz != 0f;
+
         float nearest = float.MaxValue; float nearX = 0, nearZ = 0, nearCos = -1f; bool nearHasFwd = false;
         for (int i = 0; i < Voices; i++)
         {
@@ -178,8 +193,14 @@ internal class EnemyRadar
             float dist = MathF.Sqrt(dx * dx + dz * dz);
             if (dist > MaxRange) { _voices[i].TargetVolume = 0f; continue; }
 
-            float vol = MasterGain / (1f + dist / DistanceScale);
-            float pan = dist > 1f ? Math.Clamp(dx / dist, -1f, 1f) : 0f;   // pure cardinal: +X east → right (was facing-relative)
+            float vol = MasterGain * SoundSettings.RadarVol / (1f + dist / DistanceScale);
+            float pan = 0f;
+            if (dist > 1f)
+            {
+                pan = hasCam
+                    ? Math.Clamp(-((dx / dist) * camFz + (dz / dist) * (-camFx)), -1f, 1f)
+                    : Math.Clamp(dx / dist, -1f, 1f);
+            }
 
             // cos angle between the Shadow's forward and the direction to you
             // (view-cone detection, FUN_14031DCF0). >ConeSeeCos = it sees you.
@@ -187,7 +208,7 @@ internal class EnemyRadar
             float cos = (hasFwd && dist > 1f) ? (s.fx * (-dx) + s.fz * (-dz)) / dist : -1f;
             bool seesYou = hasFwd && cos > ConeSeeCos;
             if (dist < nearest) { nearest = dist; nearX = s.x; nearZ = s.z; nearCos = cos; nearHasFwd = hasFwd; }
-            _voices[i].Set(vol, pan, seesYou ? FreqFacingYou : FreqFacingAway, seesYou);
+            _voices[i].Set(vol, pan, seesYou ? SoundSettings.ShadowFreqYou : SoundSettings.ShadowFreqAway, seesYou);
         }
 
         // ── strike one-shots: view-cone + range + line-of-sight ──
@@ -210,8 +231,8 @@ internal class EnemyRadar
     private void FireCue(bool opportunity)
     {
         Log($"[EnemyRadar] strike cue: {(opportunity ? "OPPORTUNITY (behind it — strike)" : "DANGER (it faces you)")}");
-        if (opportunity) { _cue.Trigger(1200f, 2300f, 0.45f, 200f); Speech.Say("Strike.", true); }
-        else { _cue.Trigger(700f, 340f, 0.45f, 240f); }   // ("It sees you." speech removed per user 2026-06-24; danger tone kept)
+        if (opportunity) { _cue.Trigger(1200f, 2300f, 0.45f * SoundSettings.RadarVol, 200f); Speech.Say("Strike.", true); }
+        else { _cue.Trigger(700f, 340f, 0.45f * SoundSettings.RadarVol, 240f); }   // ("It sees you." speech removed per user 2026-06-24; danger tone kept)
     }
 
     /// <summary>

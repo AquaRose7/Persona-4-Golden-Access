@@ -3,9 +3,9 @@
 
 [sel MyRoom]
 [f 0 5 -258][f 2 1]Futon[e]
-[f 0 5 -258][f 2 1]Desk[e]
-[f 0 5 -258][f 2 1]TV[e]
 [f 0 5 -258][f 2 1]Small desk[e]
+[f 0 5 -258][f 2 1]TV[e]
+[f 0 5 -258][f 2 1]Desk[e]
 [f 0 5 -258][f 2 1]Sofa[e]
 [f 0 5 -258][f 2 1]Calendar[e]
 [f 0 5 -258][f 2 1]Cancel[e]
@@ -25,4 +25,20 @@
 [sel ShopNorth]
 [f 0 5 -258][f 2 1]Aiya Chinese Diner[e]
 [f 0 5 -258][f 2 1]Bulletin board[e]
+[f 0 5 -258][f 2 1]Cancel[e]
+
+[msg ShopSouth_Text]
+[f 0 5 -258][f 2 1]Quick interact[n][f 1 1][e]
+
+[sel ShopSouth]
+[f 0 5 -258][f 2 1]Bus stop[e]
+[f 0 5 -258][f 2 1]Cancel[e]
+
+[msg Okina_Text]
+[f 0 5 -258][f 2 1]Quick interact[n][f 1 1][e]
+
+[sel Okina]
+[f 0 5 -258][f 2 1]Okina clothing store[e]
+[f 0 5 -258][f 2 1]Okina theater[e]
+[f 0 5 -258][f 2 1]Okina Cafe[e]
 [f 0 5 -258][f 2 1]Cancel[e]

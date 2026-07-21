@@ -22,7 +22,6 @@ internal sealed unsafe class PersonaPanelHook
     private IHook<RenderDelegate> _allyHook, _mcHook;
     private IHook<FullDelegate> _fullHook;
     private nint _lastLogUnit;
-    private int _lastFullKey = int.MinValue;
 
     private void Note(string which, nint unit)
     {
@@ -88,7 +87,12 @@ internal sealed unsafe class PersonaPanelHook
     }
 
     // FUN_1400e6900(BtlInfo rcx, int index edx, float, float, byte alpha, int p6, int p7).
-    // Persona for row `index` = *(short*)(*(BtlInfo+0xCE0 + index*8) + 0xA4).
+    // Unit for row `index` = *(BtlInfo+0xCE0 + index*8). On the TACTICS member screen
+    // this drawer runs once per member row and **p6 = "this row is selected"** — the
+    // cursor the June data-hunts could never find (it exists only as this argument;
+    // live-proven 2026-07-11, tracked 1→2→3 while arrowing). Published for
+    // TacticsMemberReader; the CurrentCommand==Tactics gate lives in the reader, so
+    // the renderer's other contexts (the F persona panel) can't leak through.
     private void FullRender(nint btl, int index, float p3, float p4, byte alpha, int p6, int p7)
     {
         _fullHook.OriginalFunction(btl, index, p3, p4, alpha, p6, p7);
@@ -97,14 +101,24 @@ internal sealed unsafe class PersonaPanelHook
             if (index < 0 || index > 16 || !IsReadable(btl + 0xCE0 + index * 8, 8)) return;
             nint e = *(nint*)((byte*)btl + 0xCE0 + index * 8);
             if (e == 0 || !IsReadable(e + 0xA4, 2)) return;
+
+            long now = Environment.TickCount64;
+            Battle.TacticsRowTick = now;
+            if (p6 == 1) { Battle.TacticsSelUnit = e; Battle.TacticsSelTick = now; }
+
+            // change-gated diag, PER ROW (a single shared key re-logged every call
+            // while the rows cycled 1→2→3 — the log spam of 2026-07-11)
             int pid = *(ushort*)((byte*)e + 0xA4);
-            int key = index * 100000 + pid;
-            if (key == _lastFullKey) return;
-            _lastFullKey = key;
-            Log($"[PersonaPanelHook] FULL idx={index} pid={pid}(\"{Persona.GetName(pid)}\") p6={p6} alpha={alpha}");
+            int key = pid * 4 + (p6 != 0 ? 1 : 0);
+            if (index < _lastKeyByIdx.Length && _lastKeyByIdx[index] != key)
+            {
+                _lastKeyByIdx[index] = key;
+                Log($"[PersonaPanelHook] FULL idx={index} pid={pid} p6={p6} alpha={alpha}");
+            }
         }
         catch { }
     }
+    private readonly int[] _lastKeyByIdx = new int[17];
 
     private delegate void FullDelegate(nint btl, int index, float p3, float p4, byte alpha, int p6, int p7);
 

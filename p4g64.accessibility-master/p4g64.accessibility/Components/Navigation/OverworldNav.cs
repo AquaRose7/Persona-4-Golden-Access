@@ -40,7 +40,7 @@ internal class OverworldNav
     private const int VK_OEM_5     = 0xDC;   // \
     private const int VK_BACK      = 0x08;   // Backspace
     private const int VK_P         = 0x50;   // P beacon
-    private const int VK_OEM_1     = 0xBA;   // ;  → speak selected NPC's area+id (rename diagnostic)
+    private const int VK_F2        = 0x71;   // F2 → speak selected NPC's area+id (rename diagnostic)
 
     // Final-step assist: a bounded position-write nudge for the last ≤130u onto the spot (school only;
     // travel is always stick). PERMANENTLY ON — the O-key toggle was removed 2026-06-22 (user never wants it
@@ -125,12 +125,81 @@ internal class OverworldNav
         return false;
     }
 
+    // NO-ROUTING areas (2026-07-06, the big town test): grid routing is DISABLED here —
+    // these walk with the plain straight-line walker. "8_9" = Tatsuhime Shrine, one of the
+    // 5 KNOWN mis-framed walkgrids (translation-offset bug — the player can be in-bounds so
+    // the out-of-grid guard can't catch it). "11_1" = Okina City: MULTI-LEVEL (station
+    // stairs/escalators) — a flat walkgrid cannot represent level boundaries, so its routes
+    // are fiction (live: every waypoint "unreachable", 14 stalls marching the walk BACKWARDS).
+    // The runtime rule self-adds any area that proves bad live (2 dropped paths in one
+    // walk) — but only for 15 MINUTES, and never persisted: a TRANSIENT glitch (NPC
+    // parked on the route, a load hiccup) must not degrade a player's area for good
+    // (user concern 2026-07-06). A genuinely bad map just re-earns its entry cheaply;
+    // blacklisted = the proven v1 straight-line walker, never "broken".
+    private static readonly HashSet<string> _noRouteAreas = new() { "8_9", "11_1" };
+    private static readonly Dictionary<string, long> _noRouteUntil = new();
+    private const long NoRouteMs = 15 * 60_000;
+
     // Learned wall points per area (Stage 2): when the body wedges, we stamp the obstacle just ahead so
-    // A* routes around it — this run and (in-memory) the rest of the session. The optimistic grid assumes
-    // unknown = walkable, so these stalls are how we DISCOVER the real walls the mesh never gave us.
+    // A* routes around it. PERSISTED to overworld_obstacles.json since 2026-07-06 (town item B) — the
+    // overworld's geometry never changes, so every wedge ever hit keeps teaching future walks, across
+    // sessions and (bundled) across players — the dungeon pathfinder's learn-by-grinding, made permanent.
     private readonly Dictionary<string, List<float[]>> _obstacles = new();
+    private bool _obsLoaded;
+    private string _obsPath = "";
+    private const int MaxObsPerArea = 200;
+
     private List<float[]> ObstaclesFor(string area)
-    { if (!_obstacles.TryGetValue(area, out var l)) { l = new(); _obstacles[area] = l; } return l; }
+    {
+        if (!_obsLoaded) LoadObstacles();
+        if (!_obstacles.TryGetValue(area, out var l)) { l = new(); _obstacles[area] = l; }
+        return l;
+    }
+
+    private void LoadObstacles()
+    {
+        _obsLoaded = true;
+        try
+        {
+            _obsPath = DataPath("overworld_obstacles.json");
+            if (!System.IO.File.Exists(_obsPath)) return;
+            using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(_obsPath));
+            int pts = 0;
+            foreach (var area in doc.RootElement.EnumerateObject())
+            {
+                var l = new List<float[]>();
+                foreach (var pt in area.Value.EnumerateArray())
+                    l.Add(new[] { pt[0].GetSingle(), pt[1].GetSingle() });
+                _obstacles[area.Name] = l;
+                pts += l.Count;
+            }
+            Log($"[OverworldNav] learned obstacles loaded: {pts} points in {_obstacles.Count} areas");
+        }
+        catch (Exception e) { Log($"[OverworldNav] obstacles load failed: {e.Message}"); }
+    }
+
+    private void SaveObstacles()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(_obsPath)) _obsPath = DataPath("overworld_obstacles.json");
+            var sb = new System.Text.StringBuilder("{");
+            bool first = true;
+            foreach (var kv in _obstacles)
+            {
+                if (kv.Value.Count == 0) continue;
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append($"\n  \"{kv.Key}\": [");
+                for (int i = 0; i < kv.Value.Count; i++)
+                    sb.Append($"{(i > 0 ? "," : "")}[{kv.Value[i][0]:F0},{kv.Value[i][1]:F0}]");
+                sb.Append(']');
+            }
+            sb.Append("\n}");
+            System.IO.File.WriteAllText(_obsPath, sb.ToString());
+        }
+        catch (Exception e) { Log($"[OverworldNav] obstacles save failed: {e.Message}"); }
+    }
 
     // Prebuilt per-area walkable grid (database/overworld_walkgrid.json — offline-decoded field collision
     // h*.AMD "atari" meshes). The COMPLETE accurate layout, so A* routes correctly with no learn-by-stalling.
@@ -391,6 +460,7 @@ internal class OverworldNav
         if (!active) return;
         LearnCheckSpot();
         if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
+        if (SettingsMenu.IsOpen) return;     // settings menu owns input
 
         // Shift is the "speech history" modifier (handled by HistoryKeys); when it's
         // held our base [ ] / P shortcuts must NOT fire (Shift+[ = history, not entries).
@@ -429,8 +499,11 @@ internal class OverworldNav
         if (p && !_pWas && !shift) ToggleBeacon();   // Shift+P = repeat last (HistoryKeys)
         _pWas = p;
 
-        bool idk = IsKeyDown(VK_OEM_1);
-        if (idk && !_idWas) AnnounceSelectedId();    // ;  → speak the selected NPC's area + id (rename diagnostic)
+        // NPC-id "rename diagnostic" — MOVED to F2 2026-07-07 (; is now the
+        // global party-status cycle, PartyStatus). Speaks the selected NPC's
+        // area + id; used for NPC-name authoring.
+        bool idk = IsKeyDown(VK_F2);
+        if (idk && !_idWas) AnnounceSelectedId();
         _idWas = idk;
         // (Removed 2026-06-22: the O-key PosDrive toggle. The final-step assist stays permanently ON — the
         // user never wants it off — and O is the party HP/SP key, so the binding was a conflict.)
@@ -481,6 +554,17 @@ internal class OverworldNav
         list.Sort((a, b) => a.Item2.CompareTo(b.Item2));
         return list;
     }
+
+    // CHECK-prompt NAMING was built and REMOVED 2026-07-09. It named the field
+    // interactable under the "Check" prompt by geometry (trigger-box containment +
+    // facing over the catalog + live NPCs). It reached ~90% but the misses were
+    // confidently-WRONG names (sofa→"small desk", unlabelled save point), which
+    // misdirect a blind player worse than the honest plain "Check". The game never
+    // exposes the selected field object to read exactly (overworld slot arrays null,
+    // scanner FUN_1402EDB70 hook crashes, no on-screen interactable name — the banner
+    // is the ZONE name; deep-research confirmed no community solution exists). Do not
+    // re-add without a real selected-object source. EnumerateLivePeople below stays —
+    // the nav browser uses it.
 
     // ── live people (unit registry, category 3 = placed character models) ───
     // Positions probed from per-node candidates (the registry node layout
@@ -584,6 +668,14 @@ internal class OverworldNav
         if (areaKey == "6_6" && id == 0x0C02) return "Timid female student"; // was "Townsperson 2"
         if (areaKey == "6_2" && id == 0x0C04) return "Shady student";        // was "Townsperson 4"
         if (areaKey == "6_4" && id == 0x0C02) return "Male student";         // was "Townsperson 2"
+        // From database/fixed characters IDs.txt (user-recorded via the F2 diagnostic, 2026-07-08):
+        // (8_2/0x0C0D "Dojima" REMOVED 2026-07-12 — that handle is SHARED by several
+        // townspeople, so the label misread; 0x0C1C above stays as the real Dojima.)
+        if (areaKey == "9_4" && id == 0x0C00) return "Adachi";               // re-recorded id (also 0x0C34 above)
+        if (areaKey == "6_2" && id == 0x0C07) return "Ms. Sofue";            // was "Townsperson 5"
+        if (areaKey == "8_2" && id == 0x0C07) return "Avid reader";          // was "Townsperson 2"
+        if (areaKey == "6_5" && id == 0x0C01) return "Homely student";       // was "Townsperson 2"
+        if (areaKey == "6_1" && id == 0x0C34) return "Manager Ai Ebihara";   // was "Manager"
         return baseName;
     }
 
@@ -972,10 +1064,14 @@ internal class OverworldNav
                     openness = Math.Clamp((uz * FrontSign + 1f) * 0.5f, 0f, 1f);
                 }
                 float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist; // 1 near … 0 far
-                float gain = FarGain + (NearGain - FarGain) * prox;        // louder as you approach
+                float gain = (FarGain + (NearGain - FarGain) * prox) * SoundSettings.NavVol; // louder as you approach
                 int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));
 
-                _voice.Set(gain, pan, 1f);     // constant pitch (pitch cue removed)
+                // Pitch pairs with the muffle axis (user 2026-07-06, matching the dungeon
+                // NavBeacon): fully "closed" (school: behind the camera; town: the muffled
+                // compass side) eases ~3 semitones down, so the two states are unmistakable.
+                float rate = 1f - 0.18f * (1f - openness);
+                _voice.Set(gain, pan, rate);
                 _voice.Openness = openness;
                 _voice.GapFrames = gap;
                 Thread.Sleep(55);
@@ -989,7 +1085,7 @@ internal class OverworldNav
     {
         _voice.Playing = false;
         DungeonAudio.SetWant(this, false);
-        WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90);
+        ArrivalChime();
         Speech.Say(say, true);
         _beacon = false;
     }
@@ -1193,6 +1289,7 @@ internal class OverworldNav
             float lastDist = float.MaxValue;
             int stuckMs = 0, totalMs = 0;
             int deviated = 0, sidestepUntil = 0, sidestepSign = +1;
+            float bestProgDist = float.MaxValue; int lastProgMs = 0;   // oscillating-wedge detector (2026-07-06)
             bool wallFollow = false; float wfHitDist = 0; int wfSign = +1, wfStartMs = 0;   // (legacy Bug2 — dormant)
             int stalls = 0;   // total stalls this walk — learn+detour each, give up after too many
             int lastLogMs = -1000;   // throttle the per-move diagnostic log
@@ -1208,6 +1305,8 @@ internal class OverworldNav
             bool cam3D = false; float camOffset = 0f;
             List<(float x, float z)>? path = null; int carrot = 0; int replans = 0; bool partial = false;
             int lastReplanMs = -3000;
+            int wdCarrot = -1; float wdBest = float.MaxValue; int wdMs = 0;   // waypoint orbit watchdog (2026-07-06)
+            int pathDrops = 0;   // 2 dropped paths in one walk = this area's grid is bad → session no-route
             float faceX = 0, faceZ = 0;   // last world-space movement dir = the player's facing
             int sweepIdx = 0, sweepTickMs = 0;   // final search sweep to enter offset volumes + face them
             int readyPolls = 0;                  // debounce: both flags must hold, not flicker
@@ -1219,6 +1318,12 @@ internal class OverworldNav
             float snapTx = t.X, snapTz = t.Z;   // the A* target SNAPPED to a reachable cell (door/target)
             void Replan(float fx, float fz)
             {
+                // No-routing areas: mis-framed or multi-level grids — routing there is
+                // fiction; the straight-line walker is the sane behavior (2026-07-06).
+                if (_noRouteAreas.Contains(areaAtStart)
+                    || (_noRouteUntil.TryGetValue(areaAtStart, out long nrUntil)
+                        && nrUntil > Environment.TickCount64))
+                { path = null; partial = false; gridKind = "blacklist"; return; }
                 // Try the COMPLETE prebuilt grid first; if A* can't connect (rasterization false-walls →
                 // PARTIAL), fall back to the OPTIMISTIC runtime grid (unknown=walkable, always connects).
                 foreach (bool prebuilt in new[] { true, false })
@@ -1316,6 +1421,20 @@ internal class OverworldNav
                 else Log("[OverworldNav] major 6 but CameraForward3D unreadable");
                 Log($"[OverworldNav] plan ({gridKind}): {(path == null ? "A* NULL" : (partial ? "PARTIAL " : "") + path.Count + "pts")} → {t.Name}");
             }
+            else if (t.PersonId == 0)
+            {
+                // TOWN ROUTES AT WALK START (2026-07-06 pivot): the prebuilt walkgrid is
+                // COMPLETE for town — there is nothing to "learn by grinding" (that loop
+                // burned 90s and gave up on a small map, user verdict: impractical). The
+                // June A*-to-door ROUTING was verified good ("reaches every shop"); what
+                // broke it was arrival meddling (untouched now) + the waypoint ORBIT
+                // (killed by the waypoint watchdog below). A PARTIAL route ends at the
+                // reachable cell nearest the target = the street-side door — the proven
+                // arrival takes it from there. NPCs keep the straight live-chase.
+                Replan(p0x, p0z);
+                if (path != null)
+                    Log($"[OverworldNav] town plan ({gridKind}): {(partial ? "PARTIAL " : "")}{path.Count}pts → {t.Name}");
+            }
 
             while (_walking && !_stopped && totalMs < 45000)
             {
@@ -1400,7 +1519,7 @@ internal class OverworldNav
                     ControllerInput.ReleaseDriveStick(); ReleaseKeys(held);
                     if (++readyPolls >= 2)
                     {
-                        WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90);
+                        ArrivalChime();
                         string doneKind;
                         if (IsExit(t))
                         {
@@ -1437,7 +1556,7 @@ internal class OverworldNav
                     // A LEARNED target's check IS here (the user did it before) — trust that over a flaky
                     // 0x7F4, but only if we're actually NEAR the learned spot (else it'd announce 80u short).
                     if (FieldTracker.CheckPromptActive && distArr < 55f)
-                    { WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90); Speech.Say($"{t.Name}. Check available.", true); }
+                    { ArrivalChime(); Speech.Say($"{t.Name}. Check available.", true); }
                     else
                         // Reached the place but couldn't fire the REAL check (facing/geometry) → honest +
                         // actionable, NEVER a false "check available" (require 0x7F4, not just in-zone/learned).
@@ -1464,7 +1583,7 @@ internal class OverworldNav
                     {
                         ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
                         if (calib && FieldTracker.InInteractZone && distArr < 55f)
-                        { WinBeep(900, 60); WinBeep(1200, 60); WinBeep(1500, 90); Speech.Say($"{t.Name}. Check available.", true); }
+                        { ArrivalChime(); Speech.Say($"{t.Name}. Check available.", true); }
                         else
                             Speech.Say($"At {t.Name}, but there's no check here right now.", true);
                         Log($"[OverworldNav] walk DONE (no-check timeout) at ({px:F0},{pz:F0}) target {t.Name} 0x7F4={FieldTracker.CheckPromptActive} 0x720={FieldTracker.InInteractZone} calib={calib} distArr={distArr:F0}");
@@ -1513,15 +1632,51 @@ internal class OverworldNav
                     while (carrot < path.Count - 1)
                     {
                         float wcx = path[carrot].x - px, wcz = path[carrot].z - pz;
-                        if (MathF.Sqrt(wcx * wcx + wcz * wcz) < MeshGrid.Cell * 0.9f) carrot++; else break;
+                        // Town consumes waypoints from FARTHER out (the 2.5D walk covers ~60u
+                        // per tick at full speed — the school's 54u radius gets overshot and
+                        // the waypoint never consumes → part of the 07-06 orbit).
+                        if (MathF.Sqrt(wcx * wcx + wcz * wcz) < MeshGrid.Cell * (cam3D ? 0.9f : 1.6f)) carrot++; else break;
                     }
                     float cwx = path[carrot].x - px, cwz = path[carrot].z - pz;
-                    // Consumed a PARTIAL route (its end is a frontier next to us, not the real target).
-                    // Steer at the actual target for the rest, but GENTLY (probe, see pulse below): if
-                    // it's a passable door we ease through; if it's a real wall we barely move and the
-                    // stuck-watchdog replans/stops — instead of ramming it like a bullet.
-                    atFrontier = partial && carrot >= path.Count - 1 && MathF.Sqrt(cwx * cwx + cwz * cwz) < MeshGrid.Cell;
-                    if (!atFrontier) { adx = cwx; adz = cwz; }
+                    // WAYPOINT ORBIT WATCHDOG (2026-07-06): a waypoint the body can't
+                    // actually touch (grid pocket / corner) trapped the walk CIRCLING it
+                    // at full speed until cancel. No progress toward the CURRENT waypoint
+                    // for 1.2s → SKIP it; if it was the last one, drop the path — the walk
+                    // degrades gracefully toward the plain straight-line walker.
+                    {
+                        float cd = MathF.Sqrt(cwx * cwx + cwz * cwz);
+                        if (carrot != wdCarrot) { wdCarrot = carrot; wdBest = cd; wdMs = totalMs; }
+                        else if (cd < wdBest - 20f) { wdBest = cd; wdMs = totalMs; }
+                        else if (totalMs - wdMs > 1200 && !arriving)
+                        {
+                            if (carrot < path.Count - 1)
+                            {
+                                carrot++;
+                                Log($"[OverworldNav] waypoint {carrot - 1} unreachable ({totalMs - wdMs}ms no progress) — skipping");
+                            }
+                            else
+                            {
+                                Log($"[OverworldNav] final waypoint unreachable — dropping path, straight-line");
+                                path = null; partial = false;
+                                if (++pathDrops >= 2)
+                                {
+                                    _noRouteUntil[areaAtStart] = Environment.TickCount64 + NoRouteMs;
+                                    Log($"[OverworldNav] area {areaAtStart} grid proved bad live — no-route for 15 min");
+                                }
+                            }
+                            wdCarrot = -1;
+                            if (path != null) { cwx = path[carrot].x - px; cwz = path[carrot].z - pz; }
+                        }
+                    }
+                    if (path != null)
+                    {
+                        // Consumed a PARTIAL route (its end is a frontier next to us, not the real target).
+                        // Steer at the actual target for the rest, but GENTLY (probe, see pulse below): if
+                        // it's a passable door we ease through; if it's a real wall we barely move and the
+                        // stuck-watchdog replans/stops — instead of ramming it like a bullet.
+                        atFrontier = partial && carrot >= path.Count - 1 && MathF.Sqrt(cwx * cwx + cwz * cwz) < MeshGrid.Cell;
+                        if (!atFrontier) { adx = cwx; adz = cwz; }
+                    }
                 }
                 // FINAL STRETCH: head at the EXACT object so facing lines up as we walk in. If the
                 // game's facing-aware prompt still isn't lit (volume offset, or facing off), SWEEP
@@ -1563,10 +1718,19 @@ internal class OverworldNav
                             // was a tiny step short). NEVER search an NPC (PersonId!=0): they're easy to reach, and
                             // the wander walked the player 13 steps AWAY from a talk prompt that was already there.
                             // Just chase the live position straight; walking toward them already faces them.
-                            if (distArr < 60f && t.PersonId == 0)
+                            // ARRIVAL-ZONE WEDGE (2026-07-06, "Examine bike"): the walk can jam
+                            // dead on a blocker 60-115u short — inside the arriving zone where
+                            // the stall escalation is deliberately off, but OUTSIDE the search's
+                            // 60u trigger — and grind for the whole timeout. When arrival has
+                            // physically stalled (~0.6s no motion), engage the SAME tiny-step
+                            // search from farther out with a wider ring so the genuine-motion
+                            // sweep slides around the blocker's corner.
+                            bool arrStuck = stuckMs > 600 && distArr < 115f;
+                            if ((distArr < 60f || arrStuck) && t.PersonId == 0)
                             {
+                                float ring = arrStuck && distArr >= 60f ? 55f : 30f;
                                 float a = (sweepIdx % 8) * (45f * MathF.PI / 180f);
-                                adx = (aimTx + MathF.Cos(a) * 30f) - px; adz = (aimTz + MathF.Sin(a) * 30f) - pz;
+                                adx = (aimTx + MathF.Cos(a) * ring) - px; adz = (aimTz + MathF.Sin(a) * ring) - pz;
                                 if (totalMs - sweepTickMs > 450) { sweepTickMs = totalMs; sweepIdx++; }
                             }
                             else { adx = dx; adz = dz; }
@@ -1579,7 +1743,11 @@ internal class OverworldNav
                 // bearing to aim relative to W's world direction (continuous, not snapped to 8)
                 float bearing = MathF.Atan2(adz, adx) - wAngle;
                 float deg = bearing * 180f / MathF.PI;
-                bool following = cam3D && path != null;
+                // "Following" = ANY area with a live A* path (2026-07-06, town escalation):
+                // the sidestep dodge must not corrupt carrot-following — a +45° dodge off a
+                // planned route walks it into the walls the route exists to avoid. (Was
+                // cam3D-gated, which left town paths exposed to the dodge.)
+                bool following = path != null;
                 if (!following && totalMs < sidestepUntil) deg += sidestepSign * 45f;   // wall-slide dodge
                 // Bug2 WALL-FOLLOW: drive ~tangent to the wall (90° off the goal heading + a small lean
                 // into it so the game's collision slides us along) until the leave-check fires.
@@ -1733,7 +1901,14 @@ internal class OverworldNav
                         float dev = MathF.Abs(devSigned);
                         if (dev < 50f)
                         {
-                            if (!cam3D) wAngle = moveAng - comboOff;   // 3D: the live camera is authoritative
+                            // Town recalibration ONLY while straight-lining. Re-deriving wAngle
+                            // from our own movement while FOLLOWING A PATH is a feedback loop —
+                            // aim rotates, player follows, calibration chases itself → the
+                            // full-speed ORBIT that made June's town A* "really bad" (finally
+                            // caught on camera 2026-07-06: 45s triangle ping-pong, carrot never
+                            // consumed). The town camera is FIXED, so the walk-start calibration
+                            // stays valid for the whole walk. (3D: the live camera is authoritative.)
+                            if (!cam3D && path == null) wAngle = moveAng - comboOff;
                             deviated = 0;
                         }
                         else if (!following && !arriving && ++deviated >= 3 && totalMs >= sidestepUntil)
@@ -1762,15 +1937,48 @@ internal class OverworldNav
                             $"{(path == null ? "nopath" : "p" + path.Count + "/c" + carrot)} wf={wallFollow}");
                     }
 
+                    // OSCILLATING WEDGE (2026-07-06, town item B): the classic town failure
+                    // slides close-far-close against a slope/corner — that's MOTION, so the
+                    // 500ms no-motion stall never fires and the sidestep dodges forever
+                    // ("plays a game"). Real progress = getting CLOSER to the target; none
+                    // for 2.5s while straight-lining (no path) = a wedge → escalate through
+                    // the SAME stall path: learn the wall, back off, A* on the prebuilt grid
+                    // (the OVERWORLD_AUTOWALK §8.1 design: A* only when a straight shot
+                    // stalls — never for clean walks). Path-following walks legitimately
+                    // move AWAY from the target around corners, so this only arms when
+                    // path == null.
+                    if (dist < bestProgDist - 25f) { bestProgDist = dist; lastProgMs = totalMs; }
+                    else if (!arriving && path == null && dist > 200f && totalMs - lastProgMs > 2500)
+                    {
+                        Log($"[OverworldNav] oscillating wedge (no progress {totalMs - lastProgMs}ms, dist={dist:F0}) — escalate");
+                        stuckMs = 500;                    // reuse the confirmed-stall machinery below
+                        lastProgMs = totalMs; bestProgDist = dist;
+                    }
+                    // SAFETY VALVE (2026-07-06): a town DETOUR that makes no progress for 6s is
+                    // hurting, not helping — drop the path and resume the proven straight-line
+                    // walk (= worst case is exactly the pre-escalation behavior, never worse).
+                    else if (!arriving && path != null && !cam3D && totalMs - lastProgMs > 6000)
+                    {
+                        Log($"[OverworldNav] detour unproductive ({totalMs - lastProgMs}ms) — dropping path, back to straight-line");
+                        path = null; partial = false;
+                        lastProgMs = totalMs; bestProgDist = dist;
+                        if (++pathDrops >= 2)
+                        {
+                            _noRouteUntil[areaAtStart] = Environment.TickCount64 + NoRouteMs;
+                            Log($"[OverworldNav] area {areaAtStart} grid proved bad live — no-route for 15 min");
+                        }
+                    }
+
                     if (stuckMs >= 500 && !arriving)   // CONFIRMED stall en route (NOT at the destination — there we just face+check)
                     {
                         // LEARN: stamp the wall just AHEAD of where we wedged so A* routes around it (this
                         // run + the session). Only on a real stall (not a slide, which has motion).
                         float adl = MathF.Sqrt(adx * adx + adz * adz);
-                        if (adl > 1f)
+                        if (adl > 1f && areaObs.Count < MaxObsPerArea)
                         {
                             float ahx = nx + adx / adl * MeshGrid.Cell, ahz = nz + adz / adl * MeshGrid.Cell;
                             areaObs.Add(new[] { ahx, ahz });
+                            SaveObstacles();   // permanent: the overworld never changes (2026-07-06)
                             Log($"[OverworldNav] learned wall at ({ahx:F0},{ahz:F0}) — {areaObs.Count} total");
                         }
                         stuckMs = 0;
@@ -1920,8 +2128,13 @@ internal class OverworldNav
         return d;
     }
 
-    private static void WinBeep(uint freq, uint ms) { try { Beep(freq, ms); } catch { } }
-    [DllImport("kernel32.dll")] private static extern bool Beep(uint dwFreq, uint dwDuration);
+    private static void WinBeep(uint freq, uint ms)
+        => ToneCue.PlayTones(0.45f * SoundSettings.CursorBeepVol, ((float)freq, (int)ms));
+
+    /// <summary>The rising three-note arrival chime (was three blocking Beeps —
+    /// ToneCue sequences the notes itself, non-blocking).</summary>
+    private static void ArrivalChime()
+        => ToneCue.PlayTones(0.5f * SoundSettings.ChimeVol, (900f, 60), (1200f, 60), (1500f, 90));
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;

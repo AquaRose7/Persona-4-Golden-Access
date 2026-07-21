@@ -5,7 +5,7 @@ A screen-reader accessibility mod for the Steam version of **Persona 4 Golden**,
 user's screen reader (NVDA / SAPI via Tolk) and adds blind-playable navigation, so the game can be
 played without sight.
 
-**Latest release: v1.2.0.**
+**Latest release: v1.5.0.**
 
 ## What it does
 

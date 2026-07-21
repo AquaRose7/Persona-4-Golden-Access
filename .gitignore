@@ -81,6 +81,9 @@ docs/superpowers/
 database/legacy/
 **/Components/Navigation/legacy/
 database/walls/
+# Sound-design scratch (2026-07-21): 40 experimental wall-sound candidates + generators.
+# The mod only ships the 5 finals in database/sounds/ — this folder stays local.
+database/sound design/
 database/bugs.md
 database/changelog.txt
 database/controlor.txt

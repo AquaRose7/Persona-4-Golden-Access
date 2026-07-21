@@ -30,7 +30,9 @@ internal unsafe class ConfigMenu : IDisposable
 
     // Labels are taken from the game's own config-label table in init_free.bin
     // (stride 64). Tab order matches the struct's type-6 "Confirm" boundaries.
-    private static readonly string[][] TabItems =
+    // internal: ConfigValueText builds its known-label set from these (the drawn
+    // labels match this table exactly, both come from init_free.bin).
+    internal static readonly string[][] TabItems =
     {
         // Tab 0: Audio (verified)
         new[] { "Confirm", "BGM", "SE", "Voice", "Voiced Line", "Audio Language", "Sound Output Device" },
@@ -38,14 +40,20 @@ internal unsafe class ConfigMenu : IDisposable
         // Network Function / Anime Subtitles / Captions is hidden on PC).
         // di1..7 are certain; di8/di9 best-guess — VERIFY.
         new[] { "Confirm", "Auto Text", "Cursor Position Memory", "Battle Order Memory", "Equipped Persona Memory", "Program Guide Notification", "Inverted Camera", "Camera Speed", "Network Function", "Anime Subtitles" },
-        // Tab 2: Graphics
-        new[] { "Confirm", "Rendering Scale", "Animation Quality", "Shadow Quality", "Shadow", "Anisotropic Filter", "Anti Aliasing", "Contrast" },
+        // Tab 2: Graphics — REAL on-screen rows (screenshot-verified 2026-07-10):
+        // "Presets" IS shown (it sits at table idx 91, appended after the tab
+        // blocks, which is why the table-order rebuild missed it) and the
+        // table's "Animation Quality" is hidden on PC (like "Captions").
+        new[] { "Confirm", "Presets", "Rendering Scale", "Shadow Quality", "Shadow", "Anisotropic Filter", "Anti Aliasing", "Contrast" },
         // Tab 3: Display
         new[] { "Confirm", "Resolution", "Monitor", "Screen Mode", "V Sync", "FPS Limit" },
-        // Tab 4: Keyboard — keybind tab (sections). Names TBD (next pass).
-        new[] { "Confirm", "Character Movement Forward", "Character Movement Back", "Character Movement Left", "Character Movement Right", "Confirm Action" },
-        // Tab 5: Controller — keybind tab (sections). Names TBD (next pass).
-        new[] { "Confirm", "Button Display", "Character Movement Forward", "Character Movement Back", "Character Movement Left", "Character Movement Right" },
+        // Tab 4: Keyboard — label table idx 33-61 (2026-07-10 dump), blank
+        // section-separator entries excluded on the assumption the cursor
+        // skips them — VERIFY by ear; if names misalign, separators count.
+        new[] { "Confirm", "Character Movement(Forward)", "Character Movement(Back)", "Character Movement(Left)", "Character Movement(Right)", "Confirm, Action", "Cancel", "2D Display", "Command Menu", "Sub Menu", "Rotate Camera(Left)", "Rotate Camera(Right)", "Center Camera", "Vox Populi/Display Floor Map", "TV Overlay/Rescue", "Quick Save", "Toggle Rush On/Off", "Display detailed list", "Check turn order", "Analyze", "Fast Forward Text", "Skip Event", "Backlog", "Move 2 forward in backlog", "Move 2 back in backlog" },
+        // Tab 5: Controller — label table idx 62-90; same layout but
+        // "Button Display" replaces "2D Display" and sits at row 1.
+        new[] { "Confirm", "Button Display", "Character Movement(Forward)", "Character Movement(Back)", "Character Movement(Left)", "Character Movement(Right)", "Confirm, Action", "Cancel", "Command Menu", "Sub Menu", "Rotate Camera(Left)", "Rotate Camera(Right)", "Center Camera", "Vox Populi/Display Floor Map", "TV Overlay/Rescue", "Quick Save", "Toggle Rush On/Off", "Display detailed list", "Check turn order", "Analyze", "Fast Forward Text", "Skip Event", "Backlog", "Move 2 forward in backlog", "Move 2 back in backlog" },
     };
 
     private static readonly string[] TabNames =
@@ -60,6 +68,10 @@ internal unsafe class ConfigMenu : IDisposable
     // [8]   non-audio esi (esi captured only when rdi>=2)
     // [12]  non-audio rdi (rdi captured only when rdi>=2)
     // [16]  non-audio flag (set only when rdi>=2 fires)
+    // ⚠ BOTH hooks fire only during INPUT activity, not every frame (log-proven
+    // 2026-07-10 — the old "fires every frame" notes were wrong). There is no
+    // per-frame "menu open" signal here; in-place value changes are therefore
+    // announced by ConfigValueText PUSHING OnValueDrawn from its render hook.
     private byte*  _shared;
     private int*   _item         => (int*)(_shared + 0);
     private int*   _itemFlag     => (int*)(_shared + 4);
@@ -68,8 +80,17 @@ internal unsafe class ConfigMenu : IDisposable
     private int*   _nonAudioFlag => (int*)(_shared + 16);
     private ulong* _r14          => (ulong*)(_shared + 24); // DEBUG: live menu working-struct base
 
+    // Push anchor for ConfigValueText: the label of the row the cursor is on.
+    // When the game redraws that label's value (left/right press — no hook
+    // fires), ConfigValueText calls OnValueDrawn and the new value is spoken.
+    // Kept across idle (the hooks are silent while the menu just sits open);
+    // only the config menu ever draws these exact labels, so a stale anchor is
+    // harmless — the next row announce replaces it.
+    internal static volatile string? CurrentRowLabel;
+    private static volatile string? _lastValue; // last announced value for the current row
+
     private int _lastItem   = -1; // last announced row (absolute, any tab)
-    private int _lastValue  = -999; // last announced value (raw) for the current row
+    private long _lastItemTick;   // last time the cursor hook fired (active-use gate)
     private int _currentTab = 0;
     private int _idlePolls  = 0;
     private const int IdleResetThreshold = 40;
@@ -159,8 +180,11 @@ internal unsafe class ConfigMenu : IDisposable
         var nonAudioFired = *_nonAudioFlag; *_nonAudioFlag = 0;
         var itemFired     = *_itemFlag;     *_itemFlag     = 0;
 
-        // Idle reset: both hooks quiet → config menu is closed (or cursor stable on non-Audio tab).
-        // Reset _lastItem so the cursor position is re-announced when the menu reopens.
+        // Idle reset: both hooks quiet. NOTE this also happens while the menu is
+        // OPEN with the cursor still (the hooks only fire on input) — so only
+        // _lastItem/_lastValue reset (for re-announce on the next move); the
+        // CurrentRowLabel push anchor is deliberately KEPT so an in-place
+        // left/right change after a pause still speaks (OnValueDrawn).
         // Do NOT reset _currentTab — P4G remembers the last tab, so preserving it is correct,
         // and it prevents false Audio detection when the cursor is briefly stable mid-session.
         if (nonAudioFired == 0 && itemFired == 0)
@@ -168,7 +192,7 @@ internal unsafe class ConfigMenu : IDisposable
             if (++_idlePolls >= IdleResetThreshold)
             {
                 _lastItem  = -1;
-                _lastValue = -999;
+                _lastValue = null;
                 _idlePolls = 0;
             }
             return;
@@ -188,7 +212,7 @@ internal unsafe class ConfigMenu : IDisposable
             {
                 _currentTab = esi;
                 _lastItem   = -1;
-                _lastValue  = -999;
+                _lastValue  = null;
                 tabChanged  = true;
             }
         }
@@ -197,6 +221,24 @@ internal unsafe class ConfigMenu : IDisposable
         // Use _currentTab to pick the right item array.
         if (itemFired != 0)
         {
+            _lastItemTick = Environment.TickCount64;
+
+            // The game OWNS the tab field — r14+0x38, slot 2 of the same slot array
+            // the scroll lives in (slot 1 = +0x34, proven by the working ReadScroll).
+            // The IN-GAME config RESETS it to 0 (Audio) with a write cascade at close
+            // (log 2026-07-10: TabSwitch esi 5→4→…→0), so event-tracking alone
+            // reopened on a stale tab and misread every row. r14 is fresh here (the
+            // cursor hook just re-captured it), so the read is trustworthy.
+            int structTab = ReadStructTab();
+            if (structTab >= 0 && structTab != _currentTab)
+            {
+                Log($"[ConfigMenu] struct tab {_currentTab} → {structTab} (adopting)");
+                _currentTab = structTab;
+                _lastItem   = -1;
+                _lastValue  = null;
+                tabChanged  = true;
+            }
+
             var di = *_item;
             if (di < 0 || di > 15) return;
 
@@ -211,17 +253,28 @@ internal unsafe class ConfigMenu : IDisposable
             var items    = TabItems[_currentTab];
             var itemName = row < items.Length ? items[row] : $"Item {row + 1}";
 
-            // Read the live value for this row from the descriptor/value array
-            // at r14+0x71C (stride 0x20): type @+0x10, current value @+0x1C (low16).
-            string valueStr = ReadValueString(_currentTab, row, out int rec, out int type, out int raw);
+            // Live value = what the game DRAWS for this row (ConfigValueText parses
+            // the FUN_140450C60 render stream — never stale, tracks un-confirmed
+            // left/right previews, multi-choice included). The old menu-struct read
+            // (r14+0x71C rec +0x1C) is a documented dead end: the buffer recycles
+            // and the field freezes mid-session (memory/config_menu_status.md).
+            // Rows with fallback "Item N" names simply miss the map → name-only.
+            // ⚠ CONTROLLER tab (5): its bindings draw as BUTTON ICONS (never
+            // captured), but its labels are the same strings as the Keyboard
+            // tab's — a plain lookup leaks the KEYBOARD key ("Back, S")
+            // (log-caught 2026-07-10). Wrong value is worse than none → the
+            // tab is name-only except its own "Button Display" text value.
+            bool suppressed = _currentTab == 5 && itemName != "Button Display";
+            string? valueStr = suppressed ? null : ConfigValueText.Lookup(itemName);
+            CurrentRowLabel = suppressed ? null : itemName; // push anchor for in-place value changes
 
             // Re-announce when EITHER the row OR the value changed (so changing a
             // setting in place — left/right — speaks the new value, not silence).
             bool rowChanged = row != _lastItem;
-            bool valChanged = valueStr != null && raw != _lastValue;
+            bool valChanged = valueStr != null && valueStr != _lastValue;
             if (!rowChanged && !valChanged && !tabChanged) return; // nothing changed
             _lastItem  = row;
-            _lastValue = raw;
+            _lastValue = valueStr;
 
             string announce;
             if (rowChanged || tabChanged)
@@ -233,30 +286,45 @@ internal unsafe class ConfigMenu : IDisposable
             {
                 announce = valueStr; // value-only change → just speak the new value
             }
-            Log($"[ConfigMenu] → {TabNames[_currentTab]} > {itemName}  (r14=0x{*_r14:X} di={di} row={row} rec={rec} type={type} raw={raw} val='{valueStr}' rowCh={rowChanged} valCh={valChanged})"); // DEBUG
+            Log($"[ConfigMenu] → {TabNames[_currentTab]} > {itemName}  (di={di} row={row} val='{valueStr}' rowCh={rowChanged} valCh={valChanged})"); // DEBUG
             Speech.Say(announce, true);
         }
         else if (tabChanged)
         {
-            // Tab switched but item hook didn't fire this poll — announce just the tab name
+            // Tab switched but item hook didn't fire this poll — announce just the tab
+            // name. NOTE: a "recent activity" gate was tried here (2026-07-10) to mute
+            // the close-time tab-write cascade, but it also muted REAL Q/E switches
+            // after a pause (the cursor hook doesn't fire on Q/E) — user-hit, reverted.
+            // The close cascade briefly flutters tab names; interrupt=true collapses it
+            // audibly and the struct-tab read corrects everything on reopen.
             Log($"[ConfigMenu] Tab → {TabNames[_currentTab]}");
             Speech.Say(TabNames[_currentTab], true);
         }
     }
 
+    // PUSH path (called by ConfigValueText from the render hook): the game just
+    // redrew `label`'s value and it CHANGED. If that's the row the cursor is on,
+    // speak the new value — this is how in-place left/right changes are voiced
+    // (no input hook fires for them). "Confirm" is excluded: its "OK" is button
+    // art, and the label also appears on other screens.
+    internal static void OnValueDrawn(string label, string value)
+    {
+        if (label == "Confirm") return;
+        if (label != CurrentRowLabel) return;
+        if (value == _lastValue) return;
+        _lastValue = value;
+        if (!GameHasFocus()) return;
+        Log($"[ConfigMenu] value → {label} = '{value}'");
+        Speech.Say(value, true);
+    }
+
     // ── Live value reading ────────────────────────────────────────────────
-    // The menu working struct (r14) holds a flat descriptor/value array at
-    // r14+0x71C, stride 0x20, covering EVERY setting across all tabs in order.
-    // Each record:  +0x10 int = type (6 button, 3 slider, 1/2 toggle, 4 multi)
-    //               +0x1C low16 = current value (verified by snapshot-diff).
-    // Each tab begins with a type-6 "Confirm" button, so the Nth type-6 record
-    // is the base record of tab N. The cursor `di` is the row within the tab
-    // (di0 = Confirm), so rec = tabBase + di.
-    private const int RecordArray = 0x71C;
-    private const int RecordStride = 0x20;
-    private const int TypeOff  = 0x10;
-    private const int ValueOff = 0x1C;
-    private const int ScrollOff = 0x34;  // top visible row index (list scroll)
+    // Values come from ConfigValueText (the FUN_140450C60 render stream). The
+    // menu working struct's own value field (r14+0x71C rec +0x1C) pool-recycles
+    // and freezes mid-session — do NOT go back to it (memory/config_menu_status.md).
+
+    private const int ScrollOff = 0x34;  // top visible row index (list scroll) — slot 1
+    private const int TabOff    = 0x38;  // current tab index — slot 2 (game-owned truth)
 
     // Scroll offset of the current tab's list: true row = di + scroll.
     private int ReadScroll()
@@ -269,45 +337,16 @@ internal unsafe class ConfigMenu : IDisposable
         return (s >= 0 && s < 32) ? s : 0;
     }
 
-    private string ReadValueString(int tab, int row, out int rec, out int type, out int raw)
+    // The game's own current-tab field. Only meaningful while the menu draws
+    // (call right after the cursor hook fired, when r14 is freshly captured).
+    private int ReadStructTab()
     {
-        rec = -1; type = -1; raw = -1;
         ulong r14 = *_r14;
-        if (r14 == 0) return null;
-        nint arr = (nint)r14 + RecordArray;
-        if (!IsReadable(arr, RecordStride * 64)) return null;
-
-        // Find the base record of each tab = positions of type-6 (button) records.
-        int tabBase = -1, seen = 0;
-        for (int k = 0; k < 64; k++)
-        {
-            int t = *(int*)(arr + k * RecordStride + TypeOff);
-            if (t == 6)
-            {
-                if (seen == tab) { tabBase = k; break; }
-                seen++;
-            }
-        }
-        if (tabBase < 0) return null;
-
-        rec  = tabBase + row;
-        if (rec < 0 || rec >= 64) return null;
-        nint r = arr + rec * RecordStride;
-        type = *(int*)(r + TypeOff);
-        raw  = *(short*)(r + ValueOff);   // low 16 bits = current value
-        return FormatValue(type, raw);
-    }
-
-    private static string FormatValue(int type, int raw)
-    {
-        // VALUES DISABLED 2026-06-25. The menu's value buffer (+0x1C) is recycled:
-        // it reads correctly just after the menu opens, then goes STALE — toggles
-        // freeze at an old On/Off and sliders stop tracking. Same recycled-buffer
-        // root cause that blocked multi-choice (see memory/config_menu_status.md).
-        // A stale/wrong value is worse than none, so announce NAME ONLY for every
-        // setting. (raw/type still logged for debugging; re-enable here only if a
-        // reliably-live value field is ever found.)
-        return null;
+        if (r14 == 0) return -1;
+        nint p = (nint)r14 + TabOff;
+        if (!IsReadable(p, 4)) return -1;
+        int t = *(int*)p;
+        return (t >= 0 && t < TabNames.Length) ? t : -1;
     }
 
     [DllImport("kernel32.dll")]

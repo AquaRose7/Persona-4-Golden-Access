@@ -102,8 +102,23 @@ Data from the highlighted **stock PersonaInfo** entry (`Battle.PersonaCursor()` 
 persona id (early bug). Arcana table `*(0x140EC0958)`.
 
 ### 2. Enemy analyze profile — `ProfileNav.cs`
-During the **Analysis** command: name/arcana/level, Max HP/SP, Elements. I/K/J/L like the
+During the **Analysis** command: name/arcana/level, Max HP/SP, Elements, **Skills**. I/K/J/L like the
 persona panel. Auto-reads the header when you move to a new enemy.
+
+**Enemy SKILLS row (row 3, added 2026-07-09) — leak-free, reveal-gated.** The game hides an enemy's
+skills until you buy the enemy-skills upgrade; this reader mirrors that exactly and NEVER leaks hidden
+skills. `Battle.cs` hooks the analyze render **`FUN_1400e0e50`** (`OnAnalyzeRender`) and, per frame:
+- reads the skill array via `_getEnemySkills = CreateWrapper(FUN_1400d4320)(statNode)` → 8 shorts
+  (non-zero = a skill id → `Skill.GetName/GetDescription`); the wrapper handles both the normal-shadow
+  path (`stat[0]&4` → enemy table `*(0x140EC0920)+eid*0x3C+0xE`) and the VMProtect-thunk special case.
+- computes the reveal gate from the panel flag `pflag = *(ushort*)param2`:
+  **`revealed = (pflag & 0x44) != 0 && (pflag & 8) == 0`** — bit `0x04` = the upgrade/reveal, bit `8`
+  = the "?"/hidden state. Live-verified: no-upgrade save `0x0001`/`0x0003` (hidden), upgrade save
+  `0x0005`/`0x0007` (shown). Publishes `AnalyzeSkillUnit` / `AnalyzeSkillsRevealed` + the id snapshot.
+- `ProfileNav` case 3 reads them gated `AnalyzeSkillUnit == unit && AnalyzeSkillsRevealed`, else speaks
+  **"not revealed"** (bosses/un-upgraded enemies). See `memory/enemy_analyze_skills.md`.
+  ⚠ A temp `[AnalyzeDiag]` log line remains in `CaptureAnalyzeSkills` pending a live boss check — strip
+  it once the boss case is confirmed to read "not revealed."
 
 ### 3. Menu gating (the big fix — leak-free, hover-silent)
 - **PersonaNav** active only when `CurrentCommand == 5` (Persona) AND `PersonaEntered` (the
@@ -215,23 +230,33 @@ Signature relaxed to `h[2] <= 8`; all arena anchors (panel map, const blob, card
   Party record +0x00 flag word: bit 0x1 = in-party (TEST THE BIT — `!= 1` broke
   the O key when 0x200 appeared during a guard), 0x200 = guard stance (probable,
   unconfirmed — log-only).
-- **Tactics menu (2026-06-10):** the drawer at 0x1400E7020 (long mislabeled
-  "persona skill info") is the TACTICS OPTIONS list drawer; the panel renderer
-  is FUN_1400EC280 (mislabeled "MC persona detail" — PersonaPanelHook's mc-hook
-  label is wrong, harmless). SkillInfoSelect speaks the options (canonical
-  ORDER_SEL order: Act Freely · Full Assault · Conserve SP · Heal/Support ·
+- **Tactics menu (2026-06-10; MEMBER CURSOR SOLVED 2026-07-11):** the drawer at
+  0x1400E7020 (long mislabeled "persona skill info") is the TACTICS OPTIONS list
+  drawer; the panel renderer is FUN_1400EC280. SkillInfoSelect speaks the options
+  (canonical ORDER_SEL order: Act Freely · Full Assault · Conserve SP · Heal/Support ·
   Direct Commands · Don't change tactics) and, on entering, WHO they're for +
   their current tactic. Member current-tactic byte = party record+0x10
   (value 0..4 = same order); chosen member = BtlInfo+0xD10 when +0xD18 != 0.
-  The MEMBER screen has NO readable cursor — EXHAUSTIVELY verified 2026-06-10:
-  widget words static, BtlInfo D00-D30 static, full private-heap zigzag
-  snapshot diff (6 snaps, byte + two-state dword) found only render-side row
-  COLORS flipping (0x2D2D2DFF dim / 0xFFF000FF selected) in transient text
-  objects, and a 497MB writable static+image snapshot diff found ZERO
-  two-state values. The cursor exists only as render state. DO NOT hunt this
-  again. The screen stays silent by design; row order is fixed ("All Members",
-  then allies in party order) and the options-entry header ("Yosuke, now Act
-  Freely") confirms every pick. Skill names gated to cmd==4 (SkillSelect).
+  **THE MEMBER CURSOR (the June "DO NOT hunt this again" dead end — closed):** the
+  2026-06-10 verdict "the cursor exists only as render state" was literally
+  correct — it was never in DATA. The member rows are drawn by the "full panel"
+  renderer **FUN_1400e6900(BtlInfo, int rowIndex, f, f, byte alpha, int p6, int p7)**
+  once per row per frame, and **p6 = "this row is selected"** (raw TextSpy +
+  FULL-render capture 2026-07-11: p6==1 tracked 1→2→3 live while arrowing). Row's
+  unit = `*(BtlInfo+0xCE0 + rowIndex*8)`. `PersonaPanelHook.FullRender` publishes
+  `Battle.TacticsSelUnit/TacticsSelTick/TacticsRowTick`; **`TacticsMemberReader`**
+  speaks the highlighted member (gated `CurrentCommand==1` so the renderer's other
+  contexts can't leak); rows drawing with NO p6==1 row = "All members" (the top
+  row carries no unit). Skill names gated to cmd==4 (SkillSelect).
+- **Q QUICK-ANALYZE during targeting (2026-07-11):** the game's Q reference panel
+  renders through the SAME analyze fn as the full Analyze screen (log-proven:
+  the [AnalyzeDiag] capture fires while it's up), so **`Battle.AnalyzeSkillUnit`
+  is non-zero exactly while a panel is VISIBLE and holds the shown enemy** — the
+  leak-proof open-signal the old attempt lacked (it hooked shared renderers).
+  `ProfileNav` treats it as a second activation source (`CurrentCommand != 0`,
+  the Analysis screen keeps its own path): auto-header on open + full I/K/J/L
+  rows; reopening re-reads the header (panel-open rising edge clears the latch).
+  Input-agnostic — works from keyboard Q and the controller equivalently.
 - Still open: ambush attacker naming (needs live action-struct snapshot hunt);
   the [TacticsProbe] diagnostic in PersonaMenuHook can be removed once the
   tactics flow is confirmed good.
@@ -300,6 +325,18 @@ the texture paths. Summary of the final architecture, all in `ShuffleReader.cs` 
   update) resolves sequential double-changes; proactive "Card N changed to X" announcements.
 - **Scan pacing**: `_scanAttempts`/`_nextScanTick` reset on state exit even when nothing latched
   (a fruitless shuffle used to pre-starve the next one's scans).
+- **THE SCAN GATE (2026-07-10 — the "result menu is heavy" fix).** State 17 spans the whole
+  post-battle flow, so on a shuffle-less battle the ~800ms full-heap scan used to grind through the
+  entire RESULT screen (attempt 25+; the 07-01 backoff and a 15s give-up window both still let scan
+  bursts land on the result screen). Fix: scanning runs **only while a `battle_shuffle*` NAMED TASK
+  is alive** — a live registry dump showed the game runs `battle_shuffle` / `battle_shuffle_bg` /
+  `_eff` / `_panel` (+`_result` at pick time) for exactly the Shuffle Time window (skipped deals and
+  one-mores included), never on a shuffle-less battle. `ShuffleReader.IsShuffleTaskAlive()` walks the
+  3 registry heads (name @node+0x00, next @node+0x50; RPM, microseconds/poll). Zero scans on
+  result-only screens; scan behavior while a shuffle runs is unchanged. ⚠ `battle_result` /
+  `battle_result_simple` / `battle_result_frpslvup` tasks pre-exist DURING the shuffle — only
+  battle_shuffle* presence is a valid gate, not battle_result's. Fail mode if the check ever broke:
+  scans off, but ShuffleText's no-struct panel announcer still names every card.
 
 ## Shuffle Time card narration — the 2026-07-01 struct-only build (superseded above)
 

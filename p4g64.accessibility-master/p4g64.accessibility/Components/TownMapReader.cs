@@ -30,6 +30,7 @@ internal unsafe class TownMapReader : IDisposable
         { 3, "Samegawa Flood Plain" },
         { 5, "Dojima Residence" },
         { 6, "Okina City" },
+        { 8, "Shichiri Beach" },   // user-confirmed 2026-07-07
     };
 
     private IHook<RenderDelegate>? _hook;

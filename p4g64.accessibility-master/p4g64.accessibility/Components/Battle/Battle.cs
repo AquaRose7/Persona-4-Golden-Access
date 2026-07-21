@@ -67,6 +67,86 @@ internal unsafe class Battle
     private static GetKnownDelegate _getAffinityKnown;
     internal delegate int GetKnownDelegate(int nameId, int element);
 
+    // ── Enemy SKILLS on the analyze panel (2026-07-09) ──────────────────────────
+    // FUN_1400d4320(statNode) returns the enemy's 8-short skill array (non-zero = a
+    // skill id). The analyze render FUN_1400e0e50(param1, param2) draws those skills
+    // ONLY when the panel flag *(ushort*)param2 bit 0x8 is CLEAR (the enemy-skills
+    // upgrade / "?" otherwise). We hook that render to publish the reveal state + skill
+    // list for the CURRENT analyzed enemy, so ProfileNav's Skills row never leaks a
+    // skill the game itself is hiding. Enemy unit = *(*(param2+0x10))+0x38 (the render's
+    // own chain); nameId +0xA4 / stat +0xCF0 as elsewhere.
+    private static GetSkillArrayDelegate _getEnemySkills;
+    internal delegate nint GetSkillArrayDelegate(nint statNode);
+    private IHook<AnalyzeRenderDelegate> _analyzeHook;
+    private delegate void AnalyzeRenderDelegate(nint param1, nint param2);
+
+    internal static volatile nint AnalyzeSkillUnit;       // enemy the analyze panel is drawing (0 = closed)
+    internal static volatile bool AnalyzeSkillsRevealed;   // game is showing skills (panel flag bit 0x8 clear)
+    // Panel flag bit 0x8 = the "?"/hidden state for the WHOLE basic-info block (level,
+    // Max HP/SP, arcana) — the analyze render gates all of it on (flag & 8) == 0
+    // (FUN_1400e0e50). False = the game is showing "?", so we must NOT read the real
+    // level/HP/SP/arcana from memory (they leaked on an un-analyzed boss, user 2026-07-20).
+    internal static volatile bool AnalyzeBasicRevealed;
+    private static volatile int[] _analyzeSkillIds = System.Array.Empty<int>();
+
+    private void OnAnalyzeRender(nint param1, nint param2)
+    {
+        _analyzeHook.OriginalFunction(param1, param2);
+        try { CaptureAnalyzeSkills(param2); } catch { /* never let a hook throw */ }
+    }
+
+    private static void CaptureAnalyzeSkills(nint param2)
+    {
+        if (!IsReadable(param2, 2)) { AnalyzeSkillUnit = 0; return; }
+        ushort pflag = *(ushort*)param2;
+        if ((pflag & 1) == 0) { AnalyzeSkillUnit = 0; return; }   // panel not visible
+        if (!IsReadable(param2 + 0x10, 8)) { AnalyzeSkillUnit = 0; return; }
+        nint obj = *(nint*)(param2 + 0x10);
+        if (obj <= 0x10000 || !IsReadable(obj + 0x38, 8)) { AnalyzeSkillUnit = 0; return; }
+        nint unit = *(nint*)(obj + 0x38);
+        if (unit <= 0x10000) { AnalyzeSkillUnit = 0; return; }
+
+        // The render draws real skills only inside `(uVar3 & 0x44) != 0` (skill area
+        // active) AND `(uVar3 & 8) == 0` (not the "?"/hidden state). Bit 8 alone leaked
+        // skills the game hides (user 2026-07-09). Verified from FUN_1400e0e50 @1021/1030.
+        bool revealed = (pflag & 0x44) != 0 && (pflag & 8) == 0;
+        // ([AnalyzeDiag] confirmed these bits across the tester cycle incl. the Q
+        // quick-panel; removed 2026-07-11 pre-release.)
+        int[] ids = System.Array.Empty<int>();
+        if (revealed && IsReadable(unit + 0xCF0, 8) && _getEnemySkills != null)
+        {
+            nint stat = *(nint*)(unit + 0xCF0);
+            if (stat > 0x10000)
+            {
+                nint arr = 0;
+                try { arr = _getEnemySkills(stat); } catch { arr = 0; }
+                if (arr > 0x10000 && IsReadable(arr, 16))
+                {
+                    var list = new List<int>(8);
+                    for (int i = 0; i < 8; i++) { int sid = *(ushort*)(arr + i * 2); if (sid > 0 && sid < 1000) list.Add(sid); }
+                    ids = list.ToArray();
+                }
+            }
+        }
+        _analyzeSkillIds = ids;          // publish contents BEFORE the unit key
+        AnalyzeSkillsRevealed = revealed;
+        AnalyzeBasicRevealed = (pflag & 8) == 0;   // level/HP/SP/arcana shown, not "?"
+        AnalyzeSkillUnit = unit;
+    }
+
+    /// <summary>Names of the enemy skills the analyze panel is currently revealing.</summary>
+    internal static string[] AnalyzeSkillNames()
+    {
+        var ids = _analyzeSkillIds;
+        var names = new List<string>(ids.Length);
+        foreach (int sid in ids)
+        {
+            string n; try { n = Skill.GetName(sid); } catch { n = null; }
+            names.Add(string.IsNullOrEmpty(n) ? $"skill {sid}" : n);
+        }
+        return names.ToArray();
+    }
+
     /// <summary>Manager-global combatant enumeration. Static + fully guarded, so it
     /// is safe to call from a background poll thread. Returns (unit, side, statNode)
     /// for every combatant; side: 1 = enemy, 0 = party (confirmed via the F12 probe).
@@ -292,6 +372,17 @@ internal unsafe class Battle
     /// reads this one; cleared when battle ends.</summary>
     internal static volatile nint LastTargetedEnemy;
 
+    // ── TACTICS member screen (2026-07-11) ─────────────────────────────────
+    // The member rows are drawn by the "full panel" renderer FUN_1400e6900, once
+    // per row per frame, and its p6 ARGUMENT = "this row is selected". The June
+    // hunts never found the cursor in DATA because it only exists as this call
+    // argument (raw TextSpy + FULL-render capture, cursor tracked 1→2→3 live).
+    // PersonaPanelHook publishes; TacticsMemberReader speaks. Row units come from
+    // BtlInfo+0xCE0 + index*8. No p6==1 row while rows draw = "All members" (top row).
+    internal static volatile nint TacticsSelUnit;   // unit of the p6==1 row
+    internal static long TacticsSelTick;            // last time a p6==1 row drew
+    internal static long TacticsRowTick;            // last time ANY member row drew
+
     /// <summary>The enemy-side unit of the most recent info-window banner event
     /// (set by BattleLog on EVERY enemy banner, spoken or deduped). The player-turn
     /// Turn pointer is NULL during enemy turns, so this is the attacker signal for
@@ -495,7 +586,13 @@ internal unsafe class Battle
             if (stage == 0) return null;
             return (stage & 0x8) != 0 ? "down" : "up";
         }
-        string atk = Chan(0, true);
+        // ATTACK spans BOTH nibbles of +0x1C (player log 2026-07-06: a lone
+        // attack debuff on Shadow Teddie set +1C=0xEE, a party-wide attack
+        // buff set +1C=0x11 on every member — hi and lo always together, same
+        // sign and timers, with no other channel lit). Speak from either.
+        // ([BuffDiag] rode along through the whole v1.4.x tester cycle and
+        // never fired a disagreement — removed 2026-07-11 pre-release.)
+        string atk = Chan(0, true) ?? Chan(0, false);
         if (atk != null) parts.Add($"attack {atk}");
         string def = Chan(1, true);
         if (def != null) parts.Add($"defense {def}");
@@ -519,10 +616,8 @@ internal unsafe class Battle
             if (st != 0) crit = (st & 0x8) != 0 ? "down" : "up";
         }
         if (crit != null) parts.Add($"critical rate {crit}");
-        // Channel never observed yet (+0x1C lo): log if it ever activates so it can
-        // be named instead of guessed.
-        if (Chan(0, false) != null)
-            Log($"[BuffDiag] UNMAPPED channel: +1C={b[0x1C]:X2} +25={b[0x25]:X2}");
+        // (+0x1C lo was the long-standing "unmapped channel" — resolved above as
+        // the attack pair's second half, player log 2026-07-06.)
         // Mind Charge (Concentrate — 2.5x next magic attack): stat +0x16 bit 0x10. Verified live
         // 2026-07-02: toggles ON when a Shadow Concentrates, OFF when it fires the charged hit
         // (two isolated captures). It's a next-attack multiplier flag, not a stat buff, but reads
@@ -680,7 +775,18 @@ internal unsafe class Battle
     internal static (nint entry, int id) PersonaCursor()
     {
         if (IsReadable(LastPersonaEntry, 0x30) && LastPersonaId >= 0)
-            return (LastPersonaEntry, LastPersonaId);
+        {
+            // The stock array REORDERS when a persona change is CONFIRMED (the
+            // equipped persona swaps slots), so the remembered entry pointer can
+            // now hold a NEIGHBOR's record — the announce then mixed the right
+            // name/arcana (from the id) with the neighbor's LEVEL/stats (from the
+            // stale entry; user 2026-07-11). Trust the entry only while its id
+            // still matches; else re-find the id's record in the stock array.
+            if (*(short*)(LastPersonaEntry + 2) == LastPersonaId)
+                return (LastPersonaEntry, LastPersonaId);
+            nint relocated = FindStockEntryById(LastPersonaId);
+            if (relocated != 0) return (relocated, LastPersonaId);
+        }
         nint g = unchecked((nint)0x141165900L);
         if (IsReadable(g, 8))
         {
@@ -697,6 +803,24 @@ internal unsafe class Battle
             }
         }
         return (0, -1);
+    }
+
+    /// <summary>Locate a persona's live record in the MC's 12-slot stock array by
+    /// its persona id (id at entry+0x02) — the recovery path for when a confirmed
+    /// change reorders the slots under a remembered entry pointer.</summary>
+    private static nint FindStockEntryById(int pid)
+    {
+        nint g = unchecked((nint)0x141165900L);
+        if (!IsReadable(g, 8)) return 0;
+        nint baseObj = *(nint*)g;
+        if (baseObj == 0) return 0;
+        for (int k = 0; k < 12; k++)
+        {
+            nint e = baseObj + 0xA34 + k * 0x30;
+            if (!IsReadable(e, 0x30) || *(byte*)e == 0) continue;
+            if (*(short*)(e + 2) == pid) return e;
+        }
+        return 0;
     }
 
     /// <summary>Full profile row for the highlighted STOCK persona (MC). Everything
@@ -1296,8 +1420,20 @@ internal unsafe class Battle
     /// the first frame. Consumers (diagnostics, HP/SP readout) must re-validate
     /// with <c>IsReadable</c> before dereferencing — the allocation is freed when
     /// the battle ends.
+    /// ⚠ The raw pointer is NEVER cleared by the hook (it only runs in battle),
+    /// so it goes STALE after every battle. The getter therefore returns 0
+    /// unless the field major says a battle is running (the 220-299 band) —
+    /// without this, TurnReader/MultiTargetReader polled the freed struct during
+    /// normal play and spoke garbage once the heap page was reused (the
+    /// player-reported "random numbers and text, fixed by restart" bug,
+    /// 2026-07-07: e.g. "16024's turn").
     /// </summary>
-    internal static volatile nint ActiveBtlInfo;
+    internal static nint ActiveBtlInfo
+    {
+        get => FieldTracker.InBattle ? _activeBtlInfoRaw : 0;
+        set => _activeBtlInfoRaw = value;
+    }
+    private static volatile nint _activeBtlInfoRaw;
 
     internal Battle(IReloadedHooks hooks)
     {
@@ -1341,6 +1477,11 @@ internal unsafe class Battle
         _getAffinity = hooks.CreateWrapper<GetAffinityDelegate>(unchecked((nint)0x1400D35B0L), out _);
         _getAffinityKnown = hooks.CreateWrapper<GetKnownDelegate>(unchecked((nint)0x1400993F0L), out _);
         _personaExpForLevel = hooks.CreateWrapper<PersonaExpForLevelDelegate>(unchecked((nint)0x1400D8050L), out _);
+
+        // Enemy-analyze SKILLS: getter FUN_1400d4320 + a hook on the analyze render
+        // FUN_1400e0e50 that publishes the reveal state (see CaptureAnalyzeSkills).
+        _getEnemySkills = hooks.CreateWrapper<GetSkillArrayDelegate>(unchecked((nint)0x1400D4320L), out _);
+        _analyzeHook = hooks.CreateHook<AnalyzeRenderDelegate>(OnAnalyzeRender, unchecked((nint)0x1400E0E50L)).Activate();
     }
 
     private void Process(BtlCommandsInfo* commands, BtlInfo* info, float* param_3)

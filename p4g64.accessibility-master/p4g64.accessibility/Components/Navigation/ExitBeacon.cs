@@ -14,6 +14,7 @@ internal sealed class ExitBeacon : ProximityBeacon
     protected override int Vk => 0xBF;                 // / (slash) — exit beacon (rebound from P, 2026-06-11)
     protected override string SoundFile => "stares.wav";  // new short stairs cue (replaced 3s exit.wav 2026-06-18)
     protected override string Label => "Exit beacon";
+    protected override float VolumeScale => SoundSettings.StairsVol;   // SettingsMenu knob
     // The clip had 1.2s of dead silence baked in after a ~0.1s ping, so earlier gap
     // tweaks were inaudible — the cadence was dominated by that. The file is now
     // trimmed to ~0.2s, so the gap sets the REAL ping interval: cycle = clip + gap.

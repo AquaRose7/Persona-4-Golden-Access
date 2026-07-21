@@ -265,6 +265,12 @@ internal class DungeonNav
     // door") + the auto-walker (skip the open-tap). Validated as a spike 2026-07-01.
     private readonly Dictionary<int, sbyte> _doorSide = new();          // door key → last side (-1/+1)
     private static readonly List<(float x, float z)> _openDoors = new(); // doors crossed = OPEN, this floor
+    // Cached door positions, refreshed by THIS poll only (single writer) so the wall
+    // hum can read doors without re-running the scene walk from another thread.
+    private static volatile (float x, float z)[] _doorSnap = System.Array.Empty<(float, float)>();
+    private static long _lastDoorSnapMs;
+    /// <summary>Latest door world positions (cached snapshot; safe to read from any thread).</summary>
+    internal static (float x, float z)[] DoorSnapshot() => _doorSnap;
     private int _passFloorKey = int.MinValue;
     private long _lastDoorScanMs;   // throttle the per-tick scene walk (crash-safety near transitions)
     private const float PassNearUnits = 600f;   // only track when within ~2.5 steps of the door
@@ -323,7 +329,14 @@ internal class DungeonNav
 
     private void Tick()
     {
+        // Breadcrumbs: the player's live position is verified-walkable ground —
+        // recorded during ALL dungeon play (manual and auto), before any gate
+        // below (menus/focus don't change where the feet have been).
+        try { AutoWalk.DungeonGrid.RecordBreadcrumb(); } catch { }
+        // ([ManualDiag] reality-vs-model survey call removed at the 2026-07-18
+        // diagnostics strip — the sensor rebuild is signed off.)
         if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
+        if (SettingsMenu.IsOpen) return;     // settings menu owns input
         if (CommandMenus.PlayerMenu.IsMenuOpen) return;   // don't fire nav keys behind the camp menu
         bool inDungeon = InDungeon();
         if (inDungeon != _inDungeonLast)
@@ -342,6 +355,15 @@ internal class DungeonNav
         if (lobby != _inLobbyLast) { _catIndex = -1; _entries = new(); _cursor = 0; _inLobbyLast = lobby; }
 
         DetectDoorPassThrough();   // SPIKE A: announce when the player crosses a door
+
+        // Refresh the door snapshot for the wall hum (throttled; this poll is the
+        // only writer, so the audio thread can read it without a scene walk).
+        long nowDoorMs = Environment.TickCount64;
+        if (nowDoorMs - _lastDoorSnapMs > 300)
+        {
+            _lastDoorSnapMs = nowDoorMs;
+            try { _doorSnap = Doors().ToArray(); } catch { }
+        }
 
         bool minus = IsKeyDown(VK_OEM_MINUS);
         if (minus && !_minusWas) CycleCategory(-1);
@@ -375,7 +397,8 @@ internal class DungeonNav
             else if (DungeonCursor.IsActive
                      && DungeonCursor.TryGetMarkTarget(out float mwx, out float mwz, out bool mUnexplored))
             {
-                AutoWalk.AutoWalker.Start(mUnexplored ? "Unmapped marker" : "Marker", mwx, mwz);
+                AutoWalk.AutoWalker.WalkTarget(mUnexplored ? "Unmapped marker" : "Marker", mwx, mwz,
+                                               AutoWalk.AutoWalker.TargetKind.Spot);
                 DungeonCursor.Deactivate();   // cursor's job is done; re-press H to remap at the new spot
             }
             else StartWalk();
@@ -400,6 +423,12 @@ internal class DungeonNav
         bool f6 = ctrl && IsKeyDown(0x75);
         if (f6 && !_f6Was) PromoteSelectionToEvents();
         _f6Was = f6;
+
+        // Ctrl+F8 = dump the RUNTIME minimap raw (24×16×16B @0x1411AB39C) for the
+        // .MAP correlation test (2026-07-12 — field\map\f0XX_YYY.MAP decode).
+        bool f8 = ctrl && IsKeyDown(0x77);
+        if (f8 && !_f8Was) DumpMinimapRaw();
+        _f8Was = f8;
 #endif
     }
 
@@ -502,19 +531,23 @@ internal class DungeonNav
         if (_entries.Count == 0) { Speech.Say("Nothing selected.", true); return; }
         if (_cursor >= _entries.Count) _cursor = _entries.Count - 1;
 
+        // ★ v2 DISPATCH (2026-07-18): EVERY target type now rides the SAME drive
+        // that fixed the stairs walk (door-woven plan + turn-tight, slide-aware,
+        // door-opening DriveRoute) — only the final approach differs per kind.
         var e = _entries[_cursor];
         if (cat == Cat.Shadows)
         {
-            // Original position-gated hunt (user call 2026-06-23 to restore, same as chests):
-            // the player walks close themselves; Backspace strikes when already behind it (the
-            // browser announces each shadow's facing). The explore/travel version is retired.
+            // Full travel back ON (user 2026-07-06, with the room-graph travel):
+            // travel to near the shadow through doors/rooms, then hand off to the
+            // proven back-strike Hunt. (The 2026-06-23 revert was about the greedy
+            // coarse-minimap travel hugging walls — superseded by the room graph.)
             if (!e.HasPos) { Speech.Say("No shadow position.", true); return; }
-            AutoWalk.AutoWalker.StartHunt(e.TX, e.TZ);
+            AutoWalk.AutoWalker.WalkToShadowV2(e.TX, e.TZ);
             return;
         }
-        if (cat == Cat.Exits)   // Stairs: full travel (explore + route + open doors)
+        if (cat == Cat.Exits)   // Stairs: room-graph walk to the stairs' room door (v1, 2026-07-16)
         {
-            AutoWalk.AutoWalker.TravelToStairs();
+            AutoWalk.AutoWalker.WalkToStairs();
             return;
         }
         if (cat == Cat.Events && IsFloorJumpLabel(e.Label, out int jdir))   // placed "Next/Previous floor" event
@@ -522,10 +555,10 @@ internal class DungeonNav
             TeleportRelativeFloor(jdir);
             return;
         }
-        if (cat == Cat.Events)  // Event marks: full travel too — the one-shot Walk can't reach a
-        {                       // tricky scripted-floor mark (e.g. a winding-path door). Chain marks
-            if (!e.HasPos) { Speech.Say("No position to walk to.", true); return; }   // for a winding route.
-            AutoWalk.AutoWalker.TravelTo(e.Label, e.TX, e.TZ);
+        if (cat == Cat.Events)  // Event marks ride the same v2 drive (Spot kind).
+        {
+            if (!e.HasPos) { Speech.Say("No position to walk to.", true); return; }
+            AutoWalk.AutoWalker.WalkTarget(e.Label, e.TX, e.TZ, AutoWalk.AutoWalker.TargetKind.Spot);
             return;
         }
         if (!e.HasPos)
@@ -534,16 +567,20 @@ internal class DungeonNav
             return;
         }
 
-        // Chests use the original one-shot walker (the explore/travel version hugged walls
-        // on the coarse minimap — user call 2026-06-23 to restore the old chest hunter).
+        if (cat == Cat.Chests)
+        {
+            AutoWalk.AutoWalker.WalkTarget("the chest", e.TX, e.TZ, AutoWalk.AutoWalker.TargetKind.Chest);
+            return;
+        }
 
-        // Doors: target the door's RAW XZ. The minimap cell is ~5 steps wide
-        // but a doorway is narrow, so snapping to a walkable cell centre lands
-        // BESIDE the door on the wall (live 2026-06-11: 13900,12000 snapped to
-        // 14067,11667 — the next cell over). AutoWalker's door-push handles
-        // the narrow final approach (walk straight in + tap open, no
-        // wall-blocked abort).
-        AutoWalk.AutoWalker.Start(e.Label, e.TX, e.TZ);
+        // Doors (near + all): the v2 plan targets the door's RAW XZ and ends
+        // CENTERED in front of it (doorTarget planning) — the old cell-center
+        // snap landed beside the frame on the wall. Everything else = Spot
+        // (interactables, NPCs): arrive at the exact point, note the prompt.
+        var kind = (cat == Cat.Doors || cat == Cat.AllDoors)
+            ? AutoWalk.AutoWalker.TargetKind.Door
+            : AutoWalk.AutoWalker.TargetKind.Spot;
+        AutoWalk.AutoWalker.WalkTarget(e.Label, e.TX, e.TZ, kind);
     }
 
     // ── Event marks (record / undo) ──
@@ -589,6 +626,39 @@ internal class DungeonNav
         Speech.Say($"Added {e.Label} to events on this floor.", true);
         Log($"[EventMarks] PROMOTE floor={key} label={e.Label} pos=({e.TX:F0},{e.TZ:F0})");
     }
+
+#if DEBUG
+    private bool _f8Was;
+
+    // Ctrl+F8 (Debug): dump the runtime minimap raw + the world transform anchors —
+    // the offline half is field\map\f0XX_YYY.MAP (2026-07-12); aligning the two
+    // nails the .MAP byte semantics for the pre-baked floor-layout loader.
+    private unsafe void DumpMinimapRaw()
+    {
+        try
+        {
+            int major = FieldTracker.CurrentMajor, minor = FieldTracker.CurrentMinor;
+            var buf = new byte[MinimapTracker.ROWS * MinimapTracker.COLS * 16];
+            for (int i = 0; i < buf.Length; i += 16)
+            {
+                nint p = MinimapTracker.GRID_BASE + i;
+                if (!IsReadable(p, 16)) { Speech.Say("Minimap unreadable.", true); return; }
+                for (int k = 0; k < 16; k++) buf[i + k] = *(byte*)(p + k);
+            }
+            string path = System.IO.Path.Combine(
+                Environment.CurrentDirectory, "Persona 4 golden", "database",
+                $"minimap_dump_{major}_{minor}.bin");
+            System.IO.File.WriteAllBytes(path, buf);
+            MinimapTracker.CellToWorld(0, 0, out float ax, out float az);
+            MinimapTracker.CellToWorld(MinimapTracker.ROWS - 1, MinimapTracker.COLS - 1, out float bx, out float bz);
+            float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+            Log($"[MapDump] {major}_{minor} -> {path} | cell(0,0)=({ax:F0},{az:F0}) " +
+                $"cell({MinimapTracker.ROWS - 1},{MinimapTracker.COLS - 1})=({bx:F0},{bz:F0}) player=({px:F0},{pz:F0})");
+            Speech.Say("Minimap dumped.", true);
+        }
+        catch (Exception e) { Log($"[MapDump] failed: {e.Message}"); }
+    }
+#endif
 
     // Shift+F7: remove the most-recently recorded mark on this floor (recording by ear).
     private void UndoMark()
@@ -846,6 +916,7 @@ internal class DungeonNav
         [0x0190] = "Yukiko",   // 400 — added when she joined (user-mapped)
         [0x0258] = "Kanji",    // 600 — TV-world entrance (user-mapped 2026-07-02, "Person 600")
         [0x01F4] = "Rise",     // 500 — TV-world entrance (user-mapped 2026-07-03, "Person 500")
+        [0x02BC] = "Naoto",    // 700 — TV-world entrance (user-mapped 2026-07-12, "Person 700")
         [0x0384] = "Fox",      // 900 — TV-world entrance (SP heal NPC)
     };
 
@@ -892,6 +963,17 @@ internal class DungeonNav
     {
         var outp = new List<(float, float)>();
         foreach (var (x, z, kind, _, _, _) in EnumerateInteractables())
+            if (kind == Kind.Door) outp.Add((x, z));
+        return outp;
+    }
+
+    /// <summary>EVERY door on the loaded floor (active or not) — the route
+    /// grid carves these as PASSAGES ("the door isn't a wall, it's a passage
+    /// you can open with pressing" — the user's routing model, 2026-07-15).</summary>
+    internal static List<(float x, float z)> DoorsAll()
+    {
+        var outp = new List<(float, float)>();
+        foreach (var (x, z, kind, _, _, _) in EnumerateInteractables(activeOnly: false))
             if (kind == Kind.Door) outp.Add((x, z));
         return outp;
     }
@@ -1440,15 +1522,16 @@ internal class DungeonNav
 
     // ── direction helpers ──
 
-    // 8-way compass direction to a target offset (dx = east+, dz = north+). Matches
-    // the H-cursor's fixed-compass frame (+Z north, +X east) so the browser and the
-    // cursor speak the SAME directions — no more relative "ahead/left/right".
+    // 8-way compass direction to a target offset (dx = world +X, dz = world +Z).
+    // Matches the H-cursor's fixed-compass frame: +Z = north, and world +X is
+    // physically WEST (P4G's X axis is mirrored vs a paper compass), so the browser
+    // and the cursor speak the SAME directions — no more relative "ahead/left/right".
     private static string WorldDirection(float dx, float dz)
     {
         float adx = MathF.Abs(dx), adz = MathF.Abs(dz);
         if (adx < 1e-4f && adz < 1e-4f) return "here";
         string ns = dz > 0 ? "north" : "south";
-        string ew = dx > 0 ? "east" : "west";
+        string ew = dx > 0 ? "west" : "east";   // P4G's world +X is physically WEST
         if (adz > adx * 2f) return ns;        // mostly north/south
         if (adx > adz * 2f) return ew;        // mostly east/west
         return ns + ew;                       // diagonal: northeast / southwest / …
@@ -1456,8 +1539,8 @@ internal class DungeonNav
 
     // ── plumbing ──
 
-    private static void WinBeep(uint freq, uint ms) { try { Beep(freq, ms); } catch { } }
-    [DllImport("kernel32.dll")] private static extern bool Beep(uint dwFreq, uint dwDuration);
+    private static void WinBeep(uint freq, uint ms)
+        => ToneCue.PlayTones(0.45f * SoundSettings.CursorBeepVol, ((float)freq, (int)ms));
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;

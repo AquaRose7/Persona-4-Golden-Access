@@ -147,6 +147,29 @@ flag dumps while the user browsed):
 - Also seen in the dumps: `obj+0xF0` (u16) = the fusion MODE id on these screens (2/3/4 as the
   user entered Cross/Pentagon/Hexagon).
 
+### Spread-fusion RESULT panel (press to MAKE the persona) — FIXED 2026-07-09
+Distinct from the F "Persona Status" panel above (`0x34/0x134`): the screen you reach by CONFIRMING a
+spread fusion (the profile you press to actually create the persona) was **silent**. Its flag **low word
+= `0x0074`** = the spread persona panel (`0x0034`) OR-ed with the profile bit (`0x40`), so the generic
+`0x40` branch handed it to the NORMAL-fusion `ReadPersonaPanel` (stale → nothing spoke). **Fix: route
+`(flag & 0xFFFF) == 0x0074` to `ReadSpreadPersonaPanel` BEFORE the `0x40` branch.** (Spread lists =
+`0x0010/0x0014`; spread persona panels = `0x0034/0x0134/0x0074`.)
+
+## FUSION INHERIT COUNT — "how many skills you can give the result" (2026-07-09, user-verified)
+
+Both normal and search/spread fusions let the result inherit a limited number of skills. The reader
+surfaces the LIVE remaining count so a blind player knows when they've picked their limit.
+- **Capacity = u16 @ `facObj+0x145A`** (fixed per fusion). NOT `+0x1464`/`+0x1466` (constant / off-by-
+  one — a `[VFInh]` diag showed them frozen while the flags moved); `+0x1458` is the AVAILABLE-list
+  length, not the capacity.
+- **Live remaining = capacity − SELECTED**, where a skill row is SELECTED when **bit `0x0001` of its
+  flags at `facObj+0x12D8 + i*4` (`+0x02`) is set** (toggles per pick, live-verified).
+- **Placement (user-directed — a standalone announce interrupted the panel):** folded into the RESULT
+  persona panel as an "Inheritance" section — added to BOTH `BuildSections` AND `BuildSearchSections`
+  (search/spread fusions use the latter; that's why it was missing at first) — and the skill-select
+  screen (`ReadInheritance`) trails each skill with "You can inherit N more skills" (`rem` in the dedupe
+  key so PICKING re-announces the decremented count). See `memory/velvet_fusion_inherit_and_spread.md`.
+
 ## FUSION FORECAST — ✅ SOLVED 2026-07-03 (data-file route, pending user test)
 
 The sprite-enum RE was a dead end by design: `FUN_140233570` draws only FIXED label sprites

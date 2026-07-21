@@ -18,6 +18,9 @@ internal abstract class ProximityBeacon
     private const int PollMs = 50;
     protected const float Gain = 0.6f;
 
+    /// <summary>Per-subclass user volume (SettingsMenu). 1f = shipped default.</summary>
+    protected virtual float VolumeScale => 1f;
+
     private readonly Thread _thread;
     private volatile bool _stopped;
     private bool _keyWas;
@@ -75,7 +78,7 @@ internal abstract class ProximityBeacon
 
         // Shift-up so Shift+, (the chest beacon's comma) is reserved for the
         // movie-subtitle toggle and never fires the beacon.
-        bool k = IsKeyDown(Vk) && !IsKeyDown(0x10 /*VK_SHIFT*/);
+        bool k = !SettingsMenu.IsOpen && IsKeyDown(Vk) && !IsKeyDown(0x10 /*VK_SHIFT*/);
         if (k && !_keyWas) { Log($"[{GetType().Name}] key {(char)Vk} edge"); Toggle(); }
         _keyWas = k;
 
@@ -102,18 +105,29 @@ internal abstract class ProximityBeacon
             float dx = tx - px, dz = tz - pz;
             float dist = MathF.Sqrt(dx * dx + dz * dz);
 
-            // PURE CARDINAL (world axes, not relative to facing): pan = east/west
-            // (+X east → right), pitch = north/south (+Z north → higher). So a target
-            // due north is a centred HIGHER tone, due east a right-panned natural tone,
-            // due south a centred LOWER tone, due west a left-panned tone.
-            float pan = dist > 1f ? Math.Clamp(dx / dist, -1f, 1f) : 0f;
-            float ns = dist > 1f ? Math.Clamp(dz / dist, -1f, 1f) : 0f;
-            float rate = 1f + ns * 0.4f;               // north → higher pitch, south → lower
+            // CAMERA-relative (2026-07-11, user request — one mental model for ALL
+            // dungeon beacons). The old PURE-CARDINAL panning fought the turning
+            // camera AND was mirrored against the fixed spoken compass (+X is
+            // physically WEST — memory/world_x_axis_is_west.md). Same math + pan
+            // sign as NavBeacon (already user-calibrated): pan = left/right of the
+            // camera forward; behind = muffled + ~3 semitones lower, ahead = bright.
+            var (fx, fz) = FieldTracker.CameraForward3D();
+            float pan = 0f, openness = 1f;
+            if ((fx != 0f || fz != 0f) && dist > 1f)
+            {
+                float ux = dx / dist, uz = dz / dist;   // unit vector to target
+                float fwd = ux * fx + uz * fz;          // ahead(+1) … behind(-1)
+                float rgt = ux * fz + uz * (-fx);       // right(+1) … left(-1)
+                pan = Math.Clamp(-rgt, -1f, 1f);        // NavBeacon's PanSign
+                openness = Math.Clamp((fwd + 1f) * 0.5f, 0f, 1f);
+            }
+            float rate = 1f - 0.18f * (1f - openness);  // behind → lower pitch (front/back unmistakable)
 
             float near = dist / 1000f;
-            float gain = Gain / (1f + near * near);    // steep: quiet far, loud near
+            float gain = Gain * VolumeScale / (1f + near * near);    // steep: quiet far, loud near
 
             DungeonAudio.SetWant(this, true);
+            _voice.Openness = openness;
             _voice.Set(gain, pan, rate);
             _voice.Playing = true;
         }

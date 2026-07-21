@@ -1,0 +1,29 @@
+{
+  "_comment": "Social Link name table for SocialLinkRankUp.cs. KEY = commu index = the game's row index in the commu table *(0x1411A6B10) = the banner's work+0x04 (verified: idx7=Yosuke/Magician, idx2=Nanako/Justice, idx31=Adachi/Jester, idx10=Kanji/Emperor). Value = [character, arcana]. 2026-07-10: romanceable links have a ROW PAIR (normal/lover) — Priestess is BOTH 5 and 6 (log-proven: rank-9 banner id=5, rank-10 banner + Album id=6, both arcanaByte=3), so every pair is mapped to its character: Lovers 3/4 Rise, Priestess 5/6 Yukiko, Chariot 11/12 Chie, Fortune 14/15 Naoto, Moon 21/22 Ai, Aeon 33/34 Marie — safe because each of these arcana has exactly ONE character in P4G (arcana-derived identity, not a name guess). Only the genuinely two-character arcana (Sun 25-28 Yumi/Ayane, Strength 16/17 Kou/Daisuke) stay unlisted -> resolved by the SCR_COMMU_ task. The ARCANA the reader speaks comes from the table itself (row +0x10 byte -> SocialLinkRankUp.ArcanaByByte); this file supplies the NAME. Built 2026-07-07 from a live commu-table dump.",
+  "commu_ids": {
+    "2":  ["Nanako Dojima", "Justice"],
+    "3":  ["Rise Kujikawa", "Lovers"],
+    "4":  ["Rise Kujikawa", "Lovers"],
+    "5":  ["Yukiko Amagi", "Priestess"],
+    "6":  ["Yukiko Amagi", "Priestess"],
+    "7":  ["Yosuke Hanamura", "Magician"],
+    "10": ["Kanji Tatsumi", "Emperor"],
+    "8":  ["Ryotaro Dojima", "Hierophant"],
+    "11": ["Chie Satonaka", "Chariot"],
+    "12": ["Chie Satonaka", "Chariot"],
+    "14": ["Naoto Shirogane", "Fortune"],
+    "15": ["Naoto Shirogane", "Fortune"],
+    "21": ["Ai Ebihara", "Moon"],
+    "22": ["Ai Ebihara", "Moon"],
+    "33": ["Marie", "Aeon"],
+    "34": ["Marie", "Aeon"],
+    "9":  ["Sayoko Uehara", "Devil"],
+    "13": ["The Fox", "Hermit"],
+    "18": ["Naoki Konishi", "Hanged Man"],
+    "19": ["Hisano Kuroda", "Death"],
+    "20": ["Margaret", "Empress"],
+    "23": ["Shu Nakajima", "Tower"],
+    "29": ["Eri Minami", "Temperance"],
+    "31": ["Tohru Adachi", "Jester"]
+  }
+}

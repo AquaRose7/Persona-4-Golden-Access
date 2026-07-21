@@ -139,11 +139,9 @@ internal sealed class WallBump
         return major >= 20 && major < 220;   // dungeon floors 20-69; battles (220-299) excluded
     }
 
-    private static void Thud() { WinBeep(440, 55); WinBeep(300, 85); }
+    private static void Thud()
+        => ToneCue.PlayTones(0.5f * SoundSettings.BumpVol, (440f, 55), (300f, 85));
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;
-
-    private static void WinBeep(uint freq, uint ms) { try { Beep(freq, ms); } catch { } }
-    [DllImport("kernel32.dll")] private static extern bool Beep(uint dwFreq, uint dwDuration);
 }

@@ -48,8 +48,15 @@ nudge.
 | Nudge  | `Components/RoomActionMenu.cs` `_rooms` dict | `"major_minor" → (bit, label, (dir,ms)[] steps)`; empty steps = no nudge |
 
 BIT ranges: room menu trigger **7905**; object bits **79xx** (your room 7_3 = 7910–7915, living
-room 7_2 = 7920–7922, Shopping District North 8_1 = 7930–7931; next area → 7940+). The
-`field.flow` 7905 block now branches on **GET_FIELD_MAJOR() AND GET_FIELD_MINOR()** (7_x vs 8_x).
+room 7_2 = 7920–7922, Shopping District North 8_1 = 7930–7931, Shopping District South 8_2 = 7940,
+Okina City 11_1 = **7960–7962**). The `field.flow` 7905 block branches on **GET_FIELD_MAJOR() AND
+GET_FIELD_MINOR()** (7_x, 8_x, 11_x).
+
+⚠ **RESERVED — do NOT use for object bits: 7900 (tutorial trigger) and 7950 (tutorial
+WelcomeSeenFlag, `Tutorial.cs`).** 2026-07-06 a new Okina object got 7950 → the tutorial's flag
+and the object bit were the SAME switch: walking fired the tutorial (spam) AND `CheckObjectBits`
+read 7950 as "object selected" → nudged everywhere; the menu also flipped the tutorial flag.
+Okina was moved to 7960+. When adding a room, SKIP 7900 and 7950.
 
 ## Current rooms (verified)
 

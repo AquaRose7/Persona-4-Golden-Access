@@ -75,7 +75,7 @@ internal sealed class NavBeacon
         // Back off during an area transition (reading live camera/position mid-scene-rebuild can crash).
         if (FieldTracker.InAreaTransition) { _voice.Playing = false; DungeonAudio.SetWant(this, false); return; }
 
-        bool k = IsKeyDown(VK_P) && !IsKeyDown(VK_SHIFT) && !CommandMenus.PlayerMenu.IsMenuOpen;
+        bool k = !SettingsMenu.IsOpen && IsKeyDown(VK_P) && !IsKeyDown(VK_SHIFT) && !CommandMenus.PlayerMenu.IsMenuOpen;
         if (k && !_keyWas) Toggle();
         _keyWas = k;
 
@@ -130,13 +130,17 @@ internal sealed class NavBeacon
 
         // Volume + tick rate from distance (overworld model): louder + faster ticks as you close in.
         float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist;   // 1 near … 0 far
-        float gain = FarGain + (NearGain - FarGain) * prox;
+        float gain = (FarGain + (NearGain - FarGain) * prox) * SoundSettings.NavVol;
         int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));
 
         DungeonAudio.SetWant(this, true);
         _voice.Openness = openness;
         _voice.GapFrames = gap;
-        _voice.Set(gain, pan, 1f);
+        // BEHIND also lowers the PITCH a little (user 2026-07-06): the muffle
+        // alone was ambiguous — pitch 1.0 dead ahead easing to ~0.82 (≈3
+        // semitones down) directly behind makes front/back unmistakable.
+        float rate = 1f - 0.18f * (1f - openness);
+        _voice.Set(gain, pan, rate);
         _voice.Playing = true;
     }
 

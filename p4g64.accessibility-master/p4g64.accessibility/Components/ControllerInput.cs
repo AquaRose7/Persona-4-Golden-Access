@@ -20,20 +20,21 @@ namespace p4g64.accessibility.Components;
 ///   BOTH + d-pad ↑  → repeat last spoken line       (Shift+P)
 ///   BOTH + d-pad ←/→ → speech history back / forward (Shift+[ / Shift+])
 ///   BOTH + d-pad ↓  → toggle dialogue auto-reader    (Shift+M)
-///   BOTH + Y        → FREE (reserved for future actions)
+///   BOTH + Y        → wall hum on/off      (N)   — 2026-07-18
 ///   RT + A          → party HP/SP          (O)
 ///   RT + X          → money (shop/velvet)  (G)
 ///   RT + B          → enemy status         (U)
 ///   RT + Y          → time + date          (M)
 ///   RT + d-pad      → grid-cursor move I/K/J/L
 ///   RT + L3         → grid-cursor open/toggle (H)  — OR, in battle, read current character (Shift+O)
-///   RT + L/R shoulder → cycle ally prev/next (; / ')  — battle only
+///   RT + L/R shoulder → cycle one member's HP/SP (; / ')  — works anywhere
 ///   RT + R3         → cursor walk/look mode (N)   — dungeon walking vs cursor
 ///   LT + d-pad ←/→  → category prev/next   (- / =)
 ///   LT + d-pad ↑/↓  → entry prev/next      ([ / ])
 ///   LT + A          → brief: name + distance (\)
 ///   LT + B          → overworld nav beacon (P)
-///   LT + L3 or R3   → auto-walk            (Backspace)
+///   LT + L3         → auto-walk            (Backspace)
+///   LT + R3         → cursor Compass/Camera frame (Shift+N) — absolute vs camera-relative
 ///   LT + X          → room "Quick interact" menu (same as Shift+F; X is suppressed while LT held)
 ///
 /// ## Stopping the GAME from also reacting (the hard part — solved at P4G's own input layer)
@@ -65,6 +66,7 @@ internal class ControllerInput
     private const ushort L3 = 0x0040, R3 = 0x0080;
     private const ushort LB = 0x0100, RB = 0x0200;   // left / right shoulder (bumpers)
     private const ushort A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000;
+    private const ushort START = 0x0010;             // LT+RT+Start = settings menu (2026-07-19)
 
     // Virtual-key codes the existing handlers poll for.
     private const int VK_BACK = 0x08, VK_G = 0x47, VK_H = 0x48, VK_M = 0x4D, VK_N = 0x4E;
@@ -73,6 +75,9 @@ internal class ControllerInput
     private const int VK_OEM_MINUS = 0xBD, VK_OEM_PLUS = 0xBB;          // - / =
     private const int VK_OEM_4 = 0xDB, VK_OEM_6 = 0xDD, VK_OEM_5 = 0xDC; // [ / ] / \
     private const int VK_OEM_PERIOD = 0xBE, VK_OEM_2 = 0xBF, VK_OEM_COMMA = 0xBC; // . / / / ,
+    // Settings-menu keys (synthesized while SettingsMenu.IsOpen so the pad drives the menu).
+    private const int VK_UP = 0x26, VK_DOWN = 0x28, VK_LEFT_ARROW = 0x25, VK_RIGHT_ARROW = 0x27,
+                      VK_RETURN = 0x0D, VK_ESCAPE = 0x1B;
 
     // Every VK this poller can synthesize — the universe we diff against each tick.
     private static readonly int[] AllVks =
@@ -81,14 +86,21 @@ internal class ControllerInput
         VK_OEM_MINUS, VK_OEM_PLUS, VK_OEM_4, VK_OEM_6,
         VK_I, VK_J, VK_K, VK_L,
         VK_H, VK_G, VK_M, VK_N, VK_BACK, VK_O, VK_U, VK_OEM_5,
+        VK_UP, VK_DOWN, VK_LEFT_ARROW, VK_RIGHT_ARROW, VK_RETURN, VK_ESCAPE,
     };
 
     private readonly HashSet<int> _synthDown = new();
     private bool _rtHeld, _ltHeld;             // hysteretic trigger state (poll thread)
     private bool _bUpWas, _bDownWas, _bLeftWas, _bRightWas;  // LT+RT d-pad edge state (speech history)
+    private bool _bYWas;                                     // LT+RT + Y edge state (wall hum toggle)
+    private bool _bStartWas;                                 // LT+RT + Start edge state (settings menu)
+    /// <summary>Any settings-menu pad button (d-pad/A/B) currently held — SettingsMenu's
+    /// masking linger waits for this so a closing B press can't leak to the game.</summary>
+    internal static volatile bool MenuPadHeld;
     private bool _bR3Was;                                    // LT+RT + R3 edge state (subtitle toggle)
     private bool _bL3Was;                                    // LT+RT + L3 edge state (description toggle)
     private bool _ltXWas;                                    // LT + X edge state (room Quick interact menu)
+    private bool _ltR3Was;                                   // LT + R3 edge state (cursor Compass/Camera frame, Shift+N)
     private bool _rtL3Was, _rtLbWas, _rtRbWas;               // RT + L3 / shoulders edge state (battle character keys)
     private bool _connectedLogged;
 
@@ -128,6 +140,7 @@ internal class ControllerInput
         // Bug #1 focus gate: only act when the game is focused AND a pad is present.
         if (GameHasFocus() && TryGetState(out XInputState st))
         {
+            MenuPadHeld = (st.Gamepad.Buttons & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT | A | B)) != 0;
             ComputeDesired(st, desired);
             // Publish the movement vector (-1..1 each axis) for WallBump's intent/direction check —
             // reuses this poll's already-read state so nothing else has to hit XInput (perf). Left stick
@@ -145,7 +158,7 @@ internal class ControllerInput
             LeftStickY = Math.Clamp(mvy, -1f, 1f);
         }
         else
-            { _rtHeld = _ltHeld = false; _modHeldShared = false; LeftStickX = 0f; LeftStickY = 0f; }
+            { _rtHeld = _ltHeld = false; _modHeldShared = false; MenuPadHeld = false; LeftStickX = 0f; LeftStickY = 0f; }
 
         // Diff desired vs currently-synthesized; press/release the delta.
         foreach (int vk in AllVks)
@@ -164,19 +177,40 @@ internal class ControllerInput
         _ltHeld = _ltHeld ? lt >= TrigOff : lt >= TrigOn;
         _modHeldShared = _rtHeld || _ltHeld;   // published for the per-frame OnInputFn (no per-frame XInput)
         bool both = _rtHeld && _ltHeld;
-        if (!both) _bUpWas = _bDownWas = _bLeftWas = _bRightWas = _bR3Was = _bL3Was = false;  // reset edges off-combo
-        if (!_ltHeld) _ltXWas = false;                                                        // reset LT+X edge off-LT
+        if (!both) _bUpWas = _bDownWas = _bLeftWas = _bRightWas = _bR3Was = _bL3Was = _bYWas = _bStartWas = false;  // reset edges off-combo
+        if (!_ltHeld) _ltXWas = _ltR3Was = false;                                             // reset LT+X / LT+R3 edges off-LT
         if (!_rtHeld) _rtL3Was = _rtLbWas = _rtRbWas = false;                                  // reset RT character-key edges off-RT
 
         ushort b = st.Gamepad.Buttons;
 
+        // SETTINGS MENU (2026-07-19): while open, the pad drives ONLY the menu —
+        // d-pad = arrows, A = Enter, B = Escape (synth keys, auto-hidden from the
+        // game); LT+RT+Start still toggles. The pad-bitfield clear in OnInputFn
+        // keeps the game blind to these buttons meanwhile.
+        if (SettingsMenu.IsOpen)
+        {
+            if (both) EdgeFire(b, START, ref _bStartWas, static () => SettingsMenu.OpenRequest = true);
+            if ((b & DPAD_UP) != 0) desired.Add(VK_UP);
+            if ((b & DPAD_DOWN) != 0) desired.Add(VK_DOWN);
+            if ((b & DPAD_LEFT) != 0) desired.Add(VK_LEFT_ARROW);
+            if ((b & DPAD_RIGHT) != 0) desired.Add(VK_RIGHT_ARROW);
+            if ((b & A) != 0) desired.Add(VK_RETURN);
+            if ((b & B) != 0) desired.Add(VK_ESCAPE);
+            return;
+        }
+
         if (both)
         {
             // BOTH triggers = dungeon audio beacons (face buttons) + speech history (d-pad).
-            // both + Y is left FREE on purpose.
             if ((b & A) != 0) desired.Add(VK_OEM_PERIOD);  // enemy / shadow radar  (.)
             if ((b & X) != 0) desired.Add(VK_OEM_COMMA);   // chest beacon          (,)
             if ((b & B) != 0) desired.Add(VK_OEM_2);       // exit / stairs beacon  (/)
+            // Y = wall hum toggle, DIRECT call (works even while the H cursor owns
+            // the keyboard N — this combo has no other meaning). 2026-07-18.
+            EdgeFire(b, Y, ref _bYWas, static () => Navigation.WallHum.ToggleFromController());
+            // Start = accessibility settings menu (open; closing is handled by the
+            // IsOpen branch above so the combo toggles from both states).
+            EdgeFire(b, START, ref _bStartWas, static () => SettingsMenu.OpenRequest = true);
 
             // Speech history — direct calls on the d-pad EDGE (not synth); the bitfield-suppress
             // hook already hides the d-pad from the game while triggers are held.
@@ -226,11 +260,14 @@ internal class ControllerInput
             if ((b & A) != 0) desired.Add(VK_OEM_5);       // brief: name + distance (\)
             if ((b & B) != 0) desired.Add(VK_P);           // overworld nav beacon   (P)
 
-            if ((b & L3) != 0 || (b & R3) != 0) desired.Add(VK_BACK); // auto-walk (Backspace)
+            if ((b & L3) != 0) desired.Add(VK_BACK); // auto-walk (Backspace)
 
             // LT + X = open the room "Quick interact" menu (one-shot; the game's X is suppressed
             // while LT is held, so no game menu). Same as Shift+F.
             EdgeFire(b, X, ref _ltXWas, static () => RoomActionMenu.ControllerOpenRequest = true);
+
+            // LT + R3 = grid-cursor Compass/Camera FRAME toggle (Shift+N), one-shot.
+            EdgeFire(b, R3, ref _ltR3Was, static () => Navigation.DungeonCursor.ToggleFrameFromController());
         }
     }
 
@@ -351,7 +388,7 @@ internal class ControllerInput
             *(byte*)(nint)0x15E3FD670L = (byte)ds;
             *(byte*)(nint)0x15E3FD671L = (byte)(ds >> 8);
         }
-        if (!_modHeldShared) return;      // cheap volatile read; the poll thread does the XInput work
+        if (!_modHeldShared && !SettingsMenu.CaptureKeys) return;   // cheap volatile reads; the poll thread does the XInput work
         // While an auto-walk is running, DON'T clear — the walker drives the player with
         // synthesized W/A/S/D, which feeds this same unified bitfield. Clearing it (because the
         // user is still holding the trigger that started the walk) would wipe that movement and
@@ -430,6 +467,10 @@ internal class ControllerInput
     internal static bool SuppressShiftF = true;
     private const int DIK_F = 0x21, DIK_LSHIFT = 0x2A, DIK_RSHIFT = 0x36;
 
+    // Settings-menu keys hidden from the game while the menu is open:
+    // up, down, left, right, Return, numpad Enter, Escape, F1.
+    private static readonly int[] MenuScan = { 0xC8, 0xD0, 0xCB, 0xCD, 0x1C, 0x9C, 0x01, 0x3B };
+
     private static unsafe void MaskKeyboard(int hr, uint cb, nint data)
     {
         if (hr != 0 || data == 0 || cb != 256) return;   // 256 = DInput keyboard state (DIK-indexed, 0x80=down)
@@ -443,6 +484,13 @@ internal class ControllerInput
             && (*(byte*)(data + DIK_LSHIFT) != 0 || *(byte*)(data + DIK_RSHIFT) != 0)
             && *(byte*)(data + DIK_F) != 0)
             *(byte*)(data + DIK_F) = 0;
+
+        // Settings menu open (or its closing key still held): hide its keys from
+        // the game so arrows don't move the player, Escape doesn't touch the pause
+        // menu, and the TAIL of the closing press can't leak either.
+        if (SettingsMenu.CaptureKeys)
+            foreach (int sc in MenuScan)
+                if (*(byte*)(data + sc) != 0) *(byte*)(data + sc) = 0;
     }
 
     // ── key synthesis (VK form: updates GetAsyncKeyState, which every handler polls) ──
@@ -450,20 +498,28 @@ internal class ControllerInput
     private static readonly byte[] _synthScan = new byte[256];
     private static int _synthScanCount;
 
+    // Arrow keys MUST carry KEYEVENTF_EXTENDEDKEY: without it Windows delivers
+    // VK_UP with the numpad-8 scan code, and NVDA's desktop layout SWALLOWS it as
+    // a numpad review command ("top"/"bottom" speech, menu never sees the key —
+    // the 2026-07-19 settings-menu d-pad bug).
+    private static bool IsExtendedVk(int vk)
+        => vk == VK_UP || vk == VK_DOWN || vk == VK_LEFT_ARROW || vk == VK_RIGHT_ARROW;
+
     private static void KeyDown(int vk)
     {
         byte sc = (byte)MapVirtualKey((uint)vk, 0);
-        keybd_event((byte)vk, sc, 0, UIntPtr.Zero);
+        keybd_event((byte)vk, sc, IsExtendedVk(vk) ? KEYEVENTF_EXTENDEDKEY : 0, UIntPtr.Zero);
         if (sc != 0 && _synthScan[sc] == 0) { _synthScan[sc] = 1; System.Threading.Interlocked.Increment(ref _synthScanCount); }
     }
     private static void KeyUp(int vk)
     {
         byte sc = (byte)MapVirtualKey((uint)vk, 0);
-        keybd_event((byte)vk, sc, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        keybd_event((byte)vk, sc, (IsExtendedVk(vk) ? KEYEVENTF_EXTENDEDKEY : 0) | KEYEVENTF_KEYUP, UIntPtr.Zero);
         if (sc != 0 && _synthScan[sc] != 0) { _synthScan[sc] = 0; System.Threading.Interlocked.Decrement(ref _synthScanCount); }
     }
 
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);

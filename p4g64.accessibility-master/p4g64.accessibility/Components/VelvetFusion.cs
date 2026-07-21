@@ -160,6 +160,17 @@ internal unsafe class VelvetFusion : IDisposable
 
     private bool _fired;
     private uint _lastFlag = 0xFFFFFFFF;
+
+    // Fusion inherit capacity (+0x145A on the facility object): max skills the result
+    // persona can inherit, or 0 if not on a fusion-result/inherit screen. FIXED per
+    // fusion. Used in the result persona panel's "Inheritance" section.
+    private static unsafe int InheritCap(nint obj)
+    {
+        if (!IsReadable(obj + 0x145A)) return 0;
+        int c = *(ushort*)(obj + 0x145A);
+        return (c >= 1 && c <= 8) ? c : 0;
+    }
+    private static string InheritCapText(int cap) => $"Can inherit {cap} skill{(cap == 1 ? "" : "s")}";
     private uint _lastPanelBit;
     private int  _lastCursor = -1;
     private int  _dumps;
@@ -402,18 +413,30 @@ internal unsafe class VelvetFusion : IDisposable
 
     // G key — announce the player's money (wallet @0x1451BCD70, same global the shop
     // reader uses), so you can check it against a persona's compendium summon cost.
+    // In the Velvet Room it ALSO speaks the PROTAGONIST LEVEL (user request 2026-07-20):
+    // the ceiling on which persona you can fuse, handy when you've forgotten it. MC
+    // level = byte at the party-member array +0x06 (PlayerMenu's StatusLevel offset).
     private const int VK_G = 0x47;
     private bool _gWas;
     private static readonly nint WALLET = unchecked((nint)0x1451BCD70L);
+    private static readonly nint MC_LEVEL = unchecked((nint)(0x1451BD9E4L + 0x06));
+    /// <summary>TickCount64 stamped every frame the Velvet Room UI updates (PollMoney
+    /// runs from all its render hooks). PlayerMenu's camp-G defers to us while this is
+    /// fresh, so G isn't spoken twice in the Velvet Room (money+level here vs money there).</summary>
+    internal static long LastVelvetTick;
+
     private void PollMoney()
     {
+        LastVelvetTick = Environment.TickCount64;
         if (!Utils.GameHasFocus()) return;   // ignore G while alt-tabbed
         bool g = (GetAsyncKeyState(VK_G) & 0x8000) != 0;
         if (g && !_gWas)
         {
             _gWas = true;
             uint w = IsReadable(WALLET) ? *(uint*)WALLET : 0;
-            Speech.Say($"You have {w} yen", interrupt: true);
+            int lv = IsReadable(MC_LEVEL) ? *(byte*)MC_LEVEL : 0;
+            string money = $"You have {w} yen";
+            Speech.Say(lv > 0 ? $"{money}. You are level {lv}" : money, interrupt: true);
         }
         else if (!g) _gWas = false;
     }
@@ -738,7 +761,18 @@ internal unsafe class VelvetFusion : IDisposable
         int sid = *(ushort*)e;
         if (sid < 1 || sid > 900) return;
 
-        int key = (abs << 16) | sid;
+        // Remaining inherit slots = capacity (+0x145A) - SELECTED. A skill row is
+        // selected when bit 0x0001 of its flags (+0x12D8 + i*4 + 2) is set — live-
+        // verified 2026-07-09 (the flag toggles per pick; +0x1464/+0x1466 are static
+        // and were wrong). Include `rem` in the dedupe key so PICKING a skill (cursor
+        // may not move) re-announces with the updated count.
+        int cap = InheritCap(obj);
+        int selected = 0;
+        for (int i = 0; i < count; i++)
+        { nint fe = obj + INH_ARRAY + (nint)i * 4; if (IsReadable(fe + 2) && (*(ushort*)(fe + 2) & 1) != 0) selected++; }
+        int rem = cap > 0 ? System.Math.Max(0, cap - selected) : -1;
+
+        int key = ((abs & 0xFF) << 20) | (((rem < 0 ? 0xF : rem) & 0xF) << 16) | (sid & 0xFFFF);
         if (key == _inhLast) return;
         _inhLast = key;
 
@@ -749,6 +783,7 @@ internal unsafe class VelvetFusion : IDisposable
         var sb = new StringBuilder(name);
         if (!string.IsNullOrEmpty(cost)) sb.Append(", ").Append(cost);
         if (!string.IsNullOrEmpty(desc)) sb.Append(". ").Append(desc);
+        if (rem >= 0) sb.Append($". You can inherit {rem} more skill{(rem == 1 ? "" : "s")}");
         Speech.Say(sb.ToString(), interrupt: true);
     }
 
@@ -1027,6 +1062,10 @@ internal unsafe class VelvetFusion : IDisposable
         }
         if (skNames.Count > 0) secs.Add(("Skills", string.Join(", ", skNames), skDetail));
 
+        // Inheritance capacity — live fusion result only (field is 0 otherwise).
+        int cap = InheritCap(obj);
+        if (cap > 0) { string t = InheritCapText(cap); secs.Add(("Inheritance", t, new List<string> { t })); }
+
         // Next-learned skill (by id + level).
         try
         {
@@ -1085,11 +1124,27 @@ internal unsafe class VelvetFusion : IDisposable
         uint flag = *(uint*)(obj + FLAG);
         _lastFlag = flag;   // (the per-change flag log was removed in the v1.3.5 cleanup)
 
+        // Fusion INHERIT CAPACITY (+0x145A, u16) — how many skills you can give the
+        // result persona. FIXED per fusion (NOT +0x1464/+0x1466, which are live
+        // remaining-slot counters; live-verified 2026-07-09: +0x145A read 4 and the
+        // game capped selection at 4). It is NOT announced standalone (that stomped
+        // the persona panel) — it's folded into the result persona panel (BuildSections
+        // "Inheritance" section) and the skill-select screen (ReadInheritance). See
+        // InheritCap().
+
         // Skill-INHERITANCE screen (bit 0x4000) is drawn by FUN_140234B20 and read
         // by its own hook (OnInhDraw) — skip here so the profile reader below doesn't
         // talk over it (the inheritance flag also carries the profile bit 0x40).
         if ((flag & INH_BIT) != 0) return;
         _inhLast = -1;   // left the inheritance screen -> re-announce on re-entry
+
+        // SPREAD-fusion RESULT panel (Cross/Pentagon/Hexagon — press to MAKE the persona):
+        // low word 0x0074 = the spread persona panel (0x0034) + the profile bit (0x40).
+        // It carries 0x40, so the generic profile branch below would hand it to the
+        // NORMAL-fusion ReadPersonaPanel with stale data (silent — user 2026-07-09,
+        // live flag 0x80040074). Route it to the spread reader first; the spread cursor
+        // points at the result persona being confirmed.
+        if ((flag & 0xFFFF) == 0x0074) { ReadSpreadPersonaPanel(obj); return; }
 
         // Persona PROFILE (F / Skill Info) opens over the list — flag bit 0x40.
         // In the Search context (0x2000 also set) the shown persona is the highlighted
@@ -1475,6 +1530,11 @@ internal unsafe class VelvetFusion : IDisposable
             skDetail.Add(SkillLine(sid2));
         }
         if (skNames.Count > 0) secs.Add(("Skills", string.Join(", ", skNames), skDetail));
+
+        // Inheritance capacity — only when this is a live fusion result (the field is
+        // 0 outside fusion), so it never shows on a plain compendium/owned view.
+        int cap = InheritCap(obj);
+        if (cap > 0) { string t = InheritCapText(cap); secs.Add(("Inheritance", t, new List<string> { t })); }
 
         // Next experience + next-learned skill — one row (matches the screen's
         // "NEXT EXP" and "Next LV" boxes). I/K reads both; J/L steps through them

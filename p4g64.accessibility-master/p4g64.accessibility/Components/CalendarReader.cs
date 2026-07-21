@@ -105,6 +105,13 @@ internal unsafe class CalendarReader : IDisposable
         if (_weather != null && _weather.TryGetValue($"{mi + 1}-{cursorDay}", out var w) && w.Length > 0)
             msg += $", {w}";
 
+        // Fusion Forecast for the selected day (v1.4.0 item E, user 2026-07-06):
+        // the same date-keyed table the Velvet Fusion Forecast screen reads.
+        // Days absent from the table stay silent.
+        if (_forecast == null) LoadForecast();
+        if (_forecast != null && _forecast.TryGetValue($"{mi + 1}-{cursorDay}", out var fc))
+            msg += fc.Trigger == "None" ? $", fusion: {fc.Effect}" : $", fusion, {fc.Trigger}: {fc.Effect}";
+
         if (dispMonth == todayMonth && cursorDay == todayDay) msg += ", today";
 
         // SELECTED day's schedule event NAME(s) — a null-terminated list of char* at struct+0xA0
@@ -131,6 +138,26 @@ internal unsafe class CalendarReader : IDisposable
         }
 
         Speech.Say(msg, interrupt: true);
+    }
+
+    // Fusion Forecast table (same file/format VelvetFusion reads) keyed "m-d".
+    private static Dictionary<string, (string Trigger, string Effect)>? _forecast;
+
+    private static void LoadForecast()
+    {
+        _forecast = new Dictionary<string, (string, string)>();
+        try
+        {
+            string p = DataPath("fusion_forecast.json");
+            if (!System.IO.File.Exists(p)) { Log("[Calendar] fusion_forecast.json not found"); return; }
+            using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(p));
+            if (doc.RootElement.TryGetProperty("schedule", out var s))
+                foreach (var kv in s.EnumerateObject())
+                    _forecast[kv.Name] = (kv.Value.GetProperty("trigger").GetString() ?? "None",
+                                          kv.Value.GetProperty("effect").GetString() ?? "");
+            Log($"[Calendar] fusion forecast loaded ({_forecast.Count} days)");
+        }
+        catch (Exception e) { Log($"[Calendar] fusion forecast load failed: {e.Message}"); }
     }
 
     private static void LoadWeather()

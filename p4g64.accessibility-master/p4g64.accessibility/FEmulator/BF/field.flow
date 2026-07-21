@@ -48,6 +48,26 @@ void order_party_softhook()
         return;
     }
 
+    // First time in your room: Quick Interact + the Accessibility Settings (2026-07-19).
+    if (BIT_CHK(7901))
+    {
+        BIT_OFF(7901);
+        HELP_MSG(RoomTip1);
+        HELP_MSG(RoomTip2);
+        HELP_MSG(RoomTip3);
+        return;
+    }
+
+    // First dungeon floor: sound tools + stairs travel + the Help section (2026-07-19).
+    if (BIT_CHK(7902))
+    {
+        BIT_OFF(7902);
+        HELP_MSG(DungeonTip1);
+        HELP_MSG(DungeonTip2);
+        HELP_MSG(DungeonTip3);
+        return;
+    }
+
     // ── Room Action menu ("What's here?") — opened by Shift+F (C# arms 7905 +
     //    synth-F). Plain F never sets 7905, so the normal menu is untouched.
     //    Object picks get their teleport wired in Task 2; Cancel just returns. ──
@@ -88,6 +108,24 @@ void order_party_softhook()
                 pick = ADV_SEL(ShopNorth_Text, ShopNorth, 0);
                 if (pick == 0) { BIT_ON(7930); CALL_FIELD_SAFE(8, 1, 7, 0); return; }   // Aiya diner,     entry 7
                 if (pick == 1) { BIT_ON(7931); CALL_FIELD_SAFE(8, 1, 1, 0); return; }   // Bulletin board, entry 1
+                return;
+            }
+            if (GET_FIELD_MINOR() == 2)   // Shopping District South
+            {
+                pick = ADV_SEL(ShopSouth_Text, ShopSouth, 0);
+                if (pick == 0) { BIT_ON(7940); CALL_FIELD_SAFE(8, 2, 0, 0); return; }   // Bus stop, entry 0
+                return;
+            }
+            return;
+        }
+        if (GET_FIELD_MAJOR() == 11)   // Okina City
+        {
+            if (GET_FIELD_MINOR() == 1)
+            {
+                pick = ADV_SEL(Okina_Text, Okina, 0);
+                if (pick == 0) { BIT_ON(7960); CALL_FIELD_SAFE(11, 1, 1, 0); return; }  // Clothing store, entry 1
+                if (pick == 1) { BIT_ON(7961); CALL_FIELD_SAFE(11, 1, 0, 0); return; }  // Theater,        entry 0
+                if (pick == 2) { BIT_ON(7962); CALL_FIELD_SAFE(11, 1, 1, 0); return; }  // Cafe,           entry 1
                 return;
             }
             return;

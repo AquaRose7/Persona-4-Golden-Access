@@ -688,12 +688,17 @@ internal unsafe class ShopMenu
     // Endurance"; Miori Shirt 0x28=85 → "+Auto-Sukukaja"; plain items 0x28=0).
     private static string ReadAddEffect(int gameItemId)
     {
-        if (gameItemId < 0 || gameItemId >= 768) return "";   // weapon/armor/accessory only
+        // Classic equipment (0-767) + the GOLDEN weapon bank (2304-2559, cat 9).
+        bool classic = gameItemId >= 0 && gameItemId < 768;
+        bool golden = gameItemId >= 2304 && gameItemId < 2560;
+        if (!classic && !golden) return "";
         if (!IsReadable((nint)EquipStatTblAddr, 8)) return "";
         nint baseAddr = *(nint*)(nint)EquipStatTblAddr;
         if (baseAddr == 0) return "";
         nint rec = baseAddr + (nint)gameItemId * 0x44;
         if (!IsReadable(rec, 0x44)) return "";
+        int cat = *(short*)rec;
+        if (cat != 0 && cat != 1 && cat != 2 && cat != 9) return "";   // stale/foreign record
         int effId = *(int*)(rec + 0x28);
         if (effId <= 0) return "";
         string t = ReadDescription(Dialog.HelpBmd.AddEffect, effId);
@@ -707,22 +712,26 @@ internal unsafe class ShopMenu
     private static int EquipStats(int gameItemId, out int a, out int b)
     {
         a = b = 0;
-        if (gameItemId < 0 || gameItemId >= 512) return -1;
+        // Classic weapons 0-255 / armor 256-511, plus the GOLDEN special-weapon bank
+        // 2304-2559 (cat 9, same weapon field layout, equippable by everyone —
+        // Festival Fan 2350 live-probed 2026-07-06: cat=9 atk=80 hit=90).
+        bool golden = gameItemId >= 2304 && gameItemId < 2560;
+        if (gameItemId < 0 || (gameItemId >= 512 && !golden)) return -1;
         if (!IsReadable((nint)EquipStatTblAddr, 8)) return -1;
         nint baseAddr = *(nint*)(nint)EquipStatTblAddr;
         if (baseAddr == 0) return -1;
         nint rec = baseAddr + (nint)gameItemId * 0x44;
         if (!IsReadable(rec, 0x44)) return -1;
         int cat = *(short*)rec;
-        int expectCat = gameItemId < 256 ? 0 : 1;
+        int expectCat = golden ? 9 : gameItemId < 256 ? 0 : 1;
         if (cat != expectCat)
         {
             Log($"[ShopMenu] stat table cat {cat} != expected {expectCat} for id {gameItemId} — stats silent");
             return -1;
         }
-        if (cat == 0) { a = *(short*)(rec + 0x08); b = *(short*)(rec + 0x0A); }
-        else          { a = *(short*)(rec + 0x10); b = *(short*)(rec + 0x12); }
-        return cat;
+        if (cat == 0 || cat == 9) { a = *(short*)(rec + 0x08); b = *(short*)(rec + 0x0A); }
+        else                      { a = *(short*)(rec + 0x10); b = *(short*)(rec + 0x12); }
+        return cat == 9 ? 0 : cat;   // callers treat 0 = weapon
     }
 
     // Currently-equipped item id for (charId, slot), from the equipped-items table
@@ -1004,8 +1013,11 @@ internal unsafe class ShopMenu
                     else Log($"[ShopMenu] F: ignored — state=0x{_shopState:X2} not a list");
                 }
 
-                // G = wallet readout (works on any shop screen)
-                if (gNow && !_gKeyWas)
+                // G = wallet readout (works on any shop screen). Defer to the Velvet
+                // Room's own G (money + level): the shop struct stays readable after
+                // you leave a shop, so _active lingers and the velvet UI would double
+                // up the money readout (user report 2026-07-20).
+                if (gNow && !_gKeyWas && Environment.TickCount64 - VelvetFusion.LastVelvetTick > 400)
                 {
                     uint w = ReadWallet();
                     Speech.Say($"You have {w} yen.", true);

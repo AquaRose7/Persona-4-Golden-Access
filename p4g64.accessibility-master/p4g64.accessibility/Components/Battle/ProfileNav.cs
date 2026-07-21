@@ -27,12 +27,13 @@ internal sealed unsafe class ProfileNav
 {
     private const int PollMs = 40;
     private const int VK_I = 0x49, VK_K = 0x4B, VK_J = 0x4A, VK_L = 0x4C;
-    private const int Rows = 3;
+    private const int Rows = 4;
 
     private readonly Thread _thread;
     private volatile bool _stopped;
     private bool _iW, _kW, _jW, _lW;
     private int _row, _item = -1;
+    private bool _qaWasActive;   // Q quick-panel was the active source last tick
     private nint _lastTarget;
     private bool _panelWas;
 
@@ -65,6 +66,27 @@ internal sealed unsafe class ProfileNav
         // the same lingering enemy stays silent. I/K/J/L still navigates the panel.
         nint target = Battle.AnalyzeSelectedEnemy();
         bool active = Battle.CurrentCommand == 0 && target != 0 && Battle.UnitSide(target) == 1;
+
+        // Q QUICK-ANALYZE panel (2026-07-11): during targeting the game's Q panel
+        // renders through the SAME analyze fn, so Battle.AnalyzeSkillUnit holds the
+        // shown enemy exactly while it is visibly up. Give it the full ProfileNav
+        // treatment — auto-header + I/K/J/L — outside the Analysis command (which
+        // the block above already owns). Unlike the Analysis ring, REOPENING the Q
+        // panel re-reads the header (fresh open = fresh intent), so the panel-open
+        // rising edge clears _lastTarget.
+        bool qaActive = false;
+        if (!active)
+        {
+            nint qa = Battle.AnalyzeSkillUnit;
+            if (qa != 0 && Battle.CurrentCommand != 0 && Battle.UnitSide(qa) == 1)
+            {
+                target = qa;
+                active = qaActive = true;
+                if (!_qaWasActive) _lastTarget = 0;   // re-announce on each Q open
+            }
+        }
+        _qaWasActive = qaActive;
+
         if (!active)
         {
             _row = 0; _item = -1;   // keep _lastTarget so re-hover same enemy is silent
@@ -113,17 +135,27 @@ internal sealed unsafe class ProfileNav
         {
             case 0:
             {
+                // Name always shows (green header). Arcana + level are part of the
+                // basic-info block the game HIDES behind "?" until the enemy is
+                // analyzed — only read them when the panel is actually revealing them
+                // (else we leaked a boss's real level/arcana, user 2026-07-20).
                 string name = Battle.UnitName(unit) ?? "Enemy";
-                string arcana = Battle.EnemyArcanaName(unit);
-                int lvl = Battle.EnemyLevel(unit);
                 var items = new List<string> { name };
-                if (!string.IsNullOrEmpty(arcana)) items.Add(arcana);
-                items.Add(lvl >= 0 ? $"level {lvl}" : "level unknown");
+                bool revealed = Battle.AnalyzeSkillUnit == unit && Battle.AnalyzeBasicRevealed;
+                if (revealed)
+                {
+                    string arcana = Battle.EnemyArcanaName(unit);
+                    int lvl = Battle.EnemyLevel(unit);
+                    if (!string.IsNullOrEmpty(arcana)) items.Add(arcana);
+                    items.Add(lvl >= 0 ? $"level {lvl}" : "level unknown");
+                }
+                else items.Add("level unknown");
                 return (null, items.ToArray());
             }
             case 1:
             {
-                if (Battle.EnemyMaxHpSp(unit, out int mhp, out int msp))
+                bool revealed = Battle.AnalyzeSkillUnit == unit && Battle.AnalyzeBasicRevealed;
+                if (revealed && Battle.EnemyMaxHpSp(unit, out int mhp, out int msp))
                     return (null, new[] { $"Max HP {mhp}", $"Max SP {msp}" });
                 return (null, new[] { "Max HP unknown", "Max SP unknown" });
             }
@@ -133,6 +165,16 @@ internal sealed unsafe class ProfileNav
                 foreach (var (id, nm) in Battle.ProfileElements)
                     items.Add(Battle.ElementAffinityText(unit, id, nm));
                 return ("Elements", items.ToArray());
+            }
+            case 3:
+            {
+                // Skills — ONLY what the game is actually revealing on this panel (the
+                // enemy-skills upgrade). The analyze render publishes the reveal state;
+                // if it isn't showing them for THIS enemy, we say so instead of leaking.
+                if (Battle.AnalyzeSkillUnit != unit || !Battle.AnalyzeSkillsRevealed)
+                    return ("Skills", new[] { "not revealed" });
+                string[] names = Battle.AnalyzeSkillNames();
+                return ("Skills", names.Length > 0 ? names : new[] { "none" });
             }
         }
         return (null, Array.Empty<string>());

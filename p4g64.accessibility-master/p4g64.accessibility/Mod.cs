@@ -51,6 +51,7 @@ public class Mod : ModBase // <= Do not Remove.
     private Components.Battle.MultiTargetReader _multiTargetReader;
     private PartyStatus _partyStatus;
     private EnemyStatus _enemyStatus;
+    private Components.Battle.TacticsMemberReader _tacticsMember;   // tactics member cursor — rooted (poll thread)
     private DamageMonitor _damageMonitor;
     private ProfileNav _profileNav;
     private PersonaNav _personaNav;
@@ -70,8 +71,17 @@ public class Mod : ModBase // <= Do not Remove.
     private VelvetMenu _velvetMenu;
     private VelvetFusion _velvetFusion;
     private Components.CompendiumInfoText _compInfoText;   // TEMP diag — rooted (hook delegate)
+    private Components.GameOverReader _gameOverReader;      // game-over monologue — rooted (hook delegate)
+#if DEBUG
+    private Components.UiTextSpy _uiTextSpy;                // F9 battle recon — rooted (hook delegate)
+#endif
+    private Components.AlbumMenu? _albumMenu;               // ALBUM (sofa memories) reader — rooted (hook delegate)
     private DifficultyMenu _difficultyMenu;
     private EarlyMenu _earlyMenu;
+    private Components.TvListingsReader? _tvListingsReader;
+    private Components.SocialLinkRankUp? _slRankUp;
+    private Components.SocialLinkBond? _slBond;
+    private Components.SkillRegainMenu? _skillRegain;
     private SubtitleReader _subtitleReader;
     private MovieDescription _movieDescription;
     private Tutorial _tutorial;
@@ -79,6 +89,7 @@ public class Mod : ModBase // <= Do not Remove.
     private FieldTracker _fieldTracker;
     private LoadScreenTracker _loadScreenTracker;
     private ConfigMenu _configMenu;
+    private Components.ConfigValueText _configValueText; // config-menu live values (450C60 render stream) — rooted (hook delegate)
     private DaidaraCharSelect _daidaraCharSelect;
     private OverworldNav _overworldNav;
     private DungeonCursor? _dungeonCursor;
@@ -87,10 +98,13 @@ public class Mod : ModBase // <= Do not Remove.
     private ChestBeacon? _chestBeacon;
     private NavBeacon? _navBeacon;
     private WallBump? _wallBump;
+    private WallHum? _wallHum;
     private DungeonNav? _dungeonNav;
     private PersonaReleaseMenu? _personaReleaseMenu;
     private ControllerInput? _controllerInput;
     private Components.HistoryKeys? _historyKeys;
+    private Components.SettingsMenu? _settingsMenu;
+    private Components.BacklogReader? _backlogReader;
 
     /// <summary>
     /// Provides access to this mod's configuration.
@@ -137,9 +151,11 @@ public class Mod : ModBase // <= Do not Remove.
         // Persisted user settings (mod_settings.json in the mod folder) — restore the mode
         // toggles BEFORE the components construct so they start in last session's state.
         ModSettings.Load();
-        Components.Dialogue.ReaderEnabled = ModSettings.GetBool("dialogue_reader", true);
-        Components.SubtitleReader.ReaderEnabled = ModSettings.GetBool("subtitle_reader", true);
-        Components.MovieDescription.Enabled = ModSettings.GetBool("movie_descriptions", true);
+        Components.Dialogue.ReaderEnabled = ModSettings.GetBool("dialogue_reader", Defaults.DialogueReader);
+        Components.SubtitleReader.ReaderEnabled = ModSettings.GetBool("subtitle_reader", Defaults.SubtitleReader);
+        Components.MovieDescription.Enabled = ModSettings.GetBool("movie_descriptions", Defaults.MovieDescriptions);
+        SoundSettings.Load();
+        Components.Navigation.ToneCue.Init();
         AtlusEncoding.Initiailse(Utils.ModDir);
         Dialog.Initialise();
         Party.Initialise();
@@ -166,9 +182,12 @@ public class Mod : ModBase // <= Do not Remove.
         Speech.Say("Accessibility mod loaded", true);
 
         // Announce restored NON-default toggles — otherwise the silence looks like a bug.
-        if (!Components.Dialogue.ReaderEnabled) Speech.Say("Dialogue reader off, voice mode.", false);
-        if (!Components.SubtitleReader.ReaderEnabled) Speech.Say("Subtitle reader off.", false);
-        if (!Components.MovieDescription.Enabled) Speech.Say("Cutscene descriptions off.", false);
+        if (Components.Dialogue.ReaderEnabled != Defaults.DialogueReader)
+            Speech.Say(Components.Dialogue.ReaderEnabled ? "Dialogue reader on." : "Dialogue reader off, voice mode.", false);
+        if (Components.SubtitleReader.ReaderEnabled != Defaults.SubtitleReader)
+            Speech.Say(Components.SubtitleReader.ReaderEnabled ? "Subtitle reader on." : "Subtitle reader off.", false);
+        if (Components.MovieDescription.Enabled != Defaults.MovieDescriptions)
+            Speech.Say(Components.MovieDescription.Enabled ? "Cutscene descriptions on." : "Cutscene descriptions off.", false);
 
         _dialogue = new Dialogue(_hooks!);
         _titleBar = new TitleBar(_hooks!);
@@ -186,6 +205,8 @@ public class Mod : ModBase // <= Do not Remove.
         _multiTargetReader = new Components.Battle.MultiTargetReader();
         _partyStatus = new PartyStatus();
         _enemyStatus = new EnemyStatus();
+        // Tactics member-selection cursor (the row drawer's p6 argument — 2026-07-11)
+        _tacticsMember = new Components.Battle.TacticsMemberReader();
         _damageMonitor = new DamageMonitor();
         _profileNav = new ProfileNav();
         _personaNav = new PersonaNav();
@@ -208,8 +229,35 @@ public class Mod : ModBase // <= Do not Remove.
         // list. See memory/velvet_room_fusion_re.md.
         _velvetFusion = new VelvetFusion(_hooks!);
         _compInfoText = new Components.CompendiumInfoText(_hooks!);
+        // Game-over Velvet Room monologue (task evtGameOver + verbatim glyph capture)
+        _gameOverReader = new Components.GameOverReader(_hooks!);
+#if DEBUG
+        // UiTextSpy recon (F9, BATTLE-ONLY arm so the old RoomActionMenu Ctrl+F9
+        // collision can't happen): 2026-07-11 color-capture upgrade for the
+        // tactics-cursor / Q-quick-analyze hunts. Debug builds only.
+        _uiTextSpy = new Components.UiTextSpy(_hooks!);
+#endif
+        // ALBUM menu reader (sofa → "Whose album will you read?" → maxed-SL memory at
+        // a rank). Hooks FUN_14014f110; see AlbumMenu.cs for the struct map.
+        _albumMenu = new Components.AlbumMenu(_hooks!);
         _difficultyMenu = new DifficultyMenu(_hooks!);
         _earlyMenu = new EarlyMenu(_hooks!);
+        // TV Listings reader (2026-07-07): polls the CHANNEL_MAIN_PROC task
+        // (guide screen) — channel/program cursor + unlock state; names and
+        // descriptions from database/tvlistings_catalog.json. Subscreen
+        // players (music/anime) speak the game's own text draws (hook on
+        // FUN_140450C60) because their lists hide locked entries.
+        _tvListingsReader = new Components.TvListingsReader(_hooks!);
+        // Social Link "Rank up!!" banner (2026-07-07): task-registry based —
+        // cmmRankUp task = the banner, SCR_COMMU_* task = which link.
+        _slRankUp = new Components.SocialLinkRankUp();
+        // S.Link "Thou art I… established a new bond… X Arcana" overlay
+        // (2026-07-07): captures the cmm rank poem from FUN_140450C60 (the
+        // normal dialogue reader misses this special overlay).
+        _slBond = new Components.SocialLinkBond(_hooks!);
+        // "Select the skill you want to regain" menu (rare S.Link outing) — polls the
+        // cmp_skill_add_ex task; see SkillRegainMenu.cs.
+        _skillRegain = new Components.SkillRegainMenu();
         _subtitleReader = new SubtitleReader(_hooks!);
         _movieDescription = new MovieDescription();
         _tutorial = new Tutorial();
@@ -217,6 +265,10 @@ public class Mod : ModBase // <= Do not Remove.
         _fieldTracker = new FieldTracker(_hooks!);
         _loadScreenTracker = new LoadScreenTracker(_hooks!);
         _configMenu = new ConfigMenu(_hooks!);
+        // Config-menu LIVE VALUES: parses the FUN_140450C60 render stream into a
+        // label→value map (the menu-struct value field recycles/freezes — dead end,
+        // memory/config_menu_status.md). ConfigMenu speaks "name, value" from it.
+        _configValueText = new Components.ConfigValueText(_hooks!);
         _shopMenu = new ShopMenu(_hooks!);
         _bookstoreMenu = new BookstoreMenu(_hooks!);
         _daidaraCharSelect = new DaidaraCharSelect(_hooks!);
@@ -245,6 +297,7 @@ public class Mod : ModBase // <= Do not Remove.
         _chestBeacon = new ChestBeacon();
         _navBeacon = new NavBeacon();   // P = 3D camera-relative beacon to the selected item / H-cursor
         _wallBump = new WallBump();     // SPIKE: thud when you hit a wall (trying-to-move-but-stuck)
+        _wallHum = new WallHum();       // N: directional wall tones while walking (user-designed, 2026-07-15)
         // DoorBeacon (the ';' door-sound beacon) removed 2026-06-23 (user request).
 
         // Unified dungeon browser + auto-walk. -/= cycle category (Doors ·
@@ -265,6 +318,8 @@ public class Mod : ModBase // <= Do not Remove.
         // Requires Steam Input disabled for P4G. See ControllerInput.cs.
         _controllerInput = new ControllerInput(_hooks!);
         _historyKeys = new Components.HistoryKeys();   // Shift+P/[/]/M speech-history + dialogue toggle
+        _settingsMenu = new Components.SettingsMenu(); // F1 / LT+RT+Start — the accessibility settings menu
+        _backlogReader = new Components.BacklogReader(_hooks!); // dialogue backlog (X) — TEMP diag capture
 
         // FlowScript bridge. Used by the navigation teleport (see NavigationAssist
         // "Teleport trigger"). Requires BOTH:

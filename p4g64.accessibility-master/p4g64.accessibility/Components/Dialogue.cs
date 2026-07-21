@@ -180,11 +180,27 @@ internal unsafe class Dialogue
     // doesn't touch the game's own audio engine. choice.wav ships flat in the
     // mod folder (DataPath resolves it; falls back to database/sounds).
     private static string? _cuePath;
+    private static float[]? _cueMono;
+    private static bool _cueLoadTried;
 
     private static void PlayChoiceCue()
     {
         try
         {
+            // Preferred path since 2026-07-19: our own mixer, so the cue gets a user
+            // volume knob (SettingsMenu). The winmm PlaySound stays as the fallback
+            // if the WAV can't be decoded — a missing cue must never break dialogue.
+            if (!_cueLoadTried)
+            {
+                _cueLoadTried = true;
+                Navigation.ToneCue.TryLoadWav("choice.wav", out var m);
+                if (m.Length > 0) _cueMono = m;
+            }
+            if (_cueMono != null)
+            {
+                Navigation.ToneCue.PlayWav(_cueMono, 0.9f * SoundSettings.ChoiceVol);
+                return;
+            }
             _cuePath ??= DataPath("choice.wav", "sounds");
             if (System.IO.File.Exists(_cuePath))
                 PlaySound(_cuePath, IntPtr.Zero, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);

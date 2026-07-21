@@ -40,6 +40,7 @@ internal class HistoryKeys
     private void Tick()
     {
         if (!GameHasFocus()) return;
+        if (SettingsMenu.IsOpen) return;   // settings menu owns input
         bool shift = Down(VK_SHIFT);
 
         bool sp = shift && Down(VK_P);

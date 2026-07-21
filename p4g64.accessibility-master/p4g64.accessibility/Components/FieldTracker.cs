@@ -975,9 +975,546 @@ internal unsafe class FieldTracker
         // instruction sits inside a hot loop and patching it corrupts state.
         // Disabled. See memory notes for details and next experiments.
 
+        // ★ THE ANCHOR (2026-07-16): wrap the game's OWN nearest-collision query
+        // (FUN_1402d97d0, from the movement-tick decompile). Reconstructing wall
+        // geometry from actor meshes is a proven dead end (six transform modes,
+        // all wrong by ear). This function does the game's OWN collision math
+        // internally — we ASK it "nearest wall to this point" instead of
+        // rebuilding walls ourselves. bool FUN(float* pos, float* outPt, scene).
+        try
+        {
+            _nearestColl = hooks.CreateWrapper<NearestCollDelegate>(unchecked((nint)0x1402D97D0L), out _);
+            Log("[Collision] game nearest-collision query wrapped @0x1402D97D0");
+        }
+        catch (Exception e) { Log($"[Collision] wrapper setup failed: {e.Message}"); }
+
+        // ★ THE DIRECTIONAL SENSOR (2026-07-16): wrap the game's OWN sphere-
+        // OVERLAP-vs-wall test (FUN_14032b810 — the movement tick's own wall
+        // resolve). It answers "is any wall within `radius` of this point?" +
+        // returns the hit triangle's normal, iterating the SAME walls-only scene
+        // (sub+0x10e0) the nearest query uses. Marching it along a direction gives
+        // per-direction wall distance — the shape the nearest query couldn't.
+        try
+        {
+            _sweepColl = hooks.CreateWrapper<SweepDelegate>(unchecked((nint)0x14032B810L), out _);
+            Log("[Collision] game sphere-overlap query wrapped @0x14032B810");
+        }
+        catch (Exception e) { Log($"[Collision] sweep wrapper setup failed: {e.Message}"); }
+
+        // ★ GAME-THREAD COLLISION PUMP (2026-07-16): the collision queries above
+        // are NOT thread-safe — there is NO scene lock (FUN_140881a04 is a profiler
+        // stub), so a background-thread call races the game's own per-frame
+        // collision and AV-crashes (proven 2026-07-16). Hook the per-frame movement
+        // tick (FUN_1402D53A0 — where the game runs its OWN collision): after the
+        // original tick returns, the scene is consistent and we are on the game
+        // thread, so a queued probe runs HERE race-free.
+        try
+        {
+            _moveTickHook = hooks.CreateHook<MoveTickDelegate>(MoveTickDetour, unchecked((nint)0x1402D53A0L)).Activate();
+            Log("[Collision] movement-tick hooked @0x1402D53A0 (game-thread probe pump)");
+        }
+        catch (Exception e) { Log($"[Collision] move-tick hook failed: {e.Message}"); }
+
         new Thread(Poll)       { IsBackground = true, Name = "FieldTracker"     }.Start();
         new Thread(KeyPoll)    { IsBackground = true, Name = "FieldTrackerKeys" }.Start();
         new Thread(NpcMonitor) { IsBackground = true, Name = "NpcMonitor"       }.Start();
+    }
+
+    // ── THE ANCHOR: the game's own collision query ────────────────────────────
+    // Wrapped native fn: iterates the scene (sub_obj+0x10e0) and returns the
+    // nearest collision point to a query position — using the ENGINE's own
+    // per-actor transform math (FUN_1403280f0), so it is correct BY
+    // CONSTRUCTION, whatever the matrix convention we could never derive.
+    private delegate int NearestCollDelegate(nint pos, nint outPt, nint scene);
+    private static NearestCollDelegate? _nearestColl;
+
+    // The SWEPT-sphere-vs-wall test the movement tick itself calls to resolve
+    // motion. FIVE args (the 5th — the sweep DIRECTION vec3 — is staged on the
+    // stack at the call site, so Ghidra shows only 4 inline; omitting it left
+    // param_5 = uninitialized stack → deref → AV whenever a wall was close, i.e.
+    // once a triangle passed the distance gate, 2026-07-16):
+    //   bool FUN_14032b810(scene, float radius, float* startPt, float* outNormal, float* dir).
+    // radius is arg #1 → XMM1 (float in position 1) by the x64 ABI, so the
+    // delegate MUST declare it `float` in that slot.
+    private delegate int SweepDelegate(nint scene, float radius, nint startPt, nint outNormal, nint dir);
+    private static SweepDelegate? _sweepColl;
+
+    /// <summary>Ask the game for the nearest collision point to (px,py,pz).
+    /// Hard-gated: dungeon + not mid-transition + scene readable (an AV here is
+    /// uncatchable in .NET 9, so the gate IS the safety). False = no wall found
+    /// or unavailable. This is the foundation the whole nav layer will stand on.</summary>
+    public static unsafe bool TryNearestWallGame(float px, float py, float pz,
+        out float wx, out float wy, out float wz)
+    {
+        wx = wy = wz = 0;
+        if (_nearestColl == null) return false;
+        if (CurrentMajor < 20 || CurrentMajor >= 220) return false;
+        if (InAreaTransition) return false;
+        var (sub, ok) = GetSubObjPtr();
+        if (!ok) return false;
+        nint scene = sub + 0x10e0;
+        if (!IsReadable(scene, 0x150)) return false;
+        float* pos = stackalloc float[4]; pos[0] = px; pos[1] = py; pos[2] = pz; pos[3] = 1f;
+        float* outp = stackalloc float[4]; outp[0] = outp[1] = outp[2] = outp[3] = 0f;
+        int found = _nearestColl((nint)pos, (nint)outp, scene);
+        if (found == 0) return false;
+        wx = outp[0]; wy = outp[1]; wz = outp[2];
+        return float.IsFinite(wx) && float.IsFinite(wz) && MathF.Abs(wx) < 1e7f && MathF.Abs(wz) < 1e7f;
+    }
+
+    /// <summary>Ask the game's SWEPT-sphere collision whether a `radius`-sphere at
+    /// (px,py,pz) moving along unit dir (dx,dy,dz) hits a wall triangle (the
+    /// movement tick's own test). True = blocked; (nx,ny,nz) = the hit triangle's
+    /// normal (near-horizontal = wall, |ny| large = floor/ceiling). The direction
+    /// vec3 is REQUIRED (param_5) — the sweep dereferences it once a triangle is in
+    /// range. Same hard gate as <see cref="TryNearestWallGame"/> — an AV in the
+    /// native call is uncatchable, so the gate IS the safety; MUST run on the game
+    /// thread (see the move-tick pump — there is no scene lock).</summary>
+    public static bool SphereOverlapsWall(float px, float py, float pz,
+        float dx, float dy, float dz, float radius,
+        out float nx, out float ny, out float nz)
+    {
+        nx = ny = nz = 0;
+        if (!(float.IsFinite(dx) && float.IsFinite(dy) && float.IsFinite(dz))) return false;
+        if (!TryGetCollisionScene(out nint scene)) return false;
+        return SweepSceneRaw(scene, px, py, pz, dx, dy, dz, radius, out nx, out ny, out nz);
+    }
+
+    /// <summary>Resolve + gate the collision scene (sub+0x10e0). Includes a pointer
+    /// chase + an IsReadable syscall — HOIST it out of tight scan loops (resolve
+    /// once, then call <see cref="SweepSceneRaw"/> per probe).</summary>
+    private static bool TryGetCollisionScene(out nint scene)
+    {
+        scene = 0;
+        if (_sweepColl == null) return false;
+        if (CurrentMajor < 20 || CurrentMajor >= 220) return false;
+        if (InAreaTransition) return false;
+        var (sub, ok) = GetSubObjPtr();
+        if (!ok) return false;
+        scene = sub + 0x10e0;
+        return IsReadable(scene, 0x160);   // 6 buckets × 0x38 = 0x150, +slack
+    }
+
+    /// <summary>The bare native swept-sphere call against an ALREADY-resolved scene
+    /// — no gating, no IsReadable. Caller MUST hold a valid scene (from
+    /// <see cref="TryGetCollisionScene"/>) and be on the GAME THREAD.</summary>
+    private static unsafe bool SweepSceneRaw(nint scene, float px, float py, float pz,
+        float dx, float dy, float dz, float radius, out float nx, out float ny, out float nz)
+    {
+        nx = ny = nz = 0;
+        float* pt = stackalloc float[4]; pt[0] = px; pt[1] = py; pt[2] = pz; pt[3] = 1f;
+        float* nrm = stackalloc float[4]; nrm[0] = nrm[1] = nrm[2] = nrm[3] = 0f;
+        float* dir = stackalloc float[4]; dir[0] = dx; dir[1] = dy; dir[2] = dz; dir[3] = 0f;
+        _sweepCalls++;                       // cost meter (each call iterates the whole scene)
+        int hit = _sweepColl!(scene, radius, (nint)pt, (nint)nrm, (nint)dir);
+        if (hit == 0) return false;
+        nx = nrm[0]; ny = nrm[1]; nz = nrm[2];
+        return true;
+    }
+
+    /// <summary>Native swept-sphere calls since the last reset — a cost meter
+    /// (each call iterates the whole scene, so this dominates probe latency).</summary>
+    private static int _sweepCalls;
+
+    // ⚠ The sweep's out-NORMAL is USELESS for identifying the hit (2026-07-17,
+    // decompile + live capture): the native loop never stops at a hit, so the buffer
+    // holds the LAST triangle tested in the WHOLE scene — the same vector for every
+    // probe from any position/direction. The former HitBlocksDir/ProbeHitNormal
+    // dotAxis-filter idea was falsified by data (a real ahead wall scored ≈0, fake
+    // side grazes scored ±1, camera-dependent). Never build a normal filter on it.
+
+    /// <summary>⚠ UNUSED since 2026-07-17 — DO NOT REUSE FOR NAV. The r=45 coarse
+    /// pass marches parallel to any wall the player stands near and overlaps it the
+    /// whole way, reporting a fake close wall in a perpendicular direction (the
+    /// hum's "left 45, right 45 while hugging" lie, proven at Secret Lab B6F). Use
+    /// CoarseDistScene(RThin)/SideDistScene like the hum and walk probes instead.
+    /// Kept only for the fine-march reference. Original doc: distance to the first
+    /// wall along XZ direction (dx,dz); coarse locates, fine pins the face.</summary>
+    public static bool TryWallDistanceDir(float px, float py, float pz,
+        float dx, float dz, float maxDist, out float dist)
+    {
+        dist = float.PositiveInfinity;
+        float len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-4f) return false;
+        dx /= len; dz /= len;
+        if (!TryGetCollisionScene(out nint scene)) return false;   // resolve ONCE
+        return WallDistScene(scene, px, py, pz, dx, dz, maxDist, out dist);
+    }
+
+    /// <summary>Coarse-then-fine distance march against an already-resolved scene
+    /// (game thread). Coarse locates the wall to ±CoarseStep with a big radius (no
+    /// gaps), fine pins the face. Starts at d=CoarseR so a wall the player stands
+    /// against isn't missed.</summary>
+    private static bool WallDistScene(nint scene, float px, float py, float pz,
+        float dx, float dz, float maxDist, out float dist)
+    {
+        dist = float.PositiveInfinity;
+        const float CoarseStep = 80f, CoarseR = 45f;
+        float coarse = float.PositiveInfinity;
+        for (float d = CoarseR; ; d += CoarseStep)
+        {
+            float dd = MathF.Min(d, maxDist);
+            if (SweepSceneRaw(scene, px + dx * dd, py, pz + dz * dd, dx, 0f, dz, CoarseR,
+                    out _, out _, out _)) { coarse = dd; break; }
+            if (dd >= maxDist) break;
+        }
+        if (float.IsInfinity(coarse)) return false;
+
+        const float FineStep = 12f, FineR = 14f;
+        float from = MathF.Max(FineStep, coarse - CoarseStep);
+        for (float d = from; d <= coarse + CoarseR; d += FineStep)
+        {
+            if (SweepSceneRaw(scene, px + dx * d, py, pz + dz * d, dx, 0f, dz, FineR,
+                    out _, out _, out _)) { dist = d; return true; }
+        }
+        dist = coarse; return true;   // fine missed (thin lip) → trust the coarse hit
+    }
+
+    // ── Live wall-sense for the hum (game-thread scan → bg-thread audio) ──────
+    // The hum can't call native collision itself (bg thread races the game). So
+    // the move-tick pump scans a few times/sec and PUBLISHES the 3 camera-relative
+    // wall distances; WallHum's audio thread just reads them.
+    private static volatile bool _wallSenseOn;
+    private static volatile float _wsAhead = float.PositiveInfinity;
+    private static volatile float _wsRight = float.PositiveInfinity;
+    private static volatile float _wsLeft = float.PositiveInfinity;
+    private static volatile float _wsBehind = float.PositiveInfinity;
+    // Grid boundary distances (coarse minimap edges — Heaven-style open boundaries).
+    private static volatile float _wsGA = float.PositiveInfinity;
+    private static volatile float _wsGR = float.PositiveInfinity;
+    private static volatile float _wsGL = float.PositiveInfinity;
+    private static volatile float _wsGB = float.PositiveInfinity;
+    private static long _lastWsScan;
+
+    /// <summary>WallHum toggles the continuous native wall scan here (only scans
+    /// while the hum wants sound). Off → distances reset to open.</summary>
+    public static void SetWallSense(bool on)
+    {
+        _wallSenseOn = on;
+        if (!on)
+        {
+            _wsAhead = _wsRight = _wsLeft = _wsBehind = float.PositiveInfinity;
+            _wsGA = _wsGR = _wsGL = _wsGB = float.PositiveInfinity;
+        }
+    }
+
+    /// <summary>Latest camera-relative COLLISION wall distances (fine; ∞ = open).</summary>
+    public static (float ahead, float right, float left, float behind) WallSense()
+        => (_wsAhead, _wsRight, _wsLeft, _wsBehind);
+
+    /// <summary>Latest camera-relative GRID boundary distances (coarse minimap
+    /// edges — the open-area boundaries collision can't see; ∞ = none).</summary>
+    public static (float ahead, float right, float left, float behind) WallSenseGrid()
+        => (_wsGA, _wsGR, _wsGL, _wsGB);
+
+    // ── Auto-walk wall probe (WORLD-relative, GAME-THREAD) ───────────────────
+    // The auto-walker (background thread) can't call collision directly. It sets
+    // its intended travel direction here each tick; the move-tick detour probes
+    // the wall distance AHEAD (along travel) and to BOTH perpendiculars, and
+    // publishes them so the walker can center in the lane + veer off boundaries.
+    private static volatile bool _walkProbeOn;
+    private static volatile float _walkDirX, _walkDirZ;
+    private static volatile float _walkAhead = float.PositiveInfinity;
+    private static volatile float _walkLeft = float.PositiveInfinity;   // perpendicular (-dz, dx)
+    private static volatile float _walkRight = float.PositiveInfinity;  // perpendicular ( dz,-dx)
+    private static long _lastWalkProbe;
+
+    /// <summary>Turn the auto-walk wall probe on/off. Off → distances reset to open.</summary>
+    public static void SetWalkProbe(bool on)
+    {
+        _walkProbeOn = on;
+        if (!on) _walkAhead = _walkLeft = _walkRight = float.PositiveInfinity;
+    }
+
+    /// <summary>Auto-walker publishes its intended (world) travel direction each tick.</summary>
+    public static void SetWalkDir(float dx, float dz) { _walkDirX = dx; _walkDirZ = dz; }
+
+    /// <summary>Latest travel-relative wall distances (ahead, left, right; ∞ = open).</summary>
+    public static (float ahead, float left, float right) WalkProbe() => (_walkAhead, _walkLeft, _walkRight);
+
+    /// <summary>One walk probe: wall distance ahead + both perpendiculars, in WORLD
+    /// directions from the walker's bearing. GAME-THREAD only (SweepScene).
+    /// ⚠ Uses the SAME honest thin/swath probes as the hum (2026-07-17) — the old
+    /// fat coarse marcher (r=45) self-grazed any wall the player stood near and fed
+    /// the walker fake side readings, the same lie that silenced the hum.</summary>
+    private static void RunWalkProbe()
+    {
+        float dx = _walkDirX, dz = _walkDirZ;
+        float len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-3f) { _walkAhead = _walkLeft = _walkRight = float.PositiveInfinity; return; }
+        dx /= len; dz /= len;
+        float px = LivePlayerX, py = LivePlayerY, pz = LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return;
+        if (!TryGetCollisionScene(out nint scene))
+        { _walkAhead = _walkLeft = _walkRight = float.PositiveInfinity; return; }
+        float ahead = CoarseDistScene(scene, px, py, pz, dx, dz, RThin);
+        float behind = CoarseDistScene(scene, px, py, pz, -dx, -dz, RThin);   // swath clamp only
+        _walkAhead = ahead;
+        _walkLeft = SideDistScene(scene, px, py, pz, -dz, dx, dx, dz, ahead, behind);
+        _walkRight = SideDistScene(scene, px, py, pz, dz, -dx, dx, dz, ahead, behind);
+    }
+
+    /// <summary>One throttled scan: coarse distance ahead/right/left, published for
+    /// the hum. Coarse-only (volume needs rough distance, not the fine face) so the
+    /// call count — and the per-frame cost — stays low. GAME-THREAD only.</summary>
+    private static void ScanWallsForHum()
+    {
+        if (!TryGetCollisionScene(out nint scene)) { _wsAhead = _wsRight = _wsLeft = _wsBehind = float.PositiveInfinity; return; }
+        float px = LivePlayerX, py = LivePlayerY, pz = LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) { _wsAhead = _wsRight = _wsLeft = _wsBehind = float.PositiveInfinity; return; }
+        var (cfx, cfz) = CameraForward3D();
+        if (cfx == 0 && cfz == 0) { _wsAhead = _wsRight = _wsLeft = _wsBehind = float.PositiveInfinity; return; }
+
+        // ALL directions probe THIN (RThin): a fat sphere marching parallel to a wall
+        // the player stands near overlaps it the whole way — that was the guaranteed
+        // fake "left 45, right 45" while hugging. Sides get their breadth back from
+        // SideDistScene's parallel-ray swath, not from radius. The old grid "hugging
+        // gate" that deleted collision readings is GONE — it was the actual cause of
+        // walls going silent while hugged (raw sensor saw ahead=24 the whole time;
+        // 2026-07-17 capture). Collision and grid boundary are published SEPARATELY,
+        // never gating each other: collision = fine corridor truth, grid = coarse
+        // open-area boundaries (Heaven) with a longer audible range.
+        const float GridMax = 2400f;   // up to ~2 cells — boundaries a couple cells out
+        _wsAhead = CoarseDistScene(scene, px, py, pz, cfx, cfz, RThin);
+        _wsBehind = CoarseDistScene(scene, px, py, pz, -cfx, -cfz, RThin);
+        _wsRight = SideDistScene(scene, px, py, pz, -cfz, cfx, cfx, cfz, _wsAhead, _wsBehind);
+        _wsLeft = SideDistScene(scene, px, py, pz, cfz, -cfx, cfx, cfz, _wsAhead, _wsBehind);
+        _wsGA = GridWallDist(px, pz, cfx, cfz, GridMax);
+        _wsGR = GridWallDist(px, pz, -cfz, cfx, GridMax);
+        _wsGL = GridWallDist(px, pz, cfz, -cfx, GridMax);
+        _wsGB = GridWallDist(px, pz, -cfx, -cfz, GridMax);
+    }
+
+    private const float RThin = 20f;    // thin probe — never reaches a perpendicular wall the player stands near
+    private const float WsMax = 600f;   // scan range (raised from 450 for open floors like Heaven)
+
+    /// <summary>Side-looking wall distance: THIN marches from up to three base points
+    /// spread ALONG the camera axis (player, ±30u), nearest hit wins. Replaces the old
+    /// FAT side sphere (r=55): a fat sphere marching parallel to a wall the player
+    /// stands near overlapped that wall the whole march — the guaranteed fake "left 45,
+    /// right 45" whenever hugging, which armed the (now deleted) grid gate and silenced
+    /// the REAL walls (2026-07-17, Secret Lab B6F, [CrossDiag] capture). Parallel thin
+    /// rays keep the fat probe's broad catch (railing posts, short wall segments)
+    /// WITHOUT ever leaning toward the perpendicular walls; each base-point shift is
+    /// clamped by the measured ahead/behind clearance so an offset base can't itself
+    /// sit against the wall the player is hugging. (dx,dz) = the side direction,
+    /// (fx,fz) = camera forward; clearFwd/clearBack = the thin ahead/behind readings.</summary>
+    private static float SideDistScene(nint scene, float px, float py, float pz,
+        float dx, float dz, float fx, float fz, float clearFwd, float clearBack)
+    {
+        float best = CoarseDistScene(scene, px, py, pz, dx, dz, RThin);
+        float kF = MathF.Min(30f, clearFwd - RThin - 10f);
+        float kB = MathF.Min(30f, clearBack - RThin - 10f);
+        if (kF > 4f)
+            best = MathF.Min(best, CoarseDistScene(scene, px + fx * kF, py, pz + fz * kF, dx, dz, RThin));
+        if (kB > 4f)
+            best = MathF.Min(best, CoarseDistScene(scene, px - fx * kB, py, pz - fz * kB, dx, dz, RThin));
+        return best;
+    }
+
+    /// <summary>Distance to the first WALL along world dir (dx,dz), read from the
+    /// minimap grid's per-cell passage bits (edge byte +0x0A, LOW nibble: 0x01=south
+    /// 0x02=east 0x04=north 0x08=west; bit SET = open, CLEAR = wall). Marches cell to
+    /// cell following OPEN edges and stops at the first CLEAR (wall) edge — so it
+    /// catches Heaven-style open-area boundaries the 3D collision can't see, works
+    /// for both flag-2 and flag-0 boundaries, and won't false-fire on unexplored
+    /// cells (an OPEN edge is trusted). Grid = 1200u cells → COARSE. ∞ if none within
+    /// maxDist / not starting on a walkable cell.</summary>
+    private static readonly byte[] _gridRaw = new byte[16];   // game-thread only (the pump)
+    private static float GridWallDist(float px, float pz, float dx, float dz, float maxDist)
+    {
+        float len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-4f) return float.PositiveInfinity;
+        dx /= len; dz /= len;
+        if (!MinimapTracker.WorldToCell(px, pz, out int pr, out int pc)) return float.PositiveInfinity;
+        if (!MinimapTracker.ReadCellRawBytes(pr, pc, _gridRaw) || _gridRaw[0] != 1) return float.PositiveInfinity;
+        byte edge = _gridRaw[0x0A];
+        for (float d = 40f; d <= maxDist; d += 40f)
+        {
+            if (!MinimapTracker.WorldToCell(px + dx * d, pz + dz * d, out int r, out int c))
+                return d;                       // ran off the grid = boundary
+            if (r == pr && c == pc) continue;   // still in the cell we're exiting
+            // We crossed out of (pr,pc). Is the side we exited a WALL (edge bit clear)?
+            bool wall = (r > pr && (edge & 0x04) == 0)      // exited north
+                     || (r < pr && (edge & 0x01) == 0)      // exited south
+                     || (c > pc && (edge & 0x08) == 0)      // exited west
+                     || (c < pc && (edge & 0x02) == 0);     // exited east
+            if (wall) return d;
+            pr = r; pc = c;                     // open crossing — step into the next cell
+            if (!MinimapTracker.ReadCellRawBytes(pr, pc, _gridRaw)) return d;
+            edge = _gridRaw[0x0A];
+        }
+        return float.PositiveInfinity;
+    }
+
+    private static float CoarseDistScene(nint scene, float px, float py, float pz, float dx, float dz, float radius)
+    {
+        float len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-4f) return float.PositiveInfinity;
+        dx /= len; dz /= len;
+        float step = radius * 1.6f;    // < 2·radius so the swept spheres overlap (no gaps)
+        for (float d = radius; ; d += step)
+        {
+            float dd = MathF.Min(d, WsMax);
+            if (SweepSceneRaw(scene, px + dx * dd, py, pz + dz * dd, dx, 0f, dz, radius, out _, out _, out _))
+                return dd;
+            if (dd >= WsMax) break;
+        }
+        return float.PositiveInfinity;
+    }
+
+    // ── Game-thread collision pump ────────────────────────────────────────────
+    // The native collision queries must run on the GAME THREAD (no scene lock).
+    // A consumer sets _probePending; the move-tick detour runs the probe next
+    // frame, right after the game's own tick, when the scene is consistent.
+    private delegate void MoveTickDelegate(nint param1);
+    private IHook<MoveTickDelegate>? _moveTickHook;
+    private static volatile bool _probePending;
+
+    /// <summary>Ask for a fresh 4-cardinal wall reading. Sets a flag only; the
+    /// native collision runs on the GAME THREAD in <see cref="MoveTickDetour"/>
+    /// (calling it from the requester's thread races the game and AV-crashes).
+    /// The result is spoken from the detour when it completes (~1 frame later).</summary>
+    public static void RequestCardinalProbe() => _probePending = true;
+
+    /// <summary>The per-frame movement tick (FUN_1402D53A0). Call the game's own
+    /// tick FIRST — that leaves the collision scene consistent — then, only if a
+    /// probe was requested, run our collision query right here on the game thread,
+    /// where it cannot race the game's mutation of the scene.</summary>
+    private void MoveTickDetour(nint param1)
+    {
+        _moveTickHook!.OriginalFunction(param1);
+        if (_probePending)
+        {
+            _probePending = false;
+            try { RunCardinalProbe(); }
+            catch (Exception e) { Log($"[Collision] probe error: {e.Message}"); }
+        }
+        if (_wallSenseOn)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            double since = (now - _lastWsScan) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (since >= 180.0)   // ~5-6 Hz — walls change slowly as you walk; keeps the frame cost bounded
+            {
+                _lastWsScan = now;
+                try { ScanWallsForHum(); }
+                catch (Exception e) { Log($"[WallSense] error: {e.Message}"); }
+            }
+        }
+        if (_walkProbeOn)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            double since = (now - _lastWalkProbe) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (since >= 80.0)   // ~12 Hz — the auto-walker needs a fresher lane read than the hum
+            {
+                _lastWalkProbe = now;
+                try { RunWalkProbe(); }
+                catch (Exception e) { Log($"[WalkProbe] error: {e.Message}"); }
+            }
+        }
+    }
+
+    /// <summary>RETIRED DIAGNOSTIC (Shift+B, sensor-rebuild era 07-16/17 — key
+    /// unbound at the 07-18 strip): height/direction hit survey. Kept as dead
+    /// code per the dump-method convention.</summary>
+    private static unsafe void DiagnoseAhead()
+    {
+        float px = LivePlayerX, py = LivePlayerY, pz = LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) { Speech.Say("Position unavailable.", true); return; }
+        var (cfx, cfz) = CameraForward3D();
+        if (cfx == 0 && cfz == 0) { Speech.Say("Facing unavailable.", true); return; }
+
+        // ★ FLOOR TEST (2026-07-16): dungeon floors are FLAT, so "is there floor
+        // here?" is a 2D question. The floor may ALREADY be in the collision scene —
+        // just BELOW where we've probed (we only ever probed at body height and up,
+        // never down). Probe straight DOWN under the player and at a spot AHEAD:
+        // floor = a hit, void/edge = nothing. If under-you HITS and ahead-over-a-
+        // known-edge MISSES, floor sensing needs NO new RE and works everywhere.
+        // Find the floor depth under the player (flat floors sit well below the
+        // position-Y — ~200u in the open-area test).
+        float floorY = float.NaN;
+        for (float yo = -20f; yo >= -320f; yo -= 15f)
+            if (SphereOverlapsWall(px, py + yo, pz, 0f, -1f, 0f, 30f, out _, out _, out _))
+            { floorY = py + yo; break; }
+        Log($"[FloorTest] floor under you: Y={(float.IsNaN(floorY) ? -9999f : floorY):F0} (playerY={py:F0})");
+
+        // ★ MINIMAP GRID RESEARCH DUMP: pin down flag legend, edge-bit→side mapping,
+        // cell size + grid↔world orientation. Per cell: f=flag(+0) s=state(+1)
+        // e=edge(+0x0A). Header logs cell world size + which world axis each grid
+        // step moves, so we can decode everything from a few known-spot dumps.
+        if (MinimapTracker.WorldToCell(px, pz, out int prow, out int pcol))
+        {
+            MinimapTracker.CellToWorld(prow, pcol, out float c0x, out float c0z);
+            MinimapTracker.CellToWorld(prow, pcol + 1, out float ccx, out float ccz);
+            MinimapTracker.CellToWorld(prow + 1, pcol, out float crx, out float crz);
+            Log($"[GridDump] world=({px:F0},{pz:F0}) cell r{prow}c{pcol} center=({c0x:F0},{c0z:F0}) camFwd=({cfx:F2},{cfz:F2})");
+            Log($"[GridDump] +col→worldΔ=({ccx - c0x:F0},{ccz - c0z:F0})  +row→worldΔ=({crx - c0x:F0},{crz - c0z:F0})");
+            var raw = new byte[16];
+            for (int r = prow - 2; r <= prow + 2; r++)
+            {
+                var g = new System.Text.StringBuilder($"[GridDump] r{r}:");
+                for (int c = pcol - 2; c <= pcol + 2; c++)
+                    g.Append(MinimapTracker.ReadCellRawBytes(r, c, raw)
+                        ? $" c{c}=f{raw[0]}/s{raw[1]:X2}/e{raw[0x0A]:X2}" : $" c{c}=--");
+                Log(g.ToString());
+            }
+        }
+        else Log("[GridDump] player not on the minimap grid");
+
+        // What the hum's grid-boundary marcher returns HERE, per camera direction
+        // (same call the hum uses). -1 = ∞ (no boundary found). Self-consistent with
+        // the dump above so we can debug why an edge is silent.
+        float GB(float dx, float dz) { float g = GridWallDist(px, pz, dx, dz, 2400f); return float.IsInfinity(g) ? -1f : g; }
+        Log($"[GridWall] gridWall ahead={GB(cfx, cfz):F0} behind={GB(-cfx, -cfz):F0} left={GB(cfz, -cfx):F0} right={GB(-cfz, cfx):F0}");
+
+        Log($"[AheadDiag] at ({px:F0},{py:F0},{pz:F0}) camFwd=({cfx:F2},{cfz:F2})");
+        (string name, float dx, float dz)[] dirs =
+            { ("ahead", cfx, cfz), ("left", cfz, -cfx), ("right", -cfz, cfx) };
+        float[] ys = { 0f, 40f, 80f, 120f };
+        foreach (var (name, dx, dz) in dirs)
+            foreach (float yo in ys)
+            {
+                var sb = new System.Text.StringBuilder($"[AheadDiag] {name} y+{yo:F0}:");
+                bool any = false;
+                for (float d = 30f; d <= 360f; d += 30f)
+                    if (SphereOverlapsWall(px + dx * d, py + yo, pz + dz * d, dx, 0f, dz, 25f,
+                            out float nx, out float ny, out float nz))
+                    { sb.Append($" [{d:F0}: n=({nx:F1},{ny:F1},{nz:F1})]"); any = true; }
+                if (!any) sb.Append(" (no hits)");
+                Log(sb.ToString());
+            }
+        Speech.Say("Diagnostic logged.", true);
+    }
+
+    /// <summary>March the game's sphere-overlap collision along the four
+    /// camera-relative cardinals and speak the nearest wall each way. GAME-THREAD
+    /// ONLY (invoked from the move-tick detour). Right vector = (cfz,-cfx) — the
+    /// same convention as the dungeon hum and beacons. "open" = nothing within
+    /// range.</summary>
+    private static void RunCardinalProbe()
+    {
+        float px = LivePlayerX, py = LivePlayerY, pz = LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) { Speech.Say("Position unavailable.", true); return; }
+        var (cfx, cfz) = CameraForward3D();
+        if (cfx == 0 && cfz == 0) { Speech.Say("Facing unavailable.", true); return; }
+
+        if (!TryGetCollisionScene(out nint scene)) { Speech.Say("Collision unavailable.", true); return; }
+        _sweepCalls = 0;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        // THE SAME probes the hum publishes (thin cardinals + side swath) — B is the
+        // ear-verification of the hum's sensor, so it must speak the identical values.
+        // Right vector = (-cfz, cfx); left = (cfz, -cfx). (L/R were swapped in the
+        // first build — the user heard them flipped, 2026-07-16.)
+        float dA = CoarseDistScene(scene, px, py, pz, cfx, cfz, RThin);
+        float dB = CoarseDistScene(scene, px, py, pz, -cfx, -cfz, RThin);
+        float dR = SideDistScene(scene, px, py, pz, -cfz, cfx, cfx, cfz, dA, dB);
+        float dL = SideDistScene(scene, px, py, pz, cfz, -cfx, cfx, cfz, dA, dB);
+        double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        Log($"[Collision] cardinals at ({px:F0},{py:F0},{pz:F0}) " +
+            $"ahead={dA:F0} behind={dB:F0} left={dL:F0} right={dR:F0} — {_sweepCalls} calls, {ms:F0}ms");
+
+        static string Part(string n, float d) => float.IsInfinity(d) ? $"{n} open" : $"{n} {(int)d}";
+        Speech.Say($"{Part("Ahead", dA)}, {Part("behind", dB)}, {Part("left", dL)}, {Part("right", dR)}.", true);
     }
 
     // ── Polling ───────────────────────────────────────────────────────────
@@ -1002,7 +1539,7 @@ internal unsafe class FieldTracker
 
             // M key (rebound from F1 2026-06-12 — closer to the other mod keys).
             // Shift+M is the dialogue-reader toggle (HistoryKeys), so plain M only when Shift is up.
-            _f1 = IsKeyDown(0x4D) && !IsKeyDown(0x10);
+            _f1 = !SettingsMenu.IsOpen && IsKeyDown(0x4D) && !IsKeyDown(0x10);
             if (_f1 && !_f1Was)
             {
                 Log($"[FieldTracker] F1 | major={_lastMajor} minor={_lastMinor} " +
@@ -1016,6 +1553,7 @@ internal unsafe class FieldTracker
             // dump methods remain in the file as unused helpers (harmless).
         }
     }
+
 
     private static unsafe void ToggleHardwareWatchpoint()
     {
@@ -1223,7 +1761,7 @@ internal unsafe class FieldTracker
         string? facing = (gfx == 0 && gfz == 0) ? null
             : (MathF.Abs(gfz) > MathF.Abs(gfx)
                 ? (gfz > 0 ? "north" : "south")
-                : (gfx > 0 ? "east"  : "west"));
+                : (gfx > 0 ? "west"  : "east"));   // world +X is physically west
 
         var sb = new System.Text.StringBuilder();
         if (facing != null) sb.Append($"You face {facing}. ");
@@ -1234,7 +1772,7 @@ internal unsafe class FieldTracker
             int steps = Math.Max(1, (int)MathF.Round(c.dist / StepUnits));
             string dir = MathF.Abs(c.dz) > MathF.Abs(c.dx)
                 ? (c.dz > 0 ? "north" : "south")
-                : (c.dx > 0 ? "east"  : "west");
+                : (c.dx > 0 ? "west"  : "east");   // world +X is physically west
             sb.Append($"Cat {c.cat}: {steps} step{(steps == 1 ? "" : "s")} {dir}, id {(ushort)c.nearestId}. ");
             if (++spoken >= 4) break;
         }
@@ -1406,7 +1944,7 @@ internal unsafe class FieldTracker
             int steps = Math.Max(1, (int)MathF.Round(n.d / StepUnits));
             string dir = MathF.Abs(n.dz) > MathF.Abs(n.dx)
                 ? (n.dz > 0 ? "north" : "south")
-                : (n.dx > 0 ? "east"  : "west");
+                : (n.dx > 0 ? "west"  : "east");   // world +X is physically west
             Speech.Say($"{populated} treasure{(populated == 1 ? "" : "s")} on floor. Nearest {steps} step{(steps == 1 ? "" : "s")} {dir}.", true);
         }
         else
@@ -2747,6 +3285,10 @@ internal unsafe class FieldTracker
             if (_npcCountdown > 0) _npcCountdown = 0;
         }
 
+        // Maze stairs change the floor WITHOUT changing major/minor — watch the
+        // real floor id every poll and announce floor changes the handler misses.
+        WatchFloorId();
+
         // --- Time and day ---
         // Try write site A first: day at +8, period at +6
         // (same layout as the now-removed _segTimePtr, but found at a WRITE site so it is live)
@@ -2804,6 +3346,13 @@ internal unsafe class FieldTracker
                     // session crashes (it was the final log entry before the
                     // first one). The binding question it probed is solved
                     // (database/OVERWORLD.md).
+                    // CHECK-prompt NAMING was tried 2026-07-09 and REMOVED: naming the
+                    // interactable is a geometry guess (~90%) because the game never
+                    // exposes the selected field object (slot arrays null in overworld,
+                    // scanner hook crashes, no on-screen name — see the deep-research
+                    // notes). A confidently-WRONG name misdirects a blind player worse
+                    // than none, so we speak the honest plain "Check". Don't re-add
+                    // without a real selected-object source.
                     Speech.Say("Check", true);
                 }
             }
@@ -3217,29 +3766,40 @@ internal unsafe class FieldTracker
     private static unsafe int InspectCollider(string label, nint actor, float playerX, float playerZ,
         ref float dN, ref float dS, ref float dE, ref float dW,
         ref float hNx, ref float hNz, ref float hSx, ref float hSz,
-        ref float hEx, ref float hEz, ref float hWx, ref float hWz)
+        ref float hEx, ref float hEz, ref float hWx, ref float hWz,
+        float frameFx = float.NaN, float frameFz = float.NaN)
     {
         // Build player-frame basis. forward = (fx, fz) should be unit-length;
-        // right is forward rotated 90° CW = (fz, -fx). Any non-finite value or
-        // length deviating noticeably from 1.0 means we're reading something
-        // that isn't a facing vector — fall back to world identity so audio
-        // degrades to the old world-aligned behavior instead of producing
-        // garbage rotations.
-        float fx = ForwardX, fz = ForwardZ;
-        float fLen2 = fx * fx + fz * fz;
-        bool useFacing = float.IsFinite(fx) && float.IsFinite(fz) && fLen2 > 0.81f && fLen2 < 1.21f;
-        if (useFacing)
+        // right is forward rotated 90° CW = (fz, -fx). A caller-supplied frame
+        // (frameFx/frameFz — the CANE's drive direction) wins; otherwise the
+        // facing read, and any non-finite/garbage value falls back to world
+        // identity so audio degrades to the old world-aligned behavior.
+        float fx, fz;
+        if (float.IsFinite(frameFx) && float.IsFinite(frameFz)
+            && frameFx * frameFx + frameFz * frameFz > 0.01f)
         {
-            float n = 1f / MathF.Sqrt(fLen2);
-            fx *= n; fz *= n;
+            float n = 1f / MathF.Sqrt(frameFx * frameFx + frameFz * frameFz);
+            fx = frameFx * n; fz = frameFz * n;
         }
-        else { fx = 0f; fz = 1f; }
+        else
+        {
+            fx = ForwardX; fz = ForwardZ;
+            float fLen2 = fx * fx + fz * fz;
+            bool useFacing = float.IsFinite(fx) && float.IsFinite(fz) && fLen2 > 0.81f && fLen2 < 1.21f;
+            if (useFacing)
+            {
+                float n = 1f / MathF.Sqrt(fLen2);
+                fx *= n; fz *= n;
+            }
+            else { fx = 0f; fz = 1f; }
+        }
         float rx = fz, rz = -fx;   // right vector
 
-        float offX = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
+        float offX = 0, offY = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
         if (IsReadable(actor + 0x360, 0x10))
         {
             offX = *(float*)(actor + 0x360);
+            offY = *(float*)(actor + 0x364);   // translation row Y (4×4 row-major: X/Y/Z at +0x360/364/368)
             offZ = *(float*)(actor + 0x368);
         }
         if (IsReadable(actor + 0x3b0, 0x10))
@@ -3247,6 +3807,32 @@ internal unsafe class FieldTracker
             sX = *(float*)(actor + 0x3b0);
             sY = *(float*)(actor + 0x3b4);
             sZ = *(float*)(actor + 0x3b8);
+        }
+        // ROTATION RESTORED (2026-07-15 night): the [XformDump] raw capture
+        // confirmed the matrix layout from DATA — a 180°-placed actor showed
+        // m330 row0=(-1,0,0) row3=(6000,0,4800)=the +0x360 translation, and the
+        // c=m00/s=m02 convention places its sample vert correctly while
+        // identity mirrors it ~400u off (the phantom walls of the revert era).
+        // The earlier "rotation caused false walls" verdict was a MASKING bug:
+        // unfiltered scale-25 boundary volumes, filtered separately now.
+        float[] M = IdentityM;
+        if (IsReadable(actor + 0x330, 0x30))
+        {
+            // SIGN FIX (2026-07-15 night, data-derived from [XformDump]):
+            // sin comes from row2 m20 (+0x350), NOT row0 m02 (+0x338 = −sin).
+            // A captured 90° actor (m00=0, m02=−1, m20=+1) mirrored under the
+            // old read; the 180° sample (sin=0) had masked the sign entirely.
+            // CONVENTION B RESTORED (2026-07-15 late): s = m02 (+0x338). The
+            // m20 "textbook fix" turned the wall hum's world into nonsense
+            // (silent consoles ahead, humming open corridors) while B had
+            // scored 23/27 on the bump survey. The USER'S EARS are the
+            // convention authority now — the hum is the live transform tester.
+            float a00 = *(float*)(actor + 0x330), a01 = *(float*)(actor + 0x334), a02 = *(float*)(actor + 0x338);
+            float a10 = *(float*)(actor + 0x340), a11 = *(float*)(actor + 0x344), a12 = *(float*)(actor + 0x348);
+            float a20 = *(float*)(actor + 0x350), a21 = *(float*)(actor + 0x354), a22 = *(float*)(actor + 0x358);
+            float row0 = a00 * a00 + a01 * a01 + a02 * a02;
+            if (float.IsFinite(row0) && row0 > 0.5f && row0 < 2f)
+                M = new[] { a00, a01, a02, a10, a11, a12, a20, a21, a22 };
         }
 
         if (!IsReadable(actor + 0xf60, 8)) return 0;
@@ -3257,10 +3843,10 @@ internal unsafe class FieldTracker
         nint meshData = *(nint*)(meshRoot + 8);
         if ((ulong)meshData <= 0x10000UL) return 0;
         // 6 groups × 0x38 stride starting at +0x20 = 0x150 bytes covers all groups.
-        if (!IsReadable(meshData, 0x170)) return 0;
+        if (!IsReadable(meshData, 0x1E0)) return 0;
 
         int wallTris = 0;
-        for (int group = 0; group < 6; group++)
+        for (int group = 0; group < GeomGroups; group++)   // meshes carry up to 8 face groups (0..7) — groups 6-7 were never read (2026-07-14)
         {
             nint groupBase = meshData + 0x20 + group * 0x38;
             nint vBuf = *(nint*)groupBase;
@@ -3283,9 +3869,9 @@ internal unsafe class FieldTracker
             ushort i1 = *(ushort*)(iBuf + tri * 8 + 2);
             ushort i2 = *(ushort*)(iBuf + tri * 8 + 4);
 
-            if (!TryReadVert(vBuf, i0, sX, sY, sZ, offX, offZ, out float v0x, out float v0y, out float v0z)) continue;
-            if (!TryReadVert(vBuf, i1, sX, sY, sZ, offX, offZ, out float v1x, out float v1y, out float v1z)) continue;
-            if (!TryReadVert(vBuf, i2, sX, sY, sZ, offX, offZ, out float v2x, out float v2y, out float v2z)) continue;
+            if (!TryReadVert(vBuf, i0, sX, sY, sZ, offX, offY, offZ, M, out float v0x, out float v0y, out float v0z)) continue;
+            if (!TryReadVert(vBuf, i1, sX, sY, sZ, offX, offY, offZ, M, out float v1x, out float v1y, out float v1z)) continue;
+            if (!TryReadVert(vBuf, i2, sX, sY, sZ, offX, offY, offZ, M, out float v2x, out float v2y, out float v2z)) continue;
 
             // Keep only wall triangles (skip floor/ceiling by XZ normal magnitude).
             float e1x = v1x - v0x, e1y = v1y - v0y, e1z = v1z - v0z;
@@ -3472,6 +4058,100 @@ internal unsafe class FieldTracker
 
     private static string F(float v) => float.IsPositiveInfinity(v) ? "∞" : v.ToString("F0");
 
+    // ── [XformDump] — actor transform capture (2026-07-15, option B) ────────
+    // One-shot per floor: raw transform block + a sample LOCAL triangle per
+    // scene actor, so the true matrix convention can be derived OFFLINE from
+    // data (three guessed conventions each painted phantom walls; no more
+    // guessing). Read the log lines next to the ManualDiag bump survey.
+    private static int _xformDumpFloor = -1;
+    private static readonly HashSet<nint> _xformSeen = new();
+    public static unsafe void DumpSceneActorTransformsOnce()
+    {
+        int fk = CurrentMajor * 1000 + CurrentMinor;
+        if (CurrentMajor < 20) return;
+        if (fk != _xformDumpFloor) { _xformDumpFloor = fk; _xformSeen.Clear(); }
+        try
+        {
+            var (sub, ok) = GetSubObjPtr();
+            if (!ok) { _xformDumpFloor = -1; return; }
+            nint scene = sub + 0x10e0;
+            int dumped = 0;
+            for (int group = 0; group < 6 && dumped < 14; group++)
+            {
+                nint groupBase = scene + group * 0x38;
+                if (!IsReadable(groupBase, 0x38)) continue;
+                nint primaryPtr = *(nint*)groupBase;
+                byte count1 = *(byte*)(scene + 0x32 + group * 0x38);
+                byte count2 = *(byte*)(scene + 0x33 + group * 0x38);
+                var actors = new List<nint>();
+                if (count1 > 0 && (ulong)primaryPtr > 0x10000UL && IsReadable(primaryPtr, 0x1000)) actors.Add(primaryPtr);
+                for (int slot = 0; slot < count2 && slot < 7; slot++)
+                {
+                    nint extraSlot = scene + 8 + (group * 7 + slot) * 8;
+                    if (!IsReadable(extraSlot, 8)) break;
+                    nint p = *(nint*)extraSlot;
+                    if ((ulong)p > 0x10000UL && IsReadable(p, 0x1000)) actors.Add(p);
+                }
+                foreach (var actor in actors)
+                {
+                    if (dumped >= 14) break;
+                    if (!_xformSeen.Add(actor)) continue;   // each actor once
+                    if (!IsReadable(actor + 0x330, 0x90)) continue;
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append($"[XformDump] actor=0x{(ulong)actor:X} m330=[");
+                    for (int i = 0; i < 16; i++)
+                        sb.Append($"{*(float*)(actor + 0x330 + i * 4):F2}{(i < 15 ? "," : "")}");
+                    sb.Append($"] s3B0=({*(float*)(actor + 0x3b0):F2},{*(float*)(actor + 0x3b4):F2},{*(float*)(actor + 0x3b8):F2})");
+                    // one sample LOCAL triangle (untransformed) + face count
+                    if (IsReadable(actor + 0xf60, 8))
+                    {
+                        nint meshRoot = *(nint*)(actor + 0xf60);
+                        if ((ulong)meshRoot > 0x10000UL && IsReadable(meshRoot, 0x10))
+                        {
+                            nint meshData = *(nint*)(meshRoot + 8);
+                            if ((ulong)meshData > 0x10000UL && IsReadable(meshData, 0x1E0))
+                            {
+                                for (int gI = 0; gI < 8; gI++)
+                                {
+                                    nint gb = meshData + 0x20 + gI * 0x38;
+                                    nint vBuf = *(nint*)gb; short fCnt = *(short*)(gb + 8); nint iBuf = *(nint*)(gb + 0x10);
+                                    if ((ulong)vBuf <= 0x10000UL || (ulong)iBuf <= 0x10000UL) continue;
+                                    if (fCnt < 2 || fCnt > 4096) continue;
+                                    if (!IsReadable(iBuf, 8) || !IsReadable(vBuf, 0x18)) continue;
+                                    ushort i0 = *(ushort*)iBuf;
+                                    nint va = vBuf + 0xC + i0 * 0x18;
+                                    if (IsReadable(va, 12))
+                                        sb.Append($" g{gI} tris={fCnt} v0=({*(float*)va:F0},{*(float*)(va + 4):F0},{*(float*)(va + 8):F0})");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Log(sb.ToString());
+                    dumped++;
+                }
+            }
+            if (dumped > 0)
+            {
+                float px = LivePlayerX, pz = LivePlayerZ;
+                Log($"[XformDump] player at ({px:F0},{pz:F0}) — {dumped} new actor(s) for floor {CurrentMajor}/{CurrentMinor}");
+            }
+        }
+        catch (Exception e) { Log($"[XformDump] failed: {e.Message}"); }
+    }
+
+    /// <summary>The engine's OWN body-collision radius — DAT_140965234, the
+    /// value the movement tick passes to the scene sweep (FUN_14032b810) when
+    /// it resolves the player's motion (decompiled 2026-07-14). This is the
+    /// authoritative "how big is the body" number for clearance routing.</summary>
+    public static unsafe float BodyCollisionRadius()
+    {
+        nint a = unchecked((nint)0x140965234L);
+        if (!IsReadable(a, 4)) return 100f;
+        float v = *(float*)a;
+        return float.IsFinite(v) && v > 30f && v < 400f ? v : 100f;
+    }
+
     /// <summary>
     /// Public helper used by the audio system. Walks sub_obj+0x10e0 scene,
     /// fires 4 cardinal rays, returns the nearest wall distance per direction
@@ -3514,6 +4194,56 @@ internal unsafe class FieldTracker
                 InspectCollider("", extraPtr, px, pz,
                     ref dN, ref dS, ref dE, ref dW,
                     ref hNx, ref hNz, ref hSx, ref hSz, ref hEx, ref hEz, ref hWx, ref hWz);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Oriented wall raycast — the auto-walker's CANE (2026-07-13). Casts 4 rays
+    /// from the player against the inline scene collision (sub_obj+0x10e0, the
+    /// mesh that physically stops the body) in a caller-chosen frame: dF = along
+    /// (fwdX,fwdZ), dB = back, dR = forward rotated 90° CW ((fz,-fx)), dL = the
+    /// other side. Lets the drive loop see obstacles along its OWN bearing
+    /// before contact instead of discovering them by grinding.
+    /// </summary>
+    public static unsafe bool TryComputeWallDistancesOriented(float fwdX, float fwdZ,
+        out float dF, out float dB, out float dR, out float dL)
+    {
+        dF = dB = dR = dL = float.PositiveInfinity;
+        var (sub, ok) = GetSubObjPtr();
+        if (!ok) return false;
+        float px = LivePlayerX, pz = LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz)) return false;
+
+        nint scene = sub + 0x10e0;
+        float hNx = 0, hNz = 0, hSx = 0, hSz = 0, hEx = 0, hEz = 0, hWx = 0, hWz = 0;
+
+        for (int group = 0; group < 6; group++)
+        {
+            nint groupBase = scene + group * 0x38;
+            if (!IsReadable(groupBase, 0x38)) continue;
+
+            nint primaryPtr = *(nint*)groupBase;
+            byte count1 = *(byte*)(scene + 0x32 + group * 0x38);
+            byte count2 = *(byte*)(scene + 0x33 + group * 0x38);
+
+            if (count1 > 0 && (ulong)primaryPtr > 0x10000UL && IsReadable(primaryPtr, 0x1000))
+                InspectCollider("", primaryPtr, px, pz,
+                    ref dF, ref dB, ref dR, ref dL,
+                    ref hNx, ref hNz, ref hSx, ref hSz, ref hEx, ref hEz, ref hWx, ref hWz,
+                    fwdX, fwdZ);
+
+            for (int slot = 0; slot < count2 && slot < 7; slot++)
+            {
+                nint extraSlot = scene + 8 + (group * 7 + slot) * 8;
+                if (!IsReadable(extraSlot, 8)) break;
+                nint extraPtr = *(nint*)extraSlot;
+                if ((ulong)extraPtr <= 0x10000UL || !IsReadable(extraPtr, 0x1000)) continue;
+                InspectCollider("", extraPtr, px, pz,
+                    ref dF, ref dB, ref dR, ref dL,
+                    ref hNx, ref hNz, ref hSx, ref hSz, ref hEx, ref hEz, ref hWx, ref hWz,
+                    fwdX, fwdZ);
             }
         }
         return true;
@@ -3919,12 +4649,22 @@ internal unsafe class FieldTracker
     {
         // Actor transform — read with SafeRead so a stale actor pointer
         // doesn't AVE on the offset/scale fetch.
-        float offX = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
+        float offX = 0, offY = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
         if (SafeReadFloat(actor + 0x360, out float oxv)) offX = oxv;
+        if (SafeReadFloat(actor + 0x364, out float oyv) && float.IsFinite(oyv) && MathF.Abs(oyv) < 1e6f) offY = oyv;
         if (SafeReadFloat(actor + 0x368, out float ozv)) offZ = ozv;
         if (SafeReadFloat(actor + 0x3b0, out float sxv)) sX = sxv;
         if (SafeReadFloat(actor + 0x3b4, out float syv)) sY = syv;
         if (SafeReadFloat(actor + 0x3b8, out float szv)) sZ = szv;
+        float[] M = IdentityM;   // full orientation matrix (see VisitActorMeshTriangles)
+        if (SafeReadFloat(actor + 0x330, out float a00) && SafeReadFloat(actor + 0x334, out float a01) && SafeReadFloat(actor + 0x338, out float a02)
+            && SafeReadFloat(actor + 0x340, out float a10) && SafeReadFloat(actor + 0x344, out float a11) && SafeReadFloat(actor + 0x348, out float a12)
+            && SafeReadFloat(actor + 0x350, out float a20) && SafeReadFloat(actor + 0x354, out float a21) && SafeReadFloat(actor + 0x358, out float a22))
+        {
+            float row0 = a00 * a00 + a01 * a01 + a02 * a02;
+            if (float.IsFinite(row0) && row0 > 0.5f && row0 < 2f)
+                M = new[] { a00, a01, a02, a10, a11, a12, a20, a21, a22 };
+        }
 
         // Sanity-bound the transform. Three classes of actor get rejected:
         //   1. Corrupt headers (scale = 1e40, offset = NaN) — phantom walls
@@ -3947,7 +4687,7 @@ internal unsafe class FieldTracker
         if (!SafeReadPtr(meshRoot + 8, out nint meshData)) return;
         if ((ulong)meshData <= 0x10000UL) return;
 
-        for (int group = 0; group < 6; group++)
+        for (int group = 0; group < GeomGroups; group++)   // 8 face groups (0..7), see VisitActorMeshTriangles
         {
             nint groupBase = meshData + 0x20 + group * 0x38;
             if (!SafeReadPtr(groupBase, out nint vBuf)) return;
@@ -3963,9 +4703,9 @@ internal unsafe class FieldTracker
                 if (!SafeReadShort(iBuf + tri * 8 + 4, out short i2Raw)) break;
                 ushort i0 = (ushort)i0Raw, i1 = (ushort)i1Raw, i2 = (ushort)i2Raw;
 
-                if (!TryReadVertSafe(vBuf, i0, sX, sY, sZ, offX, offZ, out float v0x, out float v0y, out float v0z)) continue;
-                if (!TryReadVertSafe(vBuf, i1, sX, sY, sZ, offX, offZ, out float v1x, out float v1y, out float v1z)) continue;
-                if (!TryReadVertSafe(vBuf, i2, sX, sY, sZ, offX, offZ, out float v2x, out float v2y, out float v2z)) continue;
+                if (!TryReadVertSafe(vBuf, i0, sX, sY, sZ, offX, offY, offZ, M, out float v0x, out float v0y, out float v0z)) continue;
+                if (!TryReadVertSafe(vBuf, i1, sX, sY, sZ, offX, offY, offZ, M, out float v1x, out float v1y, out float v1z)) continue;
+                if (!TryReadVertSafe(vBuf, i2, sX, sY, sZ, offX, offY, offZ, M, out float v2x, out float v2y, out float v2z)) continue;
 
                 // Same near-horizontal filter as the raw walker so callers
                 // see exactly the wall triangles they'd see otherwise.
@@ -3982,7 +4722,8 @@ internal unsafe class FieldTracker
 
     private static unsafe bool TryReadVertSafe(
         nint vBuf, ushort idx, float sX, float sY, float sZ,
-        float offX, float offZ, out float wx, out float wy, out float wz)
+        float offX, float offY, float offZ, float[] m,
+        out float wx, out float wy, out float wz)
     {
         wx = wy = wz = 0;
         nint va = vBuf + 0xC + idx * 0x18;
@@ -3991,9 +4732,12 @@ internal unsafe class FieldTracker
         if (!SafeReadFloat(va + 8, out float lz)) return false;
         if (!float.IsFinite(lx) || !float.IsFinite(ly) || !float.IsFinite(lz)) return false;
         if (MathF.Abs(lx) > 1e6f || MathF.Abs(ly) > 1e6f || MathF.Abs(lz) > 1e6f) return false;
-        wx = lx * sX + offX;
-        wy = ly * sY;
-        wz = lz * sZ + offZ;
+        // The game's OWN vertex transform (FUN_1402D53A0 decompile, 2026-07-14):
+        //   x' = c*x + s*z + offX;  z' = c*z - s*x + offZ  (Y-rotation from the
+        // actor matrix row0: c = m00 @+0x330, s = m02 @+0x338). Our readers
+        // ignored rotation — every ROTATED actor (maze tile pieces!) painted
+        // its collision in the wrong place.
+        ApplyGeom(lx, ly, lz, sX, sY, sZ, m, offX, offY, offZ, out wx, out wy, out wz);
         return true;
     }
 
@@ -4143,10 +4887,11 @@ internal unsafe class FieldTracker
 
     private static unsafe void VisitActorMeshTriangles(nint actor, Action<float[]> callback)
     {
-        float offX = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
+        float offX = 0, offY = 0, offZ = 0, sX = 1, sY = 1, sZ = 1;
         if (IsReadable(actor + 0x360, 0x10))
         {
             offX = *(float*)(actor + 0x360);
+            offY = *(float*)(actor + 0x364);
             offZ = *(float*)(actor + 0x368);
         }
         if (IsReadable(actor + 0x3b0, 0x10))
@@ -4155,15 +4900,52 @@ internal unsafe class FieldTracker
             sY = *(float*)(actor + 0x3b4);
             sZ = *(float*)(actor + 0x3b8);
         }
+        // ★ The Safe walker's documented sanity bounds (2026-05-01), finally
+        // applied here too (2026-07-15): BOUNDARY/CUTSCENE VOLUMES (scale ~25,
+        // skyboxes/triggers — legitimate meshes, NOT walls) were pouring into
+        // the route map through this unfiltered walker and rastering FLOOR-
+        // LENGTH phantom wall lines (the ManualDiag survey: straight false-wall
+        // lines spanning thousands of units). Real wall actors are scale ~1.
+        if (!float.IsFinite(offX) || !float.IsFinite(offZ)) return;
+        if (!float.IsFinite(sX) || !float.IsFinite(sY) || !float.IsFinite(sZ)) return;
+        if (MathF.Abs(offX) > 1e6f || MathF.Abs(offZ) > 1e6f) return;
+        if (MathF.Abs(sX) > 5f || MathF.Abs(sY) > 5f || MathF.Abs(sZ) > 5f) return;
+        if (MathF.Abs(sX) < 0.5f || MathF.Abs(sY) < 0.5f || MathF.Abs(sZ) < 0.5f) return;
+        // ROTATION RESTORED (2026-07-15 night): the [XformDump] raw capture
+        // confirmed the matrix layout from DATA — a 180°-placed actor showed
+        // m330 row0=(-1,0,0) row3=(6000,0,4800)=the +0x360 translation, and the
+        // c=m00/s=m02 convention places its sample vert correctly while
+        // identity mirrors it ~400u off (the phantom walls of the revert era).
+        // The earlier "rotation caused false walls" verdict was a MASKING bug:
+        // unfiltered scale-25 boundary volumes, filtered separately now.
+        float[] M = IdentityM;
+        if (IsReadable(actor + 0x330, 0x30))
+        {
+            // SIGN FIX (2026-07-15 night, data-derived from [XformDump]):
+            // sin comes from row2 m20 (+0x350), NOT row0 m02 (+0x338 = −sin).
+            // A captured 90° actor (m00=0, m02=−1, m20=+1) mirrored under the
+            // old read; the 180° sample (sin=0) had masked the sign entirely.
+            // CONVENTION B RESTORED (2026-07-15 late): s = m02 (+0x338). The
+            // m20 "textbook fix" turned the wall hum's world into nonsense
+            // (silent consoles ahead, humming open corridors) while B had
+            // scored 23/27 on the bump survey. The USER'S EARS are the
+            // convention authority now — the hum is the live transform tester.
+            float a00 = *(float*)(actor + 0x330), a01 = *(float*)(actor + 0x334), a02 = *(float*)(actor + 0x338);
+            float a10 = *(float*)(actor + 0x340), a11 = *(float*)(actor + 0x344), a12 = *(float*)(actor + 0x348);
+            float a20 = *(float*)(actor + 0x350), a21 = *(float*)(actor + 0x354), a22 = *(float*)(actor + 0x358);
+            float row0 = a00 * a00 + a01 * a01 + a02 * a02;
+            if (float.IsFinite(row0) && row0 > 0.5f && row0 < 2f)
+                M = new[] { a00, a01, a02, a10, a11, a12, a20, a21, a22 };
+        }
 
         if (!IsReadable(actor + 0xf60, 8)) return;
         nint meshRoot = *(nint*)(actor + 0xf60);
         if ((ulong)meshRoot <= 0x10000UL || !IsReadable(meshRoot, 0x10)) return;
         nint meshData = *(nint*)(meshRoot + 8);
         // Need 0x170 to cover all 6 face groups (0x20 + 6*0x38 = 0x170).
-        if ((ulong)meshData <= 0x10000UL || !IsReadable(meshData, 0x170)) return;
+        if ((ulong)meshData <= 0x10000UL || !IsReadable(meshData, 0x1E0)) return;
 
-        for (int group = 0; group < 6; group++)
+        for (int group = 0; group < GeomGroups; group++)   // 8 face groups (0..7), see above
         {
             nint groupBase = meshData + 0x20 + group * 0x38;
             nint vBuf = *(nint*)groupBase;
@@ -4180,9 +4962,9 @@ internal unsafe class FieldTracker
                 ushort i1 = *(ushort*)(iBuf + tri * 8 + 2);
                 ushort i2 = *(ushort*)(iBuf + tri * 8 + 4);
 
-                if (!TryReadVert(vBuf, i0, sX, sY, sZ, offX, offZ, out float v0x, out float v0y, out float v0z)) continue;
-                if (!TryReadVert(vBuf, i1, sX, sY, sZ, offX, offZ, out float v1x, out float v1y, out float v1z)) continue;
-                if (!TryReadVert(vBuf, i2, sX, sY, sZ, offX, offZ, out float v2x, out float v2y, out float v2z)) continue;
+                if (!TryReadVert(vBuf, i0, sX, sY, sZ, offX, offY, offZ, M, out float v0x, out float v0y, out float v0z)) continue;
+                if (!TryReadVert(vBuf, i1, sX, sY, sZ, offX, offY, offZ, M, out float v1x, out float v1y, out float v1z)) continue;
+                if (!TryReadVert(vBuf, i2, sX, sY, sZ, offX, offY, offZ, M, out float v2x, out float v2y, out float v2z)) continue;
 
                 // Skip near-horizontal triangles (floor / ceiling).
                 float e1x = v1x - v0x, e1y = v1y - v0y, e1z = v1z - v0z;
@@ -4196,9 +4978,48 @@ internal unsafe class FieldTracker
         }
     }
 
+    // ★ GEOMETRY TRANSFORM MODE (2026-07-16, the ear-test rebuild). The 2-number
+    // cos/sin decode could NOT express every actor placement — the wall hum
+    // proved both sign conventions wrong somewhere. GeomMode cycles the full
+    // 3×3-matrix interpretations LIVE (Shift+N); the hum is the instrument,
+    // the user's ears the judge. When one mode makes the world sound TRUE, it
+    // is the transform for the map + hum + auto-walk (all share these readers).
+    //   0 Form A  1 Form B  2 No-rotation   3-5 = same, FIRST mesh section only
+    public static volatile int GeomMode = 0;
+    private static readonly float[] IdentityM = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+    private static int GeomGroups => GeomMode >= 3 ? 1 : 8;
+    public static string GeomModeName() => (GeomMode % 6) switch
+    {
+        0 => "Form A", 1 => "Form B", 2 => "No rotation",
+        3 => "Form A, first section", 4 => "Form B, first section",
+        _ => "No rotation, first section",
+    };
+
+    /// <summary>Apply the actor transform to a local vertex per <see cref="GeomMode"/>.
+    /// m = row-major 3×3 orientation; scale applied to local first; translation last.</summary>
+    private static void ApplyGeom(float lx, float ly, float lz, float sX, float sY, float sZ,
+        float[] m, float tx, float ty, float tz, out float wx, out float wy, out float wz)
+    {
+        float px = lx * sX, py = ly * sY, pz = lz * sZ;
+        switch (GeomMode % 3)
+        {
+            case 2:   // identity
+                wx = px + tx; wy = py + ty; wz = pz + tz; break;
+            case 1:   // Form B: world = local · M (M columns)
+                wx = m[0] * px + m[3] * py + m[6] * pz + tx;
+                wy = m[1] * px + m[4] * py + m[7] * pz + ty;
+                wz = m[2] * px + m[5] * py + m[8] * pz + tz; break;
+            default:  // Form A: world = M · local (M rows)
+                wx = m[0] * px + m[1] * py + m[2] * pz + tx;
+                wy = m[3] * px + m[4] * py + m[5] * pz + ty;
+                wz = m[6] * px + m[7] * py + m[8] * pz + tz; break;
+        }
+    }
+
     private static unsafe bool TryReadVert(
         nint vBuf, ushort idx, float sX, float sY, float sZ,
-        float offX, float offZ, out float wx, out float wy, out float wz)
+        float offX, float offY, float offZ, float[] m,
+        out float wx, out float wy, out float wz)
     {
         wx = wy = wz = 0;
         nint va = vBuf + 0xC + idx * 0x18;
@@ -4213,9 +5034,7 @@ internal unsafe class FieldTracker
         // min-distance accumulator.
         if (!float.IsFinite(lx) || !float.IsFinite(ly) || !float.IsFinite(lz)) return false;
         if (MathF.Abs(lx) > 1e6f || MathF.Abs(ly) > 1e6f || MathF.Abs(lz) > 1e6f) return false;
-        wx = lx * sX + offX;
-        wy = ly * sY;
-        wz = lz * sZ + offZ;
+        ApplyGeom(lx, ly, lz, sX, sY, sZ, m, offX, offY, offZ, out wx, out wy, out wz);
         return true;
     }
 
@@ -5085,6 +5904,14 @@ internal unsafe class FieldTracker
         [(23, 1)] = "Yukiko's Castle, Gate",
         [(24, 1)] = "Bathhouse, Changing Area",
         [(25, 1)] = "Marukyu Striptease Seats",
+        [(26, 1)] = "Void Quest Title Screen",   // on-screen name (user screenshot 2026-07-06); without
+                                                 // it the banner scan leaked Marukyu's stale banner here
+        [(26, 2)] = "Void Quest Endgame",        // final floor (floor id 70) — the game names it "Endgame",
+                                                 // NOT "Chapter 10" as the id formula would give (user 2026-07-08)
+        [(27, 1)] = "Secret Laboratory Entrance",// on-screen name (user screenshot 2026-07-10, floor id 80);
+                                                 // first visit leaked a stale Yukiko banner → "???" without it
+        [(28, 1)] = "Heaven, Pearly Gates",      // on-screen name (user screenshot 2026-07-11, floor id 100);
+                                                 // same stale-Yukiko-banner leak on first entry without it
     };
 
     /// <summary>
@@ -5092,6 +5919,118 @@ internal unsafe class FieldTracker
     /// current dungeon and announce the DUNGEON name (floor part stripped).
     /// Retries because the banner spawns slightly after the area-id flips.
     /// </summary>
+    // ── The REAL floor id (GET_FLOOR_ID, RE'd 2026-07-06) ───────────────────
+    // Field COMM builtin 0x1002 (FUN_1403201D0) reads
+    //   *(u32)( *(ptr)( *(ptr)0x15E438348 + 0x48 ) + 4 ),   0 = not in a dungeon.
+    // One SEQUENTIAL id across all dungeons; per-dungeon ENTRANCE bases proven
+    // by customSubMenu's DungeonTravel.flow + live logs (entrance = base, first
+    // real floor = base+1 → floor number = id − base). This replaces the banner
+    // heap-scan as the primary floor namer — the banner path mis-read floors
+    // right after battles (stale banners linger; user 2026-07-06).
+    private static readonly nint FloorIdSingleton = unchecked((nint)0x15E438348L);
+    private static readonly int[] FloorIdBases = { 5, 20, 40, 60, 80, 100, 120 };
+    private static readonly string[] DungeonDisplayNames =
+    {
+        "Yukiko's Castle", "Steamy Bathhouse", "Marukyu Striptease", "Void Quest",
+        "Secret Laboratory", "Heaven", "Magatsu Inaba",
+    };
+
+    internal static unsafe int DungeonFloorId()
+    {
+        if (!IsReadable(FloorIdSingleton, 8)) return 0;
+        nint p = *(nint*)FloorIdSingleton;
+        if ((ulong)p <= 0x10000UL || !IsReadable(p + 0x48, 8)) return 0;
+        nint q = *(nint*)(p + 0x48);
+        if ((ulong)q <= 0x10000UL || !IsReadable(q + 4, 4)) return 0;
+        return *(int*)(q + 4);
+    }
+
+    /// <summary>The 1-based dungeon index a field major belongs to (gate /
+    /// maze / scripted blocks), or 0 for non-dungeon majors.</summary>
+    /// <summary>True when the major is a MAPPED real-dungeon major (gate/maze/scripted
+    /// blocks). Story-only TV-world majors (100, 68, …) return false — the tutorial's
+    /// first-dungeon tip keys off this so it can't fire mid-story (2026-07-19).</summary>
+    internal static bool IsKnownDungeonMajor(int major)
+        => DungeonIndexOf(major) >= 1;
+
+    private static int DungeonIndexOf(int major) => major switch
+    {
+        // Scripted-floor blocks: 60 Yukiko / 61 Bathhouse / 62 Marukyu / 63 Void
+        // Quest by the +1 rule — then dungeons 5/6 are SWAPPED here too, mirroring
+        // their mazes: Secret Lab scripted = 65 (2026-07-10) and HEAVEN scripted =
+        // 64 (2026-07-12: floor id 107 = Paradise #7 at major 64). Later dungeons
+        // mapped only when SEEN on screen (spoiler rule).
+        >= 60 and <= 63 => major - 59,
+        64 => 6,                         // Heaven scripted floors (swapped with Secret Lab)
+        65 => 5,                         // Secret Laboratory scripted floors
+        // Procedural maze blocks. The +1-per-dungeon rule holds for 40 Yukiko /
+        // 41 Bathhouse / 42 Marukyu / 43 Void Quest — then dungeons 5/6 have their
+        // majors SWAPPED: Secret Lab maze = 45 (live 2026-07-10, floor id 81 = B1F)
+        // and HEAVEN maze = 44 (live 2026-07-11, floor id 101 = Paradise #1).
+        // Map later dungeons' mazes only when SEEN on screen (spoiler rule).
+        >= 40 and <= 43 => major - 39,
+        44 => 6,                         // Heaven maze (swapped with Secret Lab)
+        45 => 5,                         // Secret Laboratory maze
+        >= 23 and <= 32 => major - 22,   // gate/entrance blocks (scripted sub-floors live here too)
+        _ => 0,
+    };
+
+    /// <summary>The GAME's floor name from a floor id, matching the on-screen
+    /// banners (user screenshots 2026-07-06): "Yukiko's Castle 1F", "Steamy
+    /// Bathhouse, Bath #N", "Marukyu Striptease 1F", "Void Quest Chapter 1".
+    /// The dungeon ENTRANCE is the base id itself (first maze floor = base+1,
+    /// verified in all four live dungeons), so floor = id − base; floor 0 =
+    /// the entrance, named by its own override. False for unmapped majors/ids
+    /// (dungeons 5+ fall back until their formats are confirmed on screen).</summary>
+    private static bool TryFloorIdName(int major, int id, out string name)
+    {
+        name = "";
+        int did = DungeonIndexOf(major);
+        if (did < 1 || did > FloorIdBases.Length) return false;
+        int floor = id - FloorIdBases[did - 1];
+        if (floor < 1 || floor > 29) return false;
+        name = did switch
+        {
+            1 => $"Yukiko's Castle {floor}F",
+            2 => $"Steamy Bathhouse, Bath number {floor}",
+            3 => $"Marukyu Striptease {floor}F",
+            4 => $"Void Quest Chapter {floor}",
+            5 => $"Secret Laboratory B{floor}F",   // basement floors (on-screen "Secret Laboratory B1F", 2026-07-10)
+            6 => $"Heaven, Paradise number {floor}", // on-screen "Heaven, Paradise #1" (2026-07-11); "#" spoken as "number" (the Bath #N precedent)
+            _ => $"{DungeonDisplayNames[did - 1]}, floor {floor}",
+        };
+        return true;
+    }
+
+    // ── Floor-id WATCHER (2026-07-06): stairs between MAZE floors keep the same
+    // major/minor, so the area handler never fires and floors changed silently
+    // (the user's "doesn't read the real floor at all"). The floor id is the
+    // only change signal — poll it, require two consecutive equal reads
+    // (settle), announce when it differs from what was last announced.
+    private int _floorIdPrev = -1;
+    private static volatile int _floorIdAnnounced = -1;
+
+    private void WatchFloorId()
+    {
+        int major = CurrentMajor;
+        if (major < 21 || major > 69 || InAreaTransition) { _floorIdPrev = -1; return; }
+        int id = DungeonFloorId();
+        if (id <= 0) { _floorIdPrev = -1; return; }
+        if (id != _floorIdPrev) { _floorIdPrev = id; return; }   // not settled yet
+        if (id == _floorIdAnnounced) return;
+        _floorIdAnnounced = id;                                   // even if unmapped: announce once at most
+        // A per-(major,minor) override (e.g. "Void Quest Endgame") wins over the
+        // generic "Chapter N" id formula — even when a stair change (not the area
+        // handler) is what surfaced this floor.
+        string name;
+        if (_floorNameOverrides.TryGetValue((major, CurrentMinor), out var ov)) name = ov;
+        else if (!TryFloorIdName(major, id, out name)) return;
+        _lastDungeonFloorName = name;
+        _lastDungeonFloorMajor = major;
+        Log($"[FieldTracker] floor change (watch) id={id} -> \"{name}\"");
+        Speech.Say(name, true);
+    }
+
     private void ResolveAndAnnounceFloor(int major, int minor, string? prev)
     {
         try
@@ -5099,11 +6038,47 @@ internal unsafe class FieldTracker
             // Verbatim name for a recognised scripted floor wins over the banner/dungeon name.
             if (_floorNameOverrides.TryGetValue((major, minor), out var fixedName))
             {
+                // Latch the settled floor id so WatchFloorId doesn't re-announce the
+                // generic "Chapter N"/"Bath number N" name over this override.
+                int oid = DungeonFloorId();
+                for (int a = 0; a < 6 && oid <= 0; a++) { Thread.Sleep(150); oid = DungeonFloorId(); }
+                if (oid > 0) _floorIdAnnounced = oid;
                 _lastDungeonFloorName = fixedName; _lastDungeonFloorMajor = major;
                 Log($"[FieldTracker] Area resolved -> major={major} minor={minor}: override \"{fixedName}\"");
                 Speech.Say(fixedName, true);
                 return;
             }
+
+            // REAL floor id first — exact "<Dungeon>, floor N". The id can hold
+            // the PREVIOUS floor's value mid-load, so require TWO consecutive
+            // equal non-zero reads before trusting it (live 2026-07-06: the
+            // instant read announced stale floors). Floor 0 (= the entrance,
+            // which IS the base id) and unknown dungeons fall to the banner.
+            if (major >= 21 && major <= 69)
+            {
+                int prevRead = -1;
+                for (int a = 0; a < 10; a++)
+                {
+                    int id = DungeonFloorId();
+                    if (id > 0 && id == prevRead)
+                    {
+                        if (TryFloorIdName(major, id, out string fname))
+                        {
+                            _floorIdAnnounced = id;
+                            _lastDungeonFloorName = fname; _lastDungeonFloorMajor = major;
+                            Log($"[FieldTracker] Area resolved -> major={major} minor={minor}: floor id={id} -> \"{fname}\"");
+                            Speech.Say(fname, true);
+                            return;
+                        }
+                        Log($"[FieldTracker] floor id={id} unmapped for major {major} — banner fallback");
+                        break;
+                    }
+                    prevRead = id;
+                    Thread.Sleep(300);
+                    if (CurrentMajor != major || CurrentMinor != minor) return;   // moved on
+                }
+            }
+
             string? banner = null;
             for (int attempt = 0; attempt < 4 && banner == null; attempt++)
             {
@@ -5118,10 +6093,24 @@ internal unsafe class FieldTracker
             // the previous one's name (the old bug: 68_1 spoke "100 dash 3" /
             // "Yukiko's Castle"); it falls back to the table → "???".
             string? resolved = banner != null ? DungeonNameOf(banner) : null;
-            // Known STALE banner: a leftover "Yukiko's Castle, Gate" lingers in memory
-            // and gets scanned on floors that have no banner of their own. Reject it
-            // when we're not actually in a Yukiko major (23/40) → falls through to "???".
-            if (resolved == "Yukiko's Castle" && major != 23 && major != 40) resolved = null;
+            // ANTI-LEAK (generalises the old Yukiko-only reject, 2026-07-06): a
+            // scanned banner counts ONLY if it belongs to THIS major's dungeon —
+            // stale banners from the previous dungeon linger in memory and leaked
+            // ("Marukyu Striptease Seats" spoken at the Void Quest entrance).
+            // User rule: no name may ever leak out of its own dungeon (spoilers).
+            // Over-rejection is safe: it falls to the major-table dungeon name.
+            if (resolved != null && banner != null)
+            {
+                int did = DungeonIndexOf(major);
+                bool knownDungeon = did >= 1 && did <= DungeonDisplayNames.Length;
+                // A major with NO known dungeon mapping (e.g. the new-game story visit
+                // at major 100) must reject EVERY scanned banner — anything found can
+                // only be stale/preloaded text (a fresh save leaked "Yukiko's Castle"
+                // there, 2026-07-19). Unknown major → the table's "???".
+                if (!knownDungeon
+                    || !banner.StartsWith(DungeonDisplayNames[did - 1], StringComparison.OrdinalIgnoreCase))
+                    resolved = null;
+            }
             string name = resolved
                 ?? (_lastDungeonFloorName != null && _lastDungeonFloorMajor == major
                     ? _lastDungeonFloorName

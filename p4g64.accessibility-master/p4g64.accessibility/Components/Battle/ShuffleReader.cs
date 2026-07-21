@@ -99,6 +99,20 @@ internal sealed unsafe class ShuffleReader
     private int _pickedRound;            // round we picked from — re-latch when it ADVANCES
     private bool _everAnnounced;         // any spread announced this Shuffle Time (→ "One more")
 
+    // THE SCAN GATE (2026-07-10 — the "result menu is heavy" fix, v2). State 17 spans
+    // the whole post-battle flow, so on a battle with NO Shuffle Time the reader used
+    // to grind full-heap scans (~800ms over ~1500 regions, RPM of gigabytes) through
+    // the entire RESULT screen — and a 15s give-up window (v1 of this fix) still let
+    // the burst land exactly on the result screen. The REAL gate came from a live
+    // NAMED-TASK REGISTRY dump (2026-07-10): the game runs battle_shuffle /
+    // battle_shuffle_bg / _eff / _panel / _result tasks for EXACTLY the Shuffle Time
+    // window (skipped deals and one-mores included) and never spawns them on a
+    // shuffle-less battle. So: scan ONLY while a battle_shuffle* task is alive —
+    // a microsecond registry walk per poll, zero scans on result-only screens.
+    // (If the check ever broke, the failure mode is mild: ShuffleText's no-struct
+    // panel announcer still reads every card by name.)
+    private bool _taskWasAlive;
+
     public ShuffleReader()
     {
         _thread = new Thread(Poll) { IsBackground = true, Name = "ShuffleReader" };
@@ -148,6 +162,7 @@ internal sealed unsafe class ShuffleReader
                     _scanAttempts = 0;
                     _nextScanTick = 0;
                     _noPathHits.Clear();
+                    _taskWasAlive = false;   // silent reset — no transition log across battles
                     continue;
                 }
 
@@ -157,6 +172,21 @@ internal sealed unsafe class ShuffleReader
                 if (_logic == 0)
                 {
                     long now = Environment.TickCount64;
+
+                    // THE GATE: the game's own shuffle sequence runs as battle_shuffle*
+                    // named tasks — scan only while one is alive. A shuffle-less
+                    // battle's result screen gets ZERO full-heap scans.
+                    bool shuffleTask = IsShuffleTaskAlive();
+                    if (shuffleTask != _taskWasAlive)
+                    {
+                        _taskWasAlive = shuffleTask;
+                        Log(shuffleTask
+                            ? "[Shuffle] battle_shuffle task alive — scanning enabled"
+                            : "[Shuffle] battle_shuffle task gone — scans off");
+                        if (shuffleTask) { _scanAttempts = 0; _nextScanTick = 0; } // fresh fast window
+                    }
+                    if (!shuffleTask) continue;
+
                     if (now < _nextScanTick) continue;
                     // Retry FAST at first so a brief scripted tutorial shuffle is caught as its textures
                     // load, then BACK OFF hard: battle-UI state stays 17 through the REWARD screen too,
@@ -511,6 +541,48 @@ internal sealed unsafe class ShuffleReader
     private static bool RelaxedHeader(Span<uint> h) =>
         h[1] >= 2 && h[1] <= 16 && h[3] == 0 && h[4] < 16 && h[7] == 0;
 
+    // ---- the shuffle-task gate --------------------------------------------------
+    // The NAMED-TASK REGISTRY (the TvListings anchor: heads 0x1462486F8/0x1462486A8/
+    // 0x146248768, name @node+0x00, next @node+0x50). A live [ShufTask] dump
+    // (2026-07-10) showed the shuffle sequence runs as battle_shuffle +
+    // battle_shuffle_bg/_eff/_panel (+_result at pick time), present for EXACTLY the
+    // Shuffle Time window and never on a shuffle-less battle — the perfect scan gate.
+    private static readonly nint[] TaskHeads =
+    {
+        unchecked((nint)0x1462486F8L),
+        unchecked((nint)0x1462486A8L),
+        unchecked((nint)0x146248768L),
+    };
+    private static readonly byte[] ShuffleTaskPrefix =
+        System.Text.Encoding.ASCII.GetBytes("battle_shuffle");
+
+    /// <summary>True while any battle_shuffle* task is in the registry — i.e. the
+    /// game's own Shuffle Time sequence is running. ~45 RPM node reads, microseconds.</summary>
+    private bool IsShuffleTaskAlive()
+    {
+        try
+        {
+            Span<byte> headBuf = stackalloc byte[8];
+            Span<byte> node = stackalloc byte[0x58];
+            foreach (nint head in TaskHeads)
+            {
+                if (!ReadSelf(head, headBuf)) continue;
+                nint n = (nint)System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(headBuf);
+                for (int i = 0; i < 256 && n != 0; i++)
+                {
+                    if (!ReadSelf(n, node)) break;
+                    bool match = true;
+                    for (int k = 0; k < ShuffleTaskPrefix.Length; k++)
+                        if (node[k] != ShuffleTaskPrefix[k]) { match = false; break; }
+                    if (match) return true;
+                    n = (nint)System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(node.Slice(0x50));
+                }
+            }
+        }
+        catch { /* fail closed: no scans; ShuffleText's panel announcer still reads cards */ }
+        return false;
+    }
+
     // ---- the scan -------------------------------------------------------------
 
     private int _scanAttempts;
@@ -526,27 +598,40 @@ internal sealed unsafe class ShuffleReader
         var sw = System.Diagnostics.Stopwatch.StartNew();
         int regions = 0;
         _relaxCand = 0;
-        // Low 4GB first (where every observed arena lived), then the rest of
-        // user space as a fallback — a whole shuffle went unfound 2026-06-11,
-        // consistent with the arena landing above 4GB late in a long session.
-        if (FindStructInRange(0x10000, unchecked((nint)0x1_0000_0000L), ref regions)) { LogFound(sw, regions); return; }
-        if (FindStructInRange(unchecked((nint)0x1_0000_0000L), unchecked((nint)0x7FFF_FFF00000L), ref regions)) { LogFound(sw, regions); return; }
 
-        // No strict match anywhere — accept the relaxed candidate (a SKIPPED deal's header
-        // stays out of strict shape, but its card paths can't lie). Log the header verbatim
-        // so the skip-shape can be learned and the strict filter widened later.
+        // ★ ANCHOR FIRST (2026-07-19): the spread struct lives INSIDE the
+        // battle_shuffle task's WORK allocation at +0x1BB08 — proven by two
+        // independent latches with the exact same delta (the anchors log).
+        // Registry walk + one 0x30 read replaces the ~900ms full-heap sweep
+        // whose VirtualQuery walk contended the game's allocation lock — THE
+        // result-screen lag. The sweep below survives only as a fallback in
+        // case the offset ever shifts.
+        nint anchorCand = ShuffleWorkAnchor();
+        if (anchorCand == 0) return;   // task not up yet — the struct cannot exist
+        byte[] abuf = new byte[0x30];
+        if (ReadSelf(anchorCand, abuf.AsSpan(0, 0x30)) && ScanChunk(anchorCand, abuf, 0x30))
+        { LogFound(sw, regions); return; }
         if (_relaxCand != 0)
         {
             LatchStruct(_relaxCand, _relaxCount);
-            Log($"[Shuffle] RELAXED latch @ 0x{_relaxCand:X}: {_relaxLog}");
+            Log($"[Shuffle] RELAXED latch (anchor) @ 0x{_relaxCand:X}: {_relaxLog}");
             LogFound(sw, regions);
             return;
         }
 
+        // ★ HEAP SWEEPS DELETED (2026-07-19). The spread ONLY ever lives at the
+        // anchor — it's inside the battle_shuffle task's work allocation, and
+        // One-More re-deals mutate IN PLACE at the same address ("spread mutated"
+        // logs). The old post-pick sweep loop ran 20 × ~830ms through the reveal/
+        // reward/release flow hunting a re-deal that can only appear HERE — that
+        // was THE reward-screen lag (VirtualQuery contends the game's allocation
+        // lock). Candidate not valid yet → the next poll retries, ~free. If the
+        // anchor ever misses entirely, ShuffleText's panel announcer still reads
+        // every card (proven carrying whole sessions alone).
         _scanAttempts++;
-        if (!_announcedEntry || _scanAttempts % 5 == 0)
+        if (!_announcedEntry || _scanAttempts % 20 == 0)
         {
-            Log($"[Shuffle] scan: no struct yet (attempt {_scanAttempts}, {regions} regions, {sw.ElapsedMilliseconds}ms)");
+            Log($"[Shuffle] anchor cand 0x{anchorCand:X} not valid yet (attempt {_scanAttempts})");
             _announcedEntry = true;
         }
     }
@@ -741,6 +826,82 @@ internal sealed unsafe class ShuffleReader
         // spoken announce is deferred until the card count sits still (Poll)
         Log($"[Shuffle] struct @ 0x{_logic:X} count={_count} cards=[{string.Join(" | ", _cards)}] " +
             $"({regions} regions, {sw.ElapsedMilliseconds}ms)");
+        // TEMP ANCHOR HUNT (2026-07-19): the 941ms full-heap sweep at result-screen
+        // open is THE reward lag (VirtualQuery contends the game's allocation lock).
+        // If this struct is reachable from a battle_shuffle* task's work struct, the
+        // scan dies. Logs each task's work + delta + any work[0..0x400] u64 == _logic.
+        DumpAnchorHunt(_logic);
+    }
+
+    private static readonly byte[] _shufflePrefixBytes = System.Text.Encoding.ASCII.GetBytes("battle_shuffle");
+
+    /// <summary>The spread-struct ANCHOR: the task named EXACTLY "battle_shuffle"
+    /// (NUL after the prefix — battle_shuffle_bg/panel/eff/result must not match),
+    /// its work pointer + 0x1BB08. Returns 0 when the task isn't running.</summary>
+    private nint ShuffleWorkAnchor()
+    {
+        try
+        {
+            Span<byte> nm = stackalloc byte[16];
+            Span<byte> q = stackalloc byte[8];
+            foreach (long head in new[] { 0x1462486F8L, 0x1462486A8L, 0x146248768L })
+            {
+                if (!ReadSelf((nint)head, q)) continue;
+                nint node = (nint)BitConverter.ToInt64(q);
+                for (int i = 0; i < 300 && node != 0; i++)
+                {
+                    if (!ReadSelf(node, nm)) break;
+                    // Exact task = prefix + a NON-PRINTABLE byte (not necessarily
+                    // NUL — the ==0 check silently missed every anchor, 2026-07-19;
+                    // _bg/_panel/_eff/_result continue with printable '_').
+                    if (nm.Slice(0, 14).SequenceEqual(_shufflePrefixBytes)
+                        && (nm[14] < 0x20 || nm[14] >= 0x7F))
+                    {
+                        if (!ReadSelf(node + 0x48, q)) return 0;
+                        nint work = (nint)BitConverter.ToInt64(q);
+                        return work > 0x10000 ? work + 0x1BB08 : 0;
+                    }
+                    if (!ReadSelf(node + 0x50, q)) break;
+                    node = (nint)BitConverter.ToInt64(q);
+                }
+            }
+        }
+        catch { }
+        return 0;
+    }
+
+    private void DumpAnchorHunt(nint target)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder("[Shuffle] anchors:");
+            Span<byte> nm = stackalloc byte[24];
+            Span<byte> q = stackalloc byte[8];
+            foreach (long head in new[] { 0x1462486F8L, 0x1462486A8L, 0x146248768L })
+            {
+                if (!ReadSelf((nint)head, q)) continue;
+                nint node = (nint)BitConverter.ToInt64(q);
+                for (int i = 0; i < 300 && node != 0; i++)
+                {
+                    if (!ReadSelf(node, nm)) break;
+                    if (nm[0] == (byte)'b' && nm.Slice(0, 14).SequenceEqual(_shufflePrefixBytes))
+                    {
+                        int len = 0;
+                        while (len < 24 && nm[len] >= 0x20 && nm[len] < 0x7F) len++;
+                        string name = System.Text.Encoding.ASCII.GetString(nm.Slice(0, len));
+                        nint work = ReadSelf(node + 0x48, q) ? (nint)BitConverter.ToInt64(q) : 0;
+                        sb.Append($" {name}: work=0x{work:X} d={(long)target - (long)work:X}");
+                        for (int off = 0; off < 0x400; off += 8)
+                            if (ReadSelf(work + off, q) && (nint)BitConverter.ToInt64(q) == target)
+                                sb.Append($" [work+0x{off:X}=STRUCT]");
+                    }
+                    if (!ReadSelf(node + 0x50, q)) break;
+                    node = (nint)BitConverter.ToInt64(q);
+                }
+            }
+            Log(sb.ToString());
+        }
+        catch { }
     }
     // (The ShufDiag identity dumps are GONE — the hunt ended 2026-07-03 when the card
     // records proved to be texture bookkeeping only; names come from the info-panel

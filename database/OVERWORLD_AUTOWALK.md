@@ -1,4 +1,41 @@
-# OVERWORLD AUTO-WALK & ARRIVAL — source of truth (2026-06-22)
+# OVERWORLD AUTO-WALK & ARRIVAL — source of truth (2026-06-22; TOWN ROUTING added 2026-07-06)
+
+---
+
+## 0. TOWN ROUTING v2 (2026-07-06, v1.4.0 item B) — READ FIRST
+
+Town auto-walk now ROUTES AT WALK START on the complete prebuilt walkgrid (static targets only —
+NPCs keep the straight live-chase). §6's "town has NO pathfinding" is SUPERSEDED. Everything in
+§1-§5 (arrival, confirm, learned spots) is UNCHANGED — that was the hard rule of the retry.
+
+- **Route-first, not learn-first.** The June "A*-to-door" ROUTING was always good; the mess was
+  (a) concurrent arrival rewrites and (b) the ORBIT (below). A brief bump-and-learn escalation
+  design was tried first this day and REJECTED live: 90s of stall-learn-detour on a tiny map
+  (impractical) — the town grid is COMPLETE, there is nothing to learn by grinding. Learned-wall
+  stamps remain only as grid-error patches, PERSISTED to `overworld_obstacles.json` (geometry
+  never changes → bundle in releases like the calibration file).
+- **THE ORBIT, finally explained (June's ghost):** the town walker re-derives its stick→world
+  calibration from its own movement each tick. On a bending route that's a feedback loop (aim
+  rotates → player follows → calibration chases itself) = full-speed circles. FIX: calibration
+  FREEZES while a path is being followed (the town camera is fixed, the walk-start calibration
+  holds). Related: town consumes waypoints at 1.6×cell (the school's 0.9× gets overshot).
+- **WAYPOINT WATCHDOG:** no progress toward the current waypoint for 1.2s → SKIP it (grid pocket/
+  corner the body can't touch — the other orbit source); final waypoint → drop the path.
+- **SAFETY VALVE:** a path making no progress for 6s is dropped → plain straight-line walker.
+  Worst case of ALL the new machinery = the old behavior, never worse.
+- **NO-ROUTE AREAS** (`_noRouteAreas` hardcoded + `_noRouteUntil` runtime rule: 2 dropped paths
+  in one walk = no-route for **15 MINUTES only, never persisted** — a transient glitch must not
+  degrade a player's area for good; user concern 2026-07-06): **"8_9" Tatsuhime Shrine** (one of
+  the 5 KNOWN mis-framed grids —
+  player can be in-bounds so the out-of-grid guard can't catch it) and **"11_1" Okina City**
+  (MULTI-LEVEL: station stairs/escalators — a flat walkgrid cannot represent level boundaries;
+  live: every waypoint "unreachable", 14 stalls marching the walk BACKWARDS). These walk
+  straight-line. Any future bad-grid area self-adds and logs loudly.
+- **Arrival-zone wedge fix:** the tiny-step search now also engages when arrival physically
+  stalls (~0.6s no motion) within 115u, with a wider (55u) ring — un-jams the "pressed dead
+  against a blocker 79u short for the whole timeout" case.
+- Big-test result (07-06): 12/15 walks landing across 6 areas incl. house/farm/riverbank; the
+  3 misses = the two no-route maps (now handled) + learn-once facing quirks.
 
 How Backspace "walk me to the selected thing and tell me when I can interact" works in the
 **overworld** (`Components/Navigation/OverworldNav.cs`). This is the layer that was rebuilt over the

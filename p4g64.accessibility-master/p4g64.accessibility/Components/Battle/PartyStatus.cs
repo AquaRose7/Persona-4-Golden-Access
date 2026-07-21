@@ -31,7 +31,7 @@ internal sealed unsafe class PartyStatus
     private const int PollMs = 50;
     private const int VK_O = 0x4F;
     private const int VK_SHIFT = 0x10;                   // Shift+O — read the current acting character
-    private const int VK_SEMI = 0xBA, VK_QUOTE = 0xDE;   // ; / ' — cycle one ally's status (battle only)
+    private const int VK_SEMI = 0xBA, VK_QUOTE = 0xDE;   // ; / ' — cycle one ally's status (works anywhere)
     private bool _semiWas, _quoteWas;
     private int _cursor;
 
@@ -73,7 +73,10 @@ internal sealed unsafe class PartyStatus
     /// Shared instance so ControllerInput can route RT+shoulders / RT+L3 to the same readers.
     internal static PartyStatus Instance;
     /// Cycle one ally (battle only) — controller RT + left/right shoulder.
-    internal static void CycleCurrentAlly(int dir) { if (Battle.ActiveBtlInfo != 0) Instance?.CycleAlly(dir); }
+    // RT + shoulders (pad equivalent of ; / '). Works ANYWHERE, like the keys — the
+    // old battle gate (ActiveBtlInfo != 0) made the pad silent out of battle while
+    // ; / ' worked (user 2026-07-08). CycleAlly's battle filter falls away off-battle.
+    internal static void CycleCurrentAlly(int dir) => Instance?.CycleAlly(dir);
     /// Read the current acting character — controller RT + L3 (in battle).
     internal static void ReadCurrentCharacter() => Instance?.AnnounceCurrent();
 
@@ -99,18 +102,18 @@ internal sealed unsafe class PartyStatus
                 if (down && !_keyWas) { if (IsKeyDown(VK_SHIFT)) AnnounceCurrent(); else Announce(); }
                 _keyWas = down;
 
-                // ; / ' cycle through one ally's status at a time — battle only, so they don't
-                // clash with ; (NPC id) in the overworld.
-                if (Battle.ActiveBtlInfo != 0)
-                {
-                    bool semi = IsKeyDown(VK_SEMI);
-                    if (semi && !_semiWas) CycleAlly(-1);
-                    _semiWas = semi;
-                    bool quote = IsKeyDown(VK_QUOTE);
-                    if (quote && !_quoteWas) CycleAlly(+1);
-                    _quoteWas = quote;
-                }
-                else { _semiWas = _quoteWas = false; }
+                // ; / ' cycle through one party member's HP/SP at a time. Works
+                // ANYWHERE (2026-07-07, user request): in battle it filters to the
+                // members actually fighting; out of battle CycleAlly's battle
+                // filter falls away and it walks the whole active party. The
+                // overworld ; dev diagnostic was moved off this key to avoid the
+                // clash that previously forced a battle-only gate.
+                bool semi = IsKeyDown(VK_SEMI);
+                if (semi && !_semiWas) CycleAlly(-1);
+                _semiWas = semi;
+                bool quote = IsKeyDown(VK_QUOTE);
+                if (quote && !_quoteWas) CycleAlly(+1);
+                _quoteWas = quote;
             }
             catch (Exception ex)
             {
@@ -119,11 +122,28 @@ internal sealed unsafe class PartyStatus
         }
     }
 
+    /// <summary>
+    /// The stat nodes of the allies ACTUALLY FIGHTING — the ally battle units'
+    /// stat pointers (which ARE party-array entries). The array's bit-0 flag
+    /// also covers BENCHED members (a player's boss log 2026-07-06 read FIVE
+    /// names in a four-member fight, benched Kanji included, unbuffed by the
+    /// party-wide kaja — confusing and wrong). Empty set outside battle.
+    /// </summary>
+    private static HashSet<nint> BattleAllyStats()
+    {
+        var set = new HashSet<nint>();
+        if (Battle.ActiveBtlInfo == 0) return set;
+        foreach (var (_, side, stat) in Battle.EnumerateUnits())
+            if (side == 0 && stat != 0) set.Add(stat);
+        return set;
+    }
+
     private void Announce()
     {
         var sb = new StringBuilder();
         int spoken = 0;
         var logSb = new StringBuilder();
+        var fighting = BattleAllyStats();
 
         for (int i = 0; i < MaxSlots; i++)
         {
@@ -143,6 +163,8 @@ internal sealed unsafe class PartyStatus
             // which made `!= 1` skip him — the "O only speaks the MC" bug).
             if ((inParty & 1) == 0) continue;
             if (id == 0 || id > 32) continue;
+            // In battle, only members with a live battle unit (benched excluded).
+            if (fighting.Count > 0 && !fighting.Contains(slot)) continue;
 
             sb.Append(DescribeMember(slot, id)).Append(". ");
             spoken++;
@@ -226,6 +248,7 @@ internal sealed unsafe class PartyStatus
     private void CycleAlly(int dir)
     {
         var actives = new List<(nint slot, int id)>();
+        var fighting = BattleAllyStats();
         for (int i = 0; i < MaxSlots; i++)
         {
             nint slot = PartyArrayBase + i * Stride;
@@ -234,6 +257,9 @@ internal sealed unsafe class PartyStatus
             ushort inParty = *(ushort*)(b + OFF_IN_PARTY);
             ushort id = *(ushort*)(b + OFF_CHAR_ID);
             if ((inParty & 1) == 0 || id == 0 || id > 32) continue;
+            // Fighting members only — the flag alone includes the BENCH
+            // (player report 2026-07-06: the cycle read non-combatants).
+            if (fighting.Count > 0 && !fighting.Contains(slot)) continue;
             actives.Add((slot, id));
         }
         if (actives.Count == 0) { Speech.Say("No party data.", true); return; }

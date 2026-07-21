@@ -1,0 +1,239 @@
+{
+  "_comment": "TV Listings catalog (2026-07-07). Channel names + program descriptions for TvListingsReader. Program ids = the game's own ids (static table 0x140B0E400; titles also live at 0x140AA44A0+id*0x40). Descriptions transcribed from the baked sheet textures in title/channelMain.arc (tv_listings02spr.spr). Channel key = the raw channel index at work+0x64 (main menu shows 1-6). Edit freely - the mod reloads this at game launch, no rebuild needed.",
+  "channels": {
+    "0": "YBC",
+    "1": "2ch, Arts & Edutainment",
+    "2": "3ch, Inaba Public Access",
+    "3": "4ch, Big TV",
+    "4": "6ch, PBS",
+    "5": "7ch, Tatsu TV",
+    "6": "8ch, Yasovision",
+    "7": "9ch, Jacktoons"
+  },
+  "programs": {
+    "0": {
+      "title": "Song Battle 2012",
+      "desc": "Amazing footage of past Persona live concerts puts you in the crowd for the 2008 BLITZ and 2009 Wel City shows."
+    },
+    "1": {
+      "title": "Mr. Edogawa's TV Classroom: What are Shadows and Personas?",
+      "desc": "The first of ten simple, informative lectures about Jungian psychology, the central theme behind the Persona series of RPGs. Hosted by Gekkoukan High's renowned occultist, Mr. Edogawa."
+    },
+    "2": {
+      "title": "Mr. Edogawa's TV Classroom: The Unconscious: It's Just There",
+      "desc": "The second of ten lectures."
+    },
+    "3": {
+      "title": "Mr. Edogawa's TV Classroom: The Unconscious: Beyond Space-Time",
+      "desc": "The third of ten lectures."
+    },
+    "4": {
+      "title": "Mr. Edogawa's TV Classroom: Archetypes: The Structure of the Psyche",
+      "desc": "The fourth of ten lectures."
+    },
+    "5": {
+      "title": "Mr. Edogawa's TV Classroom: The Nature of the Shadow",
+      "desc": "The fifth of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "6": {
+      "title": "Mr. Edogawa's TV Classroom: Personas and Sociability",
+      "desc": "The sixth of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "7": {
+      "title": "Mr. Edogawa's TV Classroom: The Truth About Complexes",
+      "desc": "The seventh of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "8": {
+      "title": "Mr. Edogawa's TV Classroom: Psychological Types for Beginners",
+      "desc": "The eighth of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "9": {
+      "title": "Mr. Edogawa's TV Classroom: Interpreting Dreams",
+      "desc": "The ninth of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "10": {
+      "title": "Mr. Edogawa's TV Classroom: Deeper Into Jungian Psychology",
+      "desc": "The final of ten lectures explaining the basics of Jungian psychology, the central theme of the Persona series."
+    },
+    "11": {
+      "title": "Miracle Quiz: Prelims",
+      "desc": "You'll need knowledge, concentration, and Teddie's favor in this all-new quiz show where anything goes! Who will make it past the qualifying rounds to take the coveted playoff spot? Do you have what it takes to reach Yasoinaba?"
+    },
+    "12": {
+      "title": "Miracle Quiz: Playoffs",
+      "desc": "Knowledge, concentration, and Teddie's favor: who has what it takes to stay in the game? The ethereal quiz show is back with the playoffs! As the last round's losers curse their luck, the stage is set for a showdown between strong contestants! Who will move on to the final round?"
+    },
+    "13": {
+      "title": "Miracle Quiz: Finals",
+      "desc": "Knowledge, concentration, and Teddie's favor are all essential in the finals of this legendary quiz show! The Quiz King's crown is up for grabs tonight! Who will Teddie Luck smile upon? The year-long struggle ends here, and no one will expect the final result!"
+    },
+    "14": {
+      "title": "Daily Personamations!",
+      "desc": "The memorable scenes! The not-so-memorable scenes! All the animations are here for you to watch over and over. You'll laugh, you'll cry, you'll be shocked all over again as you take a trip down memory lane through your year in Inaba. Episodes include It All Started Here, Welcome to the Velvet Room, The Midnight Channel, My Awakening, Shadow Yosuke, Yukiko's Hunt For Her Prince, Teddie's Inner Space, The Killer's Shadow, and more."
+    },
+    "27": {
+      "title": "P4 Golden",
+      "desc": "Bizarre serial murders are rocking a foggy town! What is the link between the killings and the mysterious Midnight Channel seen on TV during rainy nights? A group of teens in this quiet country town use the power of Persona to face themselves and search for the killer lurking in the darkness!"
+    },
+    "28": {
+      "title": "Our Summer Vacation",
+      "desc": "A shocking incident awaits the young man upon his return to the fog-cleared town! His friends are missing and the tenor of the town has changed. The eight gather again in this finale to the tale of Persona 4 Golden!"
+    },
+    "29": {
+      "title": "Giants of P: Part 1",
+      "desc": "Want to see and know more about your favorite Persona characters? This pic-packed program provides portraits of protagonists from previous proceedings, skillfully sketched by Shigenori Soejima."
+    },
+    "30": {
+      "title": "Giants of P: Part 2",
+      "desc": "The beautiful yet strange masks, dormant within peoples' hearts, are revealed in Shigenori Soejima's illustrations."
+    },
+    "31": {
+      "title": "Giants of P: Part 3",
+      "desc": "New illustrations, art galleries, and promotional art with that Soejima touch, specially selected for you! Prepare to be captivated!"
+    },
+    "32": {
+      "title": "HEE! HEE! HOO! Music King!",
+      "desc": "Now playing the songs you know, the songs you love! If you were too busy playing the game to fully appreciate them, now's the time to listen all you want! Sing along if you like! No one's stopping you!"
+    },
+    "33": {
+      "title": "HEE! HEE! HOO! Music King!",
+      "desc": "This time, we're spinning the hits engraved into your heart during that unforgettable year! Remember those days you spent just fooling around with friends? Good times, good times. We remember, too."
+    },
+    "34": {
+      "title": "HEE! HEE! HOO! Music King!",
+      "desc": "Get ready to flash back to those intense Shadow battles and deadly mental landscapes as we play the soundtrack to your greatest struggles! Just ask yourself, with your friends at your side, was it really all bad?"
+    },
+    "35": {
+      "title": "Persona Hits",
+      "desc": "Relive the history of the popular Persona series of RPGs in this look back at some of the hits leading up to P4G: Persona, Persona 3, Persona 3 Portable, Persona 4, and more."
+    },
+    "36": {
+      "title": "What's P4 Arena?",
+      "desc": "A surprising new twist on the Persona series! Characters from P3 and P4 return in an all-out battle to survive! Why are they fighting? What brought back the Midnight Channel? Find out in Persona 4 Arena!"
+    },
+    "37": {
+      "title": "P4 the Animation!",
+      "desc": "Chie, Yosuke, Yukiko and the rest return, in animated form! Relive the glory days of the Inaba case in Persona 4 the Animation. Note: this is a Japanese trailer that contains information about the Japanese release of the series."
+    }
+  },
+  "music_playlists": {
+    "32": [
+      "Reach Out to the Truth",
+      "Tanaka's Amazing Commodities",
+      "Aria of the Soul",
+      "Your Affection",
+      "Heartbeat, Heartbreak",
+      "Signs of Love",
+      "Studio Backlot",
+      "Striptease",
+      "Heaven",
+      "Joy",
+      "Burn My Dread",
+      "Snowflakes",
+      "Time to Make History"
+    ],
+    "33": [
+      "New Days",
+      "I'll Face Myself",
+      "Who's There?",
+      "Smile",
+      "Deduction",
+      "Strength of Heart (P4 ver.)",
+      "The Path is Open (P4 ver.)",
+      "Tanaka's Amazing Commodities",
+      "Youthful Lunch",
+      "Specialist",
+      "Glimpse of a Memory",
+      "How Much?",
+      "Your Affection",
+      "Heartbeat, Heartbreak",
+      "Omen",
+      "Signs of Love",
+      "Alone",
+      "Joy",
+      "Fearful Experience",
+      "Burn My Dread",
+      "Like a Dream Come True",
+      "Zone Time",
+      "Deduction (Another Ver.)",
+      "I'll Face Myself (Another Ver.)",
+      "Traumerei",
+      "Everyday Sunshine",
+      "Girl of the Hollow Forest",
+      "A Sky Full of Stars",
+      "Let's Hit the Beach!",
+      "Snowflakes",
+      "Electronica of the Soul"
+    ],
+    "34": [
+      "Reach Out to the Truth",
+      "I'll Face Myself -Battle-",
+      "A New World Fool",
+      "The Almighty",
+      "The Fog",
+      "The Genesis",
+      "Period",
+      "Border of Insanity",
+      "Aria of the Soul",
+      "Studio Backlot",
+      "Castle",
+      "Sauna",
+      "Striptease",
+      "Game",
+      "Revelations: Mitsuo",
+      "Secret Base",
+      "Heaven",
+      "Long Way",
+      "Corridor",
+      "Memories",
+      "Time to Make History"
+    ]
+  },
+  "anime_episodes": [
+    [
+      "The New Opening",
+      "An invitation to the mysterious Velvet Room and a meeting with Igor and Margaret."
+    ],
+    [
+      "It All Started Here",
+      "The protagonist moves to the countryside from the city on his own."
+    ],
+    [
+      "The Midnight Channel",
+      "While testing a rumor, the protagonist feels dizzy, hears a strange voice, and feels his hand slip into the TV."
+    ],
+    [
+      "Into the TV",
+      "Yosuke and Chie, shocked at seeing the protagonist lean into the TV, fall in with him. Inside is a strange land with thick fog."
+    ],
+    [
+      "My Awakening",
+      "The protagonist and Yosuke are suddenly attacked by Shadows. Another wave of dizziness washes over him before he summons Izanagi."
+    ],
+    [
+      "Shadow Yosuke",
+      "When Yosuke rejects his other self, the dark Yosuke goes berserk, turns into a monster, and attacks."
+    ],
+    [
+      "Yukiko's Hunt For Her Prince",
+      "The Midnight Channel is clearer than before. Once it comes into focus, it shows Yukiko, speaking and acting strangely."
+    ],
+    [
+      "Teddie's Inner Space",
+      "When Teddie took off his head due to it being too hot to keep on, a shining, pretty boy appeared from what should have been emptiness inside."
+    ],
+    [
+      "The Killer's Shadow!?",
+      "A man mumbles to himself in a dark room as he writes in a diary."
+    ],
+    [
+      "The Car Chase",
+      "Dojima is in hot pursuit of Nanako's kidnapper, with the team riding along."
+    ],
+    [
+      "Namatame's Shadow",
+      "At the end of the dungeon, Namatame is holding Nanako prisoner. His Shadow goes berserk."
+    ]
+  ],
+  "_music_note": "music_playlists are ORDER REFERENCES for the capture reader (rotation fix) - names spoken always come from the game's own draws."
+}

@@ -1,0 +1,88 @@
+{
+  "help": [
+    {
+      "name": "Controls",
+      "desc": "Every mod shortcut, for keyboard and controller.",
+      "children": [
+        {
+          "name": "Keyboard",
+          "desc": "All keyboard shortcuts.",
+          "items": [
+            { "name": "F1", "text": "Opens and closes this accessibility settings menu." },
+            { "name": "H", "text": "Opens and closes the mapping cursor in dungeons. I, K, J and L then move it: I ahead, K behind, J left, L right." },
+            { "name": "N", "text": "While the mapping cursor is open, switches between Walk and Look mode. Otherwise, on a dungeon floor, turns the wall sound on or off." },
+            { "name": "Shift N", "text": "Switches the mapping cursor between Compass and Camera directions." },
+            { "name": "I, K, J and L", "text": "Two jobs. With the mapping cursor open they move it: I ahead, K behind, J left, L right. On big info panels, like a persona's status or an analyzed enemy, they read the panel piece by piece: I and K move between rows, J and L step through the row's values." },
+            { "name": "Period", "text": "Shadow radar on or off." },
+            { "name": "Slash", "text": "Stairs beacon on or off." },
+            { "name": "Comma", "text": "Chest beacon on or off." },
+            { "name": "P", "text": "Sound beacon toward the selected navigation target, in dungeons and in town." },
+            { "name": "Minus and Equals", "text": "Previous and next navigation category, like doors, chests, shadows, stairs or places." },
+            { "name": "Left bracket and Right bracket", "text": "Previous and next entry in the current category, nearest first, with live distances." },
+            { "name": "Backslash", "text": "Speaks the selected entry's name and distance." },
+            { "name": "Backspace", "text": "Auto walk to the selected entry. Press Backspace again to cancel the walk." },
+            { "name": "M", "text": "Speaks the area, time, date and weather." },
+            { "name": "G", "text": "Speaks your money, in the pause menu, in shops and in the Velvet Room." },
+            { "name": "O", "text": "Party HP and SP." },
+            { "name": "Shift O", "text": "In battle, the currently acting character's name and status." },
+            { "name": "U", "text": "Enemy status, in battle." },
+            { "name": "Semicolon and Quote", "text": "Cycle through your party members one at a time, reading each member's status. Works in and out of battle." },
+            { "name": "Shift F", "text": "Quick interact menu in supported rooms, to reach the TV, the fridge, your desk and more." },
+            { "name": "Shift M", "text": "Dialogue reader on or off." },
+            { "name": "Shift Comma", "text": "Cutscene subtitle reader on or off." },
+            { "name": "Shift Period", "text": "Cutscene descriptions on or off." },
+            { "name": "Shift P", "text": "Repeats the last spoken line." },
+            { "name": "Shift Left bracket and Shift Right bracket", "text": "Step back and forward through the speech history." }
+          ]
+        },
+        {
+          "name": "Controller",
+          "desc": "All controller combos. The triggers are the mod layer: hold one or both triggers and press a button.",
+          "items": [
+            { "name": "Both triggers and Start", "text": "Opens and closes this accessibility settings menu." },
+            { "name": "Inside the settings menu", "text": "D-pad up and down move between rows, left and right change the value, A enters, B goes back." },
+            { "name": "Both triggers and A", "text": "Shadow radar on or off." },
+            { "name": "Both triggers and B", "text": "Stairs beacon on or off." },
+            { "name": "Both triggers and X", "text": "Chest beacon on or off." },
+            { "name": "Both triggers and Y", "text": "Wall sound on or off." },
+            { "name": "Both triggers and D-pad up", "text": "Repeats the last spoken line." },
+            { "name": "Both triggers and D-pad left or right", "text": "Step back and forward through the speech history." },
+            { "name": "Both triggers and D-pad down", "text": "Dialogue reader on or off." },
+            { "name": "Both triggers and right stick click", "text": "Cutscene subtitle reader on or off." },
+            { "name": "Both triggers and left stick click", "text": "Cutscene descriptions on or off." },
+            { "name": "Right trigger and A", "text": "Party HP and SP." },
+            { "name": "Right trigger and B", "text": "Enemy status, in battle." },
+            { "name": "Right trigger and X", "text": "Speaks your money, in the pause menu, in shops and in the Velvet Room." },
+            { "name": "Right trigger and Y", "text": "Speaks the area, time, date and weather." },
+            { "name": "Right trigger and D-pad", "text": "Two jobs. Moves the mapping cursor: up ahead, down behind, left and right sideways. On big info panels, like a persona's status or an analyzed enemy, it reads the panel piece by piece: up and down move between rows, left and right step through the row's values." },
+            { "name": "Right trigger and left stick click", "text": "Mapping cursor on or off. In battle, reads the current character instead." },
+            { "name": "Right trigger and right stick click", "text": "Mapping cursor Walk or Look mode." },
+            { "name": "Right trigger and a shoulder button", "text": "Cycle through your party members one at a time, reading each member's status. Works in and out of battle." },
+            { "name": "Left trigger and D-pad left or right", "text": "Previous and next navigation category." },
+            { "name": "Left trigger and D-pad up or down", "text": "Previous and next entry in the category." },
+            { "name": "Left trigger and A", "text": "Speaks the selected entry's name and distance." },
+            { "name": "Left trigger and B", "text": "Sound beacon toward the selected target." },
+            { "name": "Left trigger and left stick click", "text": "Auto walk to the selected entry. Again to cancel." },
+            { "name": "Left trigger and X", "text": "Quick interact menu in supported rooms." },
+            { "name": "Left trigger and right stick click", "text": "Mapping cursor Compass or Camera directions." }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Game tips",
+      "desc": "Spoken guides for playing blind.",
+      "items": [
+        { "name": "Entering your name, new game", "text": "Each name field holds up to 8 letters, and you enter your last name first. Type it, then press E on the keyboard, or the right shoulder button on a controller, to move to the next field. Type your first name the same way. When done, press X on the keyboard, or Start on a controller, to finish. If it will not finish, you typed something the game will not accept. Press Escape to clear the field and start that name over." },
+        { "name": "Moving in dungeons", "text": "Browse targets with the bracket keys and press Backspace to auto walk there. The walker follows the map, opens doors on the way, and tells you if it has to give up. Press Backspace again any time to stop. Stairs take you to the next floor, and new areas appear in the browser as you explore." },
+        { "name": "Shadow encounters", "text": "Turn on the shadow radar to hear every shadow around you. A soft steady tone means it has not seen you. A low growl means it is looking at you. Louder means closer, and the sound pans toward its direction. When you are close behind a shadow you hear a rising strike cue: press the confirm button to attack and start the battle with an advantage. A falling sweep means it sees you and may charge." },
+        { "name": "The wall sound", "text": "The wall sound hums where walls are: a different tone ahead, behind, left and right, louder as the wall gets closer, silent toward open space. Doors nearby play their own distinct sound. The wall sound starts off each game session; turn it on when you want it." },
+        { "name": "Beacons", "text": "The stairs beacon, the chest beacon and the navigation beacon each loop a sound toward their target. Closer means louder and faster ticks. When the target is behind you the sound is muffled and slightly lower. The stairs beacon needs the stairs discovered on your map first, so explore a little if it is silent." },
+        { "name": "The mapping cursor", "text": "The mapping cursor reads the dungeon map cell by cell. In Walk mode each press steps your character one tile. In Look mode you scout the map without moving, and Backspace walks to the surveyed spot. Directions can be Compass, fixed north south west east, or Camera, relative to where you face." },
+        { "name": "Reading info panels", "text": "Big information screens, like a persona's status or an analyzed enemy, are too dense to read in one breath, so the mod reads them piece by piece. Use I, K, J and L, or the right trigger with the d-pad: up and down move between rows, like stats, resistances or skills, and left and right step through the values inside a row. Explore any panel at your own pace, and repeat a piece as often as you like." },
+        { "name": "Battles", "text": "Battles read themselves: turns, menus, damage and results are spoken. Press O for party HP and SP, U for enemy status, and Q for quick analyze of the targeted enemy. Analyze reveals an enemy's weaknesses once discovered, and the skill menus speak costs and descriptions." },
+        { "name": "Town travel", "text": "In town, browse places, exits and people with the same bracket keys and auto walk with Backspace. The mod confirms arrival and tells you when the interact prompt is ready. The P beacon guides you to the selection by ear, and the quick interact menu jumps you to objects inside supported rooms." }
+      ]
+    }
+  ]
+}

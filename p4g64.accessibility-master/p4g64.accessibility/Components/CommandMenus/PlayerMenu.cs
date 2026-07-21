@@ -63,6 +63,7 @@ internal sealed unsafe class PlayerMenu
 
     // ── Trackers ──────────────────────────────────────────────────────────
     private int _lastMask = -1;
+    private int _openPolls;      // consecutive polls the mask has been non-zero (blip debounce)
     private int _lastFocus = -2;        // -1 strip, 0..7 submenu, -2 closed
     private int _lastStripId = -1;
     private string _lastSpoken = "";
@@ -132,9 +133,31 @@ internal sealed unsafe class PlayerMenu
 
         if (pCamp == 0 || mask == 0)
         {
+            _openPolls = 0;
             if (_lastFocus != -2) { ResetAll(); _lastFocus = -2; _lastMask = 0; }
             return;
         }
+
+        // DEBOUNCE (2026-07-10): while the in-game CONFIG overlay is up, the camp
+        // mask BLIPS 0 ↔ 0x100 (System) several times a second — each blip passed
+        // the open check and re-announced the highlighted System row ("Config,
+        // Config, …" spam). Require the mask to be STABLY non-zero (~250ms) before
+        // reading; the blips never last that long, a real menu open barely notices.
+        if (_openPolls < 5) { _openPolls++; return; }
+
+        // G = money readout while the CAMP MENU is open (2026-07-18, user request:
+        // the real camp menu shows your funds on screen — parity for blind players).
+        // Deliberately scoped: this fires ONLY here (menu stably open); shops/velvet
+        // have their own G handlers; battles/walking stay silent.
+        bool gNow = NavKey(0x47);
+        // Defer to the Velvet Room's own G (money + protagonist level) when it's up —
+        // the velvet UI also sets the camp mask, so both handlers would otherwise fire.
+        if (gNow && !_gWas && Environment.TickCount64 - VelvetFusion.LastVelvetTick > 400)
+        {
+            uint yen = IsReadable(WalletAddr, 4) ? ReadWalletU32() : 0;
+            Speech.Say($"You have {yen} yen.", true);
+        }
+        _gWas = gNow;
 
         if (mask != _lastMask)
         {
@@ -444,6 +467,8 @@ internal sealed unsafe class PlayerMenu
             if (string.IsNullOrEmpty(name)) name = $"Item {id}";
             string msg = extra > 1 ? $"{name}, {extra}" : name;
             msg += EquipStatText(id, charId, slot);
+            string eff = EquipAddEffect(id);
+            if (!string.IsNullOrEmpty(eff)) msg += $". Effect {eff}";
             string desc = DescribeItem(id);
             if (!string.IsNullOrEmpty(desc)) msg += ". " + desc;
             Speak(msg);
@@ -676,6 +701,12 @@ internal sealed unsafe class PlayerMenu
 
     private static bool NavKey(int vk) => IsGameFocused() && (GetAsyncKeyState(vk) & 0x8000) != 0;
 
+    // ── camp-menu money readout (G, 2026-07-18) — same wallet global the shop
+    // and battle ResultReader use ─────────────────────────────────────────────
+    private bool _gWas;
+    private static readonly nint WalletAddr = unchecked((nint)0x1451BCD70L);
+    private static unsafe uint ReadWalletU32() => *(uint*)WalletAddr;
+
     // Social Link: record at +0x40 — {u16 arcana (1-based, live 2 =
     // Magician ✓), u16 ? (live 7), u16 rank (live 1)}. Holder names from
     // the fixed P4G arcana→character map (user wants "Yosuke Hanamura,
@@ -861,6 +892,11 @@ internal sealed unsafe class PlayerMenu
         switch (cat)
         {
             case 0: statA = *(short*)(rec + 0x08); statB = *(short*)(rec + 0x0A); return EquipCat.Weapon;
+            // cat 9 = GOLDEN special weapon (Weapon2 bank, ids 2304+, equippable by
+            // EVERY character — Festival Fan id 2350 live-probed 2026-07-06: cat=9,
+            // atk +0x08=80, hit +0x0A=90, effect +0x28=13 "+3 Magic", matching the
+            // screen exactly). Same field layout as cat 0.
+            case 9: statA = *(short*)(rec + 0x08); statB = *(short*)(rec + 0x0A); return EquipCat.Weapon;
             case 1: statA = *(short*)(rec + 0x10); statB = *(short*)(rec + 0x12); return EquipCat.Armor;
             case 2: return EquipCat.Accessory;
             default: return EquipCat.Unknown;
@@ -874,7 +910,8 @@ internal sealed unsafe class PlayerMenu
         string label = slot >= 0 && slot < EquipSlotNames.Length ? EquipSlotNames[slot] : $"Slot {slot}";
         string current = EquippedItemName(charId, slot);
         if (string.IsNullOrEmpty(current)) return label;
-        return $"{label}: {current}{EquippedStatText(charId, slot)}";
+        string eff = EquipAddEffect(EquippedItemId(charId, slot));
+        return $"{label}: {current}{EquippedStatText(charId, slot)}{(eff.Length > 0 ? $", effect {eff}" : "")}";
     }
 
     // ", attack 42, hit 93" — the EQUIPPED item's stats (no delta), appended
@@ -887,6 +924,30 @@ internal sealed unsafe class PlayerMenu
         if (cat == EquipCat.Weapon) return $", attack {a}, hit {b}";
         if (cat == EquipCat.Armor) return $", defense {a}, evade {b}";
         return "";
+    }
+
+    // Equipment ADD-EFFECT ("+2 Endurance" / "+Auto-Sukukaja" / "+Reduce Fire
+    // damage 10%"): the effect-id is an int at stat-record +0x28 → the AddEffect
+    // help text (id 0 = none). This is the SHOP readout's mechanism (2026-06-30)
+    // — missed in the camp Equip menu until 2026-07-06 (user report: camp only
+    // read stats, not the Effect line the sighted see).
+    private static string EquipAddEffect(int id)
+    {
+        // Classic equipment (0-767) + the GOLDEN weapon bank (2304-2559, cat 9).
+        bool classic = id > 0 && id < 768;
+        bool golden = id >= 2304 && id < 2560;
+        if (!classic && !golden) return "";
+        nint baseAddr = ReadPtr((nint)EquipStatTblAddr);
+        if (baseAddr == 0) return "";
+        nint rec = baseAddr + (nint)id * 0x44;
+        if (!IsReadable(rec, 0x44)) return "";
+        int cat = *(short*)rec;
+        if (cat != 0 && cat != 1 && cat != 2 && cat != 9) return "";   // stale/foreign record
+        int effId = *(int*)(rec + 0x28);
+        if (effId <= 0) return "";
+        string t = ReadHelpText(Dialog.HelpBmd.AddEffect, effId);
+        if (string.IsNullOrWhiteSpace(t) || t == "None" || t == "blank" || t == "????") return "";
+        return t;   // already begins with "+"
     }
 
     // "attack 53, up 11, hit 92, down 1" — candidate computed stats plus the

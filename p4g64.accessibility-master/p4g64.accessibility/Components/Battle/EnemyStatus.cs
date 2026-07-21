@@ -45,6 +45,8 @@ internal sealed unsafe class EnemyStatus
             Thread.Sleep(PollMs);
             try
             {
+                // (The Q quick-analyze reader moved to ProfileNav 2026-07-11 — it
+                // gives the panel the full I/K/J/L treatment, not a one-shot blurb.)
                 if (!Utils.GameHasFocus()) continue;   // ignore U while alt-tabbed
                 bool down = IsKeyDown(VK_U);
                 if (down && !_keyWas) Announce();
@@ -87,7 +89,13 @@ internal sealed unsafe class EnemyStatus
             if (dead) continue; // skip defeated enemies in the spoken summary
             living++;
 
-            speech.Append($"{name} {hp} HP");
+            // HP as a PERCENTAGE — the on-screen HP bar the game shows when you target
+            // an enemy, visible even before analysis, so it's never a leak (user
+            // 2026-07-21). Exact HP numbers stay hidden (the game never shows them).
+            if (maxHp > 0)
+                speech.Append($"{name}, {(int)((long)hp * 100 / maxHp)} percent");
+            else
+                speech.Append($"{name}, HP unknown");
             if (down) speech.Append(", down");
             string ail = Battle.AilmentText(status);
             if (ail != null) speech.Append($", {ail}");
