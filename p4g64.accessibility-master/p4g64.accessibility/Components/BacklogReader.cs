@@ -252,24 +252,11 @@ internal sealed unsafe class BacklogReader
     /// never Japanese glyphs, so dropping them loses no text.</summary>
     private static string DecodeAtlusRun(nint p)
     {
+        // 2026-09-09: GameText.DecodeMsg — function tokens skipped by their real length,
+        // glyph pairs DECODED (the old loop skipped every high byte, so a Japanese backlog
+        // read as empty lines). Same rules otherwise: 0x0A → space, 0x00 ends after text.
         if (p == 0 || !IsReadable(p, 2)) return "";
-        var sb = new StringBuilder(160);
-        bool started = false;
-        int i = 0;
-        while (i < 600)
-        {
-            if (!IsReadable(p + i, 1)) break;
-            byte b = *(byte*)(p + i);
-            if (b >= 0x80) { i += 2; continue; }         // 2-byte token — skip it + its param
-            if (b >= 0x20 && b < 0x7F) { sb.Append((char)b); started = true; i += 1; continue; }
-            if (b == 0 && started) break;                // line terminator (after the text)
-            // Newline (0x0A) inside a run is a soft wrap or a two-sentence box — render
-            // it as a SPACE so words don't fuse ("because\nI" -> "because I", not
-            // "becauseI"). Other control bytes are dropped.
-            if (b == 0x0A && started && (sb.Length == 0 || sb[sb.Length - 1] != ' ')) sb.Append(' ');
-            i += 1;                                       // control byte / pre-text 0x00 / F5 arg
-        }
-        return sb.ToString().Trim();
+        return Native.Text.GameText.DecodeMsg(p, 600);
     }
 
     /// <summary>Speaker name for a message — THE GAME'S OWN LOOKUP, decompiled 2026-07-30

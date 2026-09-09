@@ -152,14 +152,35 @@ internal sealed unsafe class ShuffleText
         if (s.Length >= 2) _glyphs.Add(s);
     }
 
-    private static bool IsAllCaps(string t)
+    // 2026-09-09: a CATEGORY footer is one of the game's own six footer strings for the
+    // current language (GameText.ShuffleCategoryNames), with the English words as the
+    // fallback. The old "all-caps = category" rule broke every language whose script has
+    // no case: in Japanese the arcana/persona TITLE lines counted as categories, the first
+    // one became the category, failed the whitelist, and every frame was dropped — Shuffle
+    // Time went silent (user 2026-09-09).
+    private static readonly string[] EnglishCategories = { "PERSONA", "SWORD", "COIN", "WAND", "CUP", "ARCANA" };
+    private const int PersonaCategory = 0;
+
+    /// <summary>Category index 0..5 (0 = PERSONA, 5 = ARCANA) for a drawn string, or -1.</summary>
+    private static int CategoryIndex(string t)
     {
-        bool hasLetter = false;
-        foreach (char c in t)
-        {
-            if (char.IsLetter(c)) { hasLetter = true; if (char.IsLower(c)) return false; }
-        }
-        return hasLetter;
+        int i = Native.Text.GameText.ShuffleCategoryIndex(t);
+        if (i >= 0) return i;
+        for (int k = 0; k < EnglishCategories.Length; k++)
+            if (string.Equals(EnglishCategories[k], t, StringComparison.OrdinalIgnoreCase)) return k;
+        return -1;
+    }
+
+    private static bool IsAllCaps(string t) => CategoryIndex(t) >= 0;
+
+    private int _diagLeft = 40;   // bounded per-string diag for the first non-English verification (Debug builds only)
+    private void Diag(string what, string s)
+    {
+#if DEBUG
+        if (_diagLeft <= 0) return;
+        _diagLeft--;
+        Log($"[ShufDiag] {what}: \"{s}\"");
+#endif
     }
 
     private void Compose()
@@ -169,28 +190,30 @@ internal sealed unsafe class ShuffleText
         if (_fulls.Count == 0 && _glyphs.Count == 0) return;
 
         string? category = null;
+        int categoryIdx = -1;
         var titles = new System.Collections.Generic.List<string>();
         foreach (var t in _fulls)
         {
-            bool hasLetter = false, allUpper = true;
-            foreach (char c in t)
-            {
-                if (char.IsLetter(c)) { hasLetter = true; if (char.IsLower(c)) allUpper = false; }
-            }
-            if (hasLetter && allUpper) category ??= t;   // "ARCANA"/"WAND"/"CUP"/"PERSONA" footer
+            int ci = CategoryIndex(t);
+            if (ci >= 0) { if (category == null) { category = t; categoryIdx = ci; } } // the footer
             else if (!titles.Contains(t)) titles.Add(t); // arrival order = true render order
         }
         if (titles.Count == 0 && _glyphs.Count == 0) return;
         // A REAL card panel always carries one of exactly these category footers. The
         // battle-UI state that gates this capture (17) also covers the LEVEL-UP / drop
-        // screens, which draw through the same text fn — without this whitelist the
+        // screens, which draw through the same text fn - without this whitelist the
         // no-struct announcer narrated the whole level-up ("Chie, Suzuka Gongen,
-        // Bufula…", "Ag has increased by", drop items) in a spam loop (user 2026-07-04).
-        if (category is not ("ARCANA" or "WAND" or "SWORD" or "CUP" or "COIN" or "PERSONA"))
+        // Bufula...", "Ag has increased by", drop items) in a spam loop (user 2026-07-04).
+        // 2026-09-09: the footer is matched against the game's per-language table
+        // (CategoryIndex), not by capitalization - see the note above IsAllCaps.
+        if (categoryIdx < 0)
+        {
+            if (_fulls.Count > 0) Diag("dropped frame (no footer)", string.Join(" | ", _fulls));
             return;
+        }
 
         var sb = new System.Text.StringBuilder();
-        if (category == "PERSONA") sb.Append("Persona ");
+        if (categoryIdx == PersonaCategory) sb.Append("Persona ");
         for (int i = 0; i < titles.Count; i++)
         {
             if (i > 0) sb.Append(", ");

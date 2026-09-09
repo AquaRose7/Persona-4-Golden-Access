@@ -843,8 +843,7 @@ internal unsafe class ShopMenu
             if (page.Text == null || page.TextSize <= 0 || page.TextSize > 10000) return "";
             if (!IsReadable((nint)page.Text, page.TextSize)) return "";
 
-            return AtlusEncoding.P4.GetString(page.Text, page.TextSize)
-                .Replace('\0', ' ').Replace('\n', ' ').Trim();
+            return Native.Text.GameText.DecodeMsg((nint)page.Text, page.TextSize);   // 2026-09-09: function-code aware
         }
         catch (Exception ex)
         {
@@ -878,9 +877,8 @@ internal unsafe class ShopMenu
             var msg = hdr.MessageDialog;
             var nb = msg->Name;
             if (!IsReadable((nint)nb, 24)) return "";
-            int nl = 0;
-            for (int i = 0; i < 24 && nb[i] != 0; i++) nl++;
-            return System.Text.Encoding.UTF8.GetString(nb, nl);
+            // 2026-09-07: BMD name fields are glyph-encoded, not UTF-8 (accents/CJK were lost).
+            return ReadAtlusStringRpm((nint)nb, 24).Trim();
         }
         catch { return ""; }
     }

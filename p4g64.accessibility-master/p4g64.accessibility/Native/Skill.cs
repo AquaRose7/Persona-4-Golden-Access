@@ -7,14 +7,14 @@ namespace p4g64.accessibility.Native;
 
 public unsafe class Skill
 {
-    private static EnglishSkillName** _englishNames;
     private static ActiveSkillData** _activeSkillData;
     private static SkillElements** _skillElements;
 
     internal static void Initialise()
     {
-        SigScan("48 03 0D ?? ?? ?? ?? EB ?? 48 6B CE 13", "EnglishSkillNamesPtr",
-            address => { _englishNames = (EnglishSkillName**)GetGlobalAddress(address + 3); });
+        // Skill NAMES: per-language tables selected by the game's language id — see
+        // GameText.SkillName (2026-09-07). The old "EnglishSkillNamesPtr" sig-scan bound the
+        // ENGLISH branch only, whose cell is null in every other language (crash in SkillSelect).
 
         SigScan("48 8B 05 ?? ?? ?? ?? 0F B6 7C ?? ??", "ActiveSkillDataPtr",
             address => { _activeSkillData = (ActiveSkillData**)GetGlobalAddress(address + 3); });
@@ -46,18 +46,11 @@ public unsafe class Skill
         return ((byte*)GetActiveSkillData(skillId))[0x0C];
     }
 
-    // TODO Support other languages
-
     /// <summary>
-    /// Gets the name of a skill
+    /// Gets the name of a skill in the GAME's language (the game's own per-language table,
+    /// decoded with the active glyph table). Never throws; "" when the table isn't loaded.
     /// </summary>
-    /// <param name="skillId">The ID of the skill</param>
-    /// <returns>The name of the skill in English</returns>
-    internal static string GetName(int skillId)
-    {
-        var namePtr = (*_englishNames)[skillId].Name;
-        return Encoding.UTF8.GetString(namePtr, GetStringLength(namePtr, 0x15));
-    }
+    internal static string GetName(int skillId) => GameText.SkillName(skillId);
 
     /// <summary>
     /// Gets the description of a skill
@@ -83,7 +76,7 @@ public unsafe class Skill
         }
 
         var page = messageDialog->Pages; // First (and only) page
-        return AtlusEncoding.P4.GetString(page.Text, page.TextSize).Replace('\n', ' ').Replace('\0', ' ').Trim();
+        return GameText.DecodeMsg((nint)page.Text, page.TextSize);   // 2026-09-09: function-code aware
     }
 
     internal struct EnglishSkillName

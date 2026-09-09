@@ -49,29 +49,74 @@ internal class Utils
         return true;
     }
 
-    /// <summary>Printable-ASCII C-string read via RPM (page-boundary aware: reads to the
-    /// end of each readable page, stops cleanly at the first unreadable one). The drop-in
-    /// replacement for the per-component VirtualQuery ReadCStr copies.</summary>
+    /// <summary>Game-text C-string read via RPM (page-boundary aware: reads to the end of
+    /// each readable page, stops cleanly at the first unreadable one). The drop-in
+    /// replacement for the per-component VirtualQuery ReadCStr copies.
+    /// ⚠ 2026-09-07: decodes through the ACTIVE GLYPH TABLE (<see cref="ReadAtlusStringRpm"/>)
+    /// instead of keeping printable ASCII only — the old filter silently emptied every
+    /// Japanese string and dropped accents in European languages across nine readers
+    /// (Check label, quest names, Social Link detail, compendium info, shuffle text, …).
+    /// English output is byte-for-byte identical (ASCII passes through the glyph table).</summary>
     internal static unsafe string ReadCStringRpm(nint p, int maxLen)
     {
-        if (p == 0 || maxLen <= 0) return "";
         if (maxLen > 256) maxLen = 256;
-        byte* buf = stackalloc byte[256];
-        var sb = new StringBuilder(Math.Min(maxLen, 64));
-        int total = 0;
+        string s = ReadAtlusStringRpm(p, maxLen);
+        if (s.Length == 0) return s;
+        // Keep the old contract of never returning control characters.
+        foreach (char c in s)
+        {
+            if (c < 0x20)
+            {
+                var sb = new StringBuilder(s.Length);
+                foreach (char d in s) if (d >= 0x20) sb.Append(d);
+                return sb.ToString();
+            }
+        }
+        return s;
+    }
+
+    /// <summary>
+    /// Atlus-glyph-encoded C-string read via RPM (2026-09-07): a byte with the high bit set is
+    /// the lead byte of a 2-byte glyph pair, everything else is a single byte; stops at NUL or
+    /// maxLen. Decodes with the active glyph table, so accented / CJK text survives — use this
+    /// instead of <see cref="ReadCStringRpm"/> wherever the text is the GAME's own drawn text.
+    /// </summary>
+    internal static unsafe string ReadAtlusStringRpm(nint p, int maxLen)
+    {
+        if (p == 0 || maxLen <= 0) return "";
+        if (maxLen > 1024) maxLen = 1024;
+        byte* buf = stackalloc byte[1024];
+        int total = 0, len = -1;
         while (total < maxLen)
         {
             int chunk = Math.Min(maxLen - total, 0x1000 - (int)((ulong)(p + total) & 0xFFF));
-            if (!TryReadRaw(p + total, buf, chunk)) break;
-            for (int i = 0; i < chunk; i++)
-            {
-                byte b = buf[i];
-                if (b == 0) return sb.ToString();
-                if (b >= 0x20 && b < 0x7F) sb.Append((char)b);
-            }
+            if (!TryReadRaw(p + total, buf + total, chunk)) break;
             total += chunk;
+            // find the terminator honoring lead bytes
+            int i = 0;
+            while (i < total)
+            {
+                if (buf[i] == 0) { len = i; break; }
+                i += (buf[i] & 0x80) != 0 ? 2 : 1;
+            }
+            if (len >= 0) break;
         }
-        return sb.ToString();
+        if (len < 0)
+        {
+            // No terminator inside maxLen: never end on a dangling lead byte (a cut glyph
+            // pair would throw inside the decoder and lose the whole string).
+            len = Math.Min(total, maxLen);
+            int j = 0;
+            while (j < len) { if ((buf[j] & 0x80) != 0) { if (j + 1 >= len) { len = j; break; } j += 2; } else j++; }
+        }
+        if (len <= 0) return "";
+        try
+        {
+            var enc = Native.Text.AtlusEncoding.P4;
+            if (enc == null) return Encoding.ASCII.GetString(buf, len);
+            return enc.GetString(buf, len).Replace('\0', ' ');
+        }
+        catch { return ""; }
     }
 
     private static ILogger _logger;

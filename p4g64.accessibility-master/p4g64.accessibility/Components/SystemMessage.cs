@@ -44,14 +44,31 @@ internal unsafe class SystemMessage : IDisposable
         Log("System message reader hook active.");
     }
 
+    /// <summary>
+    /// The system-message table base for the CURRENT LANGUAGE (2026-09-09): the game's own
+    /// lookup returns <c>base + index*0x10</c>, so the first lookup teaches us the base
+    /// (English = 0x140AB17E0; other languages live in their own blocks). InternetDialog
+    /// resolves its Yes/No text through this too.
+    /// </summary>
+    internal static nint LiveTableBase;
+
     private nint OnLookup(int index)
     {
         var res = _hook!.OriginalFunction(index);
-        try { Handle(index); } catch { /* never let a hook throw */ }
+        try
+        {
+            if (index >= 0 && index <= 0x200 && res != 0)
+            {
+                nint b = res - index * 0x10;
+                if (b != LiveTableBase) { LiveTableBase = b; Log($"[SystemMessage] language table base = 0x{b:X} (english = 0x{MsgTable:X})"); }
+            }
+            Handle(index, res);
+        }
+        catch { /* never let a hook throw */ }
         return res;
     }
 
-    private void Handle(int index)
+    private void Handle(int index, nint entry)
     {
         if (index < 0 || index > 0x200) return;
         long now = Environment.TickCount64;
@@ -59,7 +76,7 @@ internal unsafe class SystemMessage : IDisposable
         _seen[index] = now;
         if (recent) return; // already announced while this message is on screen
 
-        nint entry = MsgTable + index * 0x10;
+        if (entry == 0) entry = MsgTable + index * 0x10;   // fallback: the English block
         if (!IsReadable(entry + 8)) return;
         int flags = *(short*)(entry + 8) & 0xFFFF;
         if (flags == 2) return; // Yes/No -> InternetDialog
@@ -73,24 +90,9 @@ internal unsafe class SystemMessage : IDisposable
         Speech.Say(msg, interrupt: false);
     }
 
-    // Decode an Atlus message: ASCII bytes are text, 0x0A is a line break
-    // (spoken as a space), control codes (>= 0x80) are 2-byte sequences we
-    // skip, 0x00 terminates.
-    private static string DecodeMessage(nint p)
-    {
-        byte* b = (byte*)p;
-        var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < 512; )
-        {
-            byte c = b[i];
-            if (c == 0) break;
-            if (c >= 0x80)      i += 2;
-            else if (c == 0x0A) { sb.Append(' '); i++; }
-            else if (c >= 0x20) { sb.Append((char)c); i++; }
-            else                i++;
-        }
-        return sb.ToString().Trim();
-    }
+    // 2026-09-09: proper Atlus MSG decode (function codes skipped by their real length,
+    // glyph pairs decoded) — the old loop dropped every high byte, i.e. all non-English text.
+    private static string DecodeMessage(nint p) => Native.Text.GameText.DecodeMsg(p, 512);
 
     [DllImport("kernel32.dll", EntryPoint = "VirtualQuery")]
     private static extern nint VQ(nint a, byte* b, nint l);

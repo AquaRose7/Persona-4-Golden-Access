@@ -96,31 +96,16 @@ internal unsafe class InternetDialog : IDisposable
         if (!IsRead(pDialog + 0x0C)) return "";
         int idx = *(int*)(pDialog + 0x0C);
         if (idx < 0 || idx > 0x200) return "";
-        nint entry = MsgTable + idx * 0x10;
+        nint tbl = SystemMessage.LiveTableBase != 0 ? SystemMessage.LiveTableBase : MsgTable;   // 2026-09-09: the current language's block
+        nint entry = tbl + idx * 0x10;
         if (!IsRead(entry + 8)) return "";
         nint msgPtr = *(nint*)entry;
         if (!IsRead(msgPtr)) return "";
         return DecodeMessage(msgPtr);
     }
 
-    // Decode an Atlus message: ASCII bytes are text, 0x0A is a line break
-    // (spoken as a space), control codes (>= 0x80) are 2-byte sequences we
-    // skip, 0x00 terminates.
-    private static string DecodeMessage(nint p)
-    {
-        byte* b = (byte*)p;
-        var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < 512; )
-        {
-            byte c = b[i];
-            if (c == 0) break;
-            if (c >= 0x80)      i += 2;                 // control / 2-byte glyph
-            else if (c == 0x0A) { sb.Append(' '); i++; }
-            else if (c >= 0x20) { sb.Append((char)c); i++; }
-            else                i++;                    // other control
-        }
-        return sb.ToString().Trim();
-    }
+    // 2026-09-09: proper Atlus MSG decode (see GameText.DecodeMsg).
+    private static string DecodeMessage(nint p) => Native.Text.GameText.DecodeMsg(p, 512);
 
     [DllImport("kernel32.dll", EntryPoint = "VirtualQuery")]
     private static extern nint VQ(nint a, byte* b, nint l);

@@ -559,18 +559,14 @@ internal unsafe class VelvetFusion : IDisposable
         Speech.Say(label, interrupt: true);
     }
 
+    // 2026-09-07: decodes with the game's glyph table (was printable-ASCII only, which made
+    // every velvet TEXT menu — root / Skill Cards / Rescue / Ask / compendium rows — return
+    // null and stay SILENT in Japanese and garble accents in European languages).
     private static string ReadAscii(nint p, int max)
     {
         if (p <= 0x10000 || !IsReadable(p)) return null;
-        var sb = new StringBuilder();
-        for (int i = 0; i < max; i++)
-        {
-            if (!IsReadable(p + i)) break;
-            byte b = *(byte*)(p + i);
-            if (b == 0) break;
-            if (b >= 0x20 && b < 0x7F) sb.Append((char)b); else break;
-        }
-        return sb.Length > 0 ? sb.ToString() : null;
+        string s = ReadAtlusStringRpm(p, max).Trim();
+        return s.Length > 0 ? s : null;
     }
 
     /// <summary>"All Personas" compendium list (bit 0x02, FUN_14025E1D0). Entry is

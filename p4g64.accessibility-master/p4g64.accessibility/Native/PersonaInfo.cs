@@ -6,21 +6,15 @@ namespace p4g64.accessibility.Native;
 
 internal unsafe class Persona
 {
-    private static EnglishPersonaName** _englishNames;
-
     internal static void Initialise()
     {
-        SigScan("48 03 0D ?? ?? ?? ?? EB ?? 0F B7 C1 48 6B C8 13 48 03 0D ?? ?? ?? ?? 39 35 ?? ?? ?? ??",
-            "EnglishPersonaNamesPtr",
-            address => { _englishNames = (EnglishPersonaName**)GetGlobalAddress(address + 3); });
+        // Persona NAMES: per-language tables selected by the game's language id — see
+        // GameText.PersonaName (2026-09-07). The old "EnglishPersonaNamesPtr" sig-scan bound
+        // the ENGLISH branch only (null cell → "<err>" for every persona in other languages).
     }
 
-    // TODO make this work with other languages (look at the code at EnglishPersonaNamesPtr)
-    internal static string GetName(int personaId)
-    {
-        var namePtr = (*_englishNames)[personaId].Name;
-        return Encoding.UTF8.GetString(namePtr, GetStringLength(namePtr, 0x15));
-    }
+    /// <summary>Persona name in the GAME's language. Never throws; "" when unavailable.</summary>
+    internal static string GetName(int personaId) => Text.GameText.PersonaName(personaId);
 
     [StructLayout(LayoutKind.Explicit, Size = 0x30)]
     internal struct PersonaInfo

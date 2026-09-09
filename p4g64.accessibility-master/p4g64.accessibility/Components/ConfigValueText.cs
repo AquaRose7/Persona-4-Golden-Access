@@ -96,11 +96,16 @@ internal sealed unsafe class ConfigValueText
         // next redraw and first-hover lookups miss (user-hit 2026-07-10).
         if (p6 != 0) return; // glyph-stream bodies (popups etc.) — labels/values are all p6==0
 
-        string s = ReadCStr(strPtr, 96).Trim();
+        // 2026-09-07: decode with the game's glyph table (not printable-ASCII) — in Japanese
+        // the labels decoded to "" and were skipped WITHOUT clearing the armed row, so the
+        // "OK" legend text got attached to "BGM" every frame ("5 / OK / 5 / OK" spam). Labels
+        // are matched against the game's OWN localized label table (GameText.IsConfigLabel);
+        // the English list is only the fallback when that table isn't loaded.
+        string s = ReadAtlusStringRpm(strPtr, 96).Trim();
         if (s.Length == 0) return;
         long now = Environment.TickCount64;
 
-        if (KnownLabels.Contains(s))
+        if (Native.Text.GameText.IsConfigLabel(s) || KnownLabels.Contains(s))
         {
             // A label directly after an armed label = the previous row drew no value.
             _pendingLabel = s;

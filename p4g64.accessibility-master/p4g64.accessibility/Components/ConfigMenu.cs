@@ -56,6 +56,33 @@ internal unsafe class ConfigMenu : IDisposable
         new[] { "Confirm", "Button Display", "Character Movement(Forward)", "Character Movement(Back)", "Character Movement(Left)", "Character Movement(Right)", "Confirm, Action", "Cancel", "Command Menu", "Sub Menu", "Rotate Camera(Left)", "Rotate Camera(Right)", "Center Camera", "Vox Populi/Display Floor Map", "TV Overlay/Rescue", "Quick Save", "Toggle Rush On/Off", "Display detailed list", "Check turn order", "Analyze", "Fast Forward Text", "Skip Event", "Backlog", "Move 2 forward in backlog", "Move 2 back in backlog" },
     };
 
+    // Table INDEX of every row above in the game's own cmpConfigItem.ctd label table
+    // (2026-09-07). Same index layout in every language; GameText.ConfigLabel(idx) gives the
+    // LOCALIZED text the game draws, which is what gets spoken and matched. The English
+    // strings in TabItems are the fallback when the table isn't loaded.
+    internal static readonly int[][] TabItemIdx =
+    {
+        new[] { 0, 1, 2, 3, 4, 5, 6 },
+        new[] { 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
+        new[] { 18, 91, 19, 21, 22, 23, 24, 25 },
+        new[] { 26, 27, 28, 29, 30, 31 },
+        new[] { 33, 35, 36, 37, 38, 39, 40, 41, 43, 44, 45, 46, 47, 48, 49, 50, 52, 53, 54, 55, 57, 58, 59, 60, 61 },
+        new[] { 62, 63, 65, 66, 67, 68, 69, 70, 72, 73, 74, 75, 76, 77, 78, 79, 81, 82, 83, 84, 86, 87, 88, 89, 90 },
+    };
+
+    /// <summary>Row label as the game draws it (localized), else the English fallback.</summary>
+    private static string RowLabel(int tab, int row)
+    {
+        var idx = TabItemIdx[tab];
+        var items = TabItems[tab];
+        string? live = row < idx.Length ? Native.Text.GameText.ConfigLabel(idx[row]) : null;
+        if (live != null) return live;
+        return row < items.Length ? items[row] : $"Item {row + 1}";
+    }
+
+    private static string ConfirmLabel => Native.Text.GameText.ConfigLabel(0) ?? "Confirm";
+    private static string ButtonDisplayLabel => Native.Text.GameText.ConfigLabel(63) ?? "Button Display";
+
     private static readonly string[] TabNames =
         { "Audio", "Game", "Graphics", "Display", "Keyboard", "Controller" };
 
@@ -250,8 +277,7 @@ internal unsafe class ConfigMenu : IDisposable
             int row = di + ReadScroll();
             if (row < 0 || row > 31) return;
 
-            var items    = TabItems[_currentTab];
-            var itemName = row < items.Length ? items[row] : $"Item {row + 1}";
+            var itemName = RowLabel(_currentTab, row);
 
             // Live value = what the game DRAWS for this row (ConfigValueText parses
             // the FUN_140450C60 render stream — never stale, tracks un-confirmed
@@ -264,7 +290,7 @@ internal unsafe class ConfigMenu : IDisposable
             // tab's — a plain lookup leaks the KEYBOARD key ("Back, S")
             // (log-caught 2026-07-10). Wrong value is worse than none → the
             // tab is name-only except its own "Button Display" text value.
-            bool suppressed = _currentTab == 5 && itemName != "Button Display";
+            bool suppressed = _currentTab == 5 && itemName != ButtonDisplayLabel;
             string? valueStr = suppressed ? null : ConfigValueText.Lookup(itemName);
             CurrentRowLabel = suppressed ? null : itemName; // push anchor for in-place value changes
 
@@ -309,7 +335,7 @@ internal unsafe class ConfigMenu : IDisposable
     // art, and the label also appears on other screens.
     internal static void OnValueDrawn(string label, string value)
     {
-        if (label == "Confirm") return;
+        if (label == "Confirm" || label == ConfirmLabel) return;
         if (label != CurrentRowLabel) return;
         if (value == _lastValue) return;
         _lastValue = value;

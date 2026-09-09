@@ -1031,7 +1031,7 @@ internal sealed unsafe class PlayerMenu
             var page = md->Pages;
             int size = page.TextSize;
             if (size < 1 || size > 1024 || !IsReadable((nint)page.Text, size)) return "";
-            return AtlusEncoding.P4.GetString(page.Text, size).Replace('\n', ' ').Replace('\0', ' ').Trim();
+            return Native.Text.GameText.DecodeMsg((nint)page.Text, size);   // 2026-09-09: function-code aware
         }
         catch { return ""; }
     }

@@ -83,18 +83,15 @@ internal unsafe class SubtitleReader : IDisposable
         if (ReaderEnabled && Utils.GameHasFocus()) Speech.Say(text, true);
     }
 
+    // 2026-09-07: the source text is in the game's ATLUS GLYPH ENCODING, not UTF-8 — the
+    // game's own copy loop (FUN_14054B6E0) treats any high-bit byte as the lead of a 2-byte
+    // glyph pair. UTF-8 decoding dropped every accented letter for French/European players
+    // (dialogue was fine because it already went through the glyph decoder).
     private string ReadString(nint addr)
     {
         if (addr == 0 || !IsReadable(addr, 4)) return "";
-        byte* p = (byte*)addr;
-        var bytes = new List<byte>(256);
-        for (int i = 0; i < MaxBytes; i++)
-        {
-            byte b = p[i];
-            if (b == 0) break;                                   // single null = end
-            bytes.Add(b == (byte)'\n' ? (byte)' ' : b);          // line break → space
-        }
-        return Encoding.UTF8.GetString(bytes.ToArray()).Trim();
+        string s = ReadAtlusStringRpm(addr, MaxBytes);
+        return s.Replace('\n', ' ').Trim();
     }
 
     [DllImport("kernel32.dll")]

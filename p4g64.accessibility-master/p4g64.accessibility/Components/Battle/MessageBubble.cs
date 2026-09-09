@@ -79,17 +79,22 @@ internal unsafe class MessageBubble
     private static bool IsPlayerEcho(string t)
     {
         string s = t.Trim();
-        if (Battle.IsCommandName(s)) return true;
         // "Change Personas" duplicates our own "<name> equipped." line (user
         // 2026-08-02: the swap was announced three times over). It is also the
         // EARLIEST confirm signal — the menu's closing frames fire one more
         // list/panel readout carrying the PREVIOUS persona before the equipped
         // change is detectable, so start the mute right here.
-        if (s.Equals("Change Personas", StringComparison.OrdinalIgnoreCase))
+        // 2026-09-09: matched against the game's OWN per-language command table
+        // (GameText.BattleCommandIndex) so it works in every language; the English
+        // literals stay as the fallback when the table can't be read.
+        int cmdIdx = Native.Text.GameText.BattleCommandIndex(s);
+        if (cmdIdx == Native.Text.GameText.BattleCommandChangePersonas
+            || s.Equals("Change Personas", StringComparison.OrdinalIgnoreCase))
         {
             PersonaNav.MuteListReadsUntil = Environment.TickCount64 + 2500;
             return true;
         }
+        if (cmdIdx >= 0 || Battle.IsCommandName(s)) return true;
 
         long now = Environment.TickCount64;
         if (Battle.PendingEchoSkillId > 0 && now - Battle.PendingEchoSkillTick < 10000)

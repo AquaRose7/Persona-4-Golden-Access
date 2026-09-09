@@ -49,14 +49,9 @@ public unsafe class Item
 
     internal static void Initialise()
     {
-        RegisterArray(0, stride: 0x13, label: "s19",
-            pattern: "48 6B CE 13 48 03 0D ?? ?? ?? ??");
-        RegisterArray(1, stride: 0x17, label: "s23",
-            pattern: "48 6B CE 17 48 03 0D ?? ?? ?? ??");
-        RegisterArray(2, stride: 0x15, label: "s21",
-            pattern: "48 6B CE 15 48 03 0D ?? ?? ?? ??");
-        RegisterArray(3, stride: 0x21, label: "s33",
-            pattern: "48 6B CE 21 48 03 0D ?? ?? ?? ??");
+        // 2026-09-07: the four "s19/s23/s21/s33" sig-scans are gone — those patterns are the
+        // per-language SKILL-name tables (GameText), not item arrays. Item names come from
+        // the fixed native array in GetName; nothing to resolve at startup.
     }
 
     private static void RegisterArray(int idx, int stride, string label, string pattern)
@@ -108,76 +103,26 @@ public unsafe class Item
     }
 
     /// <summary>
-    /// Probe all four name arrays for the given ID. Returns the first
-    /// plausible ASCII name, or "" if none qualify.
+    /// Item display name from the flat native name array (stride 0x18, ASLR-off fixed base),
+    /// decoded with the ACTIVE GLYPH TABLE (2026-09-07 — the old printable-ASCII check rejected
+    /// every accented / CJK name). Returns "" for blanks and placeholders.
+    ///
+    /// ⚠ The "four BMD arrays" this used to probe on a miss (s19/s21/s23/s33) are NOT item
+    /// arrays — they are the four per-language SKILL-name tables (the switch at 0x1400E5D43 is
+    /// a LANGUAGE switch, see GameText). Probing them could speak a skill name for an item in
+    /// French. Removed.
     /// </summary>
     internal static string GetName(int gameItemId)
     {
         if (gameItemId < 0 || gameItemId > 4096) return "";
 
-        // Try the flat native name array first (stride=0x18, ASLR-off fixed base).
-        byte* nativePtr = (byte*)NATIVE_NAME_BASE + gameItemId * NATIVE_NAME_STRIDE;
-        if (IsReadable((nint)nativePtr, NATIVE_NAME_STRIDE))
-        {
-            int nlen = 0; bool nbad = false;
-            for (; nlen < NATIVE_NAME_STRIDE; nlen++)
-            {
-                byte b = nativePtr[nlen];
-                if (b == 0) break;
-                if (b < 0x20 || b > 0x7E) { nbad = true; break; }
-            }
-            if (!nbad && nlen >= 2)
-            {
-                var nname = Encoding.UTF8.GetString(nativePtr, nlen);
-                if (nname != "Blank" && nname != "????" && !nname.StartsWith("item_") && !nname.StartsWith("weapon_") && !nname.StartsWith("armor_"))
-                {
-                    Log($"[Item] GetName({gameItemId}) -> native \"{nname}\"");
-                    return nname;
-                }
-            }
-        }
-
-        string chosen = "";
-        var sb = new StringBuilder();
-        sb.Append($"[Item] GetName({gameItemId}) native miss, probing BMD arrays:");
-
-        for (int i = 0; i < _arrays.Length; i++)
-        {
-            var arr = _arrays[i];
-            if (arr.Stride == 0x17) { sb.Append($" {arr.Label}=skipped(skills)"); continue; } // s23 = skill names
-            if (arr.BssCell == null) { sb.Append($" {arr.Label ?? "?"}=unset"); continue; }
-            byte* baseAddr = *arr.BssCell;
-            if (baseAddr == null) { sb.Append($" {arr.Label}=null"); continue; }
-
-            byte* namePtr = baseAddr + gameItemId * arr.Stride;
-            if (!IsReadable((nint)namePtr, arr.Stride))
-            {
-                sb.Append($" {arr.Label}=unreadable");
-                continue;
-            }
-
-            // Validate: plausible name = all printable ASCII until a null, ≥ 2 chars.
-            int len = 0;
-            bool bad = false;
-            for (; len < arr.Stride; len++)
-            {
-                byte b = namePtr[len];
-                if (b == 0) break;
-                if (b < 0x20 || b > 0x7E) { bad = true; break; }
-            }
-            if (bad || len < 2)
-            {
-                sb.Append($" {arr.Label}=invalid(len={len})");
-                continue;
-            }
-
-            var s = Encoding.UTF8.GetString(namePtr, len);
-            sb.Append($" {arr.Label}=\"{s}\"");
-            if (string.IsNullOrEmpty(chosen)) chosen = s;
-        }
-
-        Log(sb.ToString());
-        return chosen;
+        nint nativePtr = (nint)NATIVE_NAME_BASE + gameItemId * NATIVE_NAME_STRIDE;
+        string name = ReadAtlusStringRpm(nativePtr, NATIVE_NAME_STRIDE).Trim();
+        if (name.Length < 1) return "";
+        if (name == "Blank" || name == "????" || name.StartsWith("item_") || name.StartsWith("weapon_") || name.StartsWith("armor_"))
+            return "";
+        foreach (char c in name) if (c < 0x20) return "";   // control bytes = not a name
+        return name;
     }
 
     /// <summary>
@@ -224,7 +169,7 @@ public unsafe class Item
         int size = page.TextSize;
         if (size < 1 || size > 1024 || !IsReadable((nint)page.Text, size)) return "";
 
-        return AtlusEncoding.P4.GetString(page.Text, size).Replace('\n', ' ').Replace('\0', ' ').Trim();
+        return Text.GameText.DecodeMsg((nint)page.Text, size);   // 2026-09-09: function-code aware
     }
 
     [DllImport("kernel32.dll")]
