@@ -1,0 +1,1250 @@
+key	file	line	en	zh-TW	zh-CN	raw
+mod.loaded	Mod.cs	195	Accessibility mod loaded	無障礙模組已載入	无障碍模组已加载	
+mod.settings_save_failed	ModSettings.cs	78	Settings could not be saved.	設定無法儲存。	设置无法保存。	
+history.none	Components/Speech.cs	125;136	No history.	沒有歷史紀錄。	没有历史记录。	
+history.start	Components/Speech.cs	139	Start of history. {0}	歷史開頭。{0}	历史开头。{0}	"Start of history. " + _hist[0]
+history.newest	Components/Speech.cs	140	Newest. {0}	最新。{0}	最新。{0}	"Newest. " + _hist[^1]
+reader.dialogue_on	Mod.cs;Components/Dialogue.cs	199;56	Dialogue reader on.	對話朗讀開啟。	对话朗读开启。	
+reader.dialogue_off	Mod.cs;Components/Dialogue.cs	199;56	Dialogue reader off, voice mode.	對話朗讀關閉，語音模式。	对话朗读关闭，语音模式。	
+reader.subtitle_on	Mod.cs;Components/SubtitleReader.cs	201;37	Subtitle reader on.	字幕朗讀開啟。	字幕朗读开启。	
+reader.subtitle_off	Mod.cs;Components/SubtitleReader.cs	201;37	Subtitle reader off.	字幕朗讀關閉。	字幕朗读关闭。	
+reader.movie_desc_on	Mod.cs	203	Cutscene descriptions on.	過場描述開啟。	过场描述开启。	
+reader.movie_desc_off	Mod.cs	203	Cutscene descriptions off.	過場描述關閉。	过场描述关闭。	
+movie.desc_on	Components/MovieDescription.cs	41	Descriptions on.	描述開啟。	描述开启。	
+movie.desc_off	Components/MovieDescription.cs	41	Descriptions off.	描述關閉。	描述关闭。	
+movie.no_description	Components/MovieDescription.cs	93	Cutscene {0}, no description.	過場動畫{0}，沒有描述。	过场动画{0}，没有描述。	$"Cutscene {SpellCode(name)}, no description."
+config.announce_dialogue.name	Config.cs	7	Announce Dialogue	朗讀對話	朗读对话	
+config.announce_dialogue.desc	Config.cs	8	Reads dialogue lines aloud via screen reader.	透過螢幕閱讀器朗讀對話內容。	通过屏幕阅读器朗读对话内容。	
+config.announce_field.name	Config.cs	12	Announce Field Location	播報場景位置	播报场景位置	
+config.announce_field.desc	Config.cs	13	Announces the area name when moving between locations.	在地點之間移動時播報區域名稱。	在地点之间移动时播报区域名称。	
+config.announce_battle.name	Config.cs	17	Announce Battle	播報戰鬥	播报战斗	
+config.announce_battle.desc	Config.cs	18	Announces battle menu items and skills.	播報戰鬥選單項目和技能。	播报战斗菜单项目和技能。	
+config.announce_saves.name	Config.cs	22	Announce Save Slots	播報存檔欄位	播报存档位	
+config.announce_saves.desc	Config.cs	23	Reads save slot details when navigating the load/save screen.	瀏覽讀檔存檔畫面時朗讀存檔欄位詳情。	浏览读档存档画面时朗读存档位详情。	
+settings.open	Components/SettingsMenu.cs	361	Accessibility settings. {0}	無障礙設定。{0}	无障碍设置。{0}	$"Accessibility settings. {TopEntryText()}"
+settings.closed	Components/SettingsMenu.cs	369	Settings closed.	設定已關閉。	设置已关闭。	
+settings.restart_needed	Components/SettingsMenu.cs	240	Takes effect after restarting the game.	重新啟動遊戲後生效。	重新启动游戏后生效。	
+settings.empty	Components/SettingsMenu.cs	424	Empty.	空的。	空的。	
+settings.help_missing	Components/SettingsMenu.cs	435	Help content is missing.	找不到說明內容。	找不到帮助内容。	
+settings.help_open	Components/SettingsMenu.cs	438	Help. {0}	說明。{0}	帮助。{0}	$"Help. {HelpEntryText(_helpRoot, 0)}"
+settings.restored	Components/SettingsMenu.cs	450	All settings restored to defaults.	所有設定已還原為預設值。	所有设置已恢复为默认值。	
+settings.confirm_restore	Components/SettingsMenu.cs	456	Press Enter again to restore all settings to defaults.	再按一次 Enter 將所有設定還原為預設值。	再按一次 Enter 将所有设置恢复为默认值。	
+settings.top_help_entry	Components/SettingsMenu.cs	495	Help. Controls and game tips. Item {0} of {1}.	說明。操作與遊戲提示。第 {0} 項，共 {1} 項。	帮助。操作与游戏提示。第 {0} 项，共 {1} 项。	$"Help. Controls and game tips. Item {_catIndex + 1} of {TopCount}."
+settings.top_restore_entry	Components/SettingsMenu.cs	497	Restore defaults. {0} Item {1} of {2}.	還原預設值。{0} 第 {1} 項，共 {2} 項。	恢复默认值。{0} 第 {1} 项，共 {2} 项。	$"Restore defaults. {_restoreRow.Desc} Item {TopCount} of {TopCount}."
+settings.top_category_entry	Components/SettingsMenu.cs	499	{0} category. {1} Item {2} of {3}.	{0}類別。{1} 第 {2} 項，共 {3} 項。	{0}类别。{1} 第 {2} 项，共 {3} 项。	$"{c.Name} category. {c.Desc} Item {_catIndex + 1} of {TopCount}."
+settings.help_entry	Components/SettingsMenu.cs	507;510	{0}. {1} Item {2} of {3}.	{0}。{1} 第 {2} 項，共 {3} 項。	{0}。{1} 第 {2} 项，共 {3} 项。	$"{c.Name}. {c.Desc} Item {idx + 1} of {node.Children.Length}."
+settings.row_focus	Components/SettingsMenu.cs	514	{0}, {1}. {2} Row {3} of {4}.	{0}，{1}。{2} 第 {3} 列，共 {4} 列。	{0}，{1}。{2} 第 {3} 行，共 {4} 行。	$"{row.Name}, {ValueText(row, row.Get())}. {row.Desc} Row {index + 1} of {count}."
+settings.row_adjust	Components/SettingsMenu.cs	411	{0}, {1}	{0}，{1}	{0}，{1}	$"{row.Name}, {ValueText(row, v)}"
+settings.category_enter	Components/SettingsMenu.cs	463	{0}. {1}	{0}。{1}	{0}。{1}	$"{_cats[_catIndex].Name}. {RowFocusText(rows[0], 0, rows.Length)}"
+settings.value_percent	Components/SettingsMenu.cs	518	{0} percent	百分之{0}	百分之{0}	$"{v} percent"
+settings.value_hertz	Components/SettingsMenu.cs	519	{0} hertz	{0} 赫茲	{0} 赫兹	$"{v} hertz"
+settings.option.off	Components/SettingsMenu.cs	110	Off	關閉	关闭	
+settings.option.on	Components/SettingsMenu.cs	110	On	開啟	开启	
+settings.restore.name	Components/SettingsMenu.cs	80	Restore defaults	還原預設值	恢复默认值	
+settings.restore.desc	Components/SettingsMenu.cs	81	Resets every setting in this menu to its default value.	將此選單中的每項設定重設為預設值。	将此菜单中的每项设置重置为默认值。	
+settings.help.desc	Components/SettingsMenu.cs	280	Controls and game tips.	操作與遊戲提示。	操作与游戏提示。	
+settings.cat.sound.name	Components/SettingsMenu.cs	102	Sound volumes	音效音量	音效音量	
+settings.cat.sound.desc	Components/SettingsMenu.cs	103	A volume for every mod sound, and the shadow radar pitches.	每種模組音效的音量，以及陰影雷達的音高。	每种模组音效的音量，以及阴影雷达的音高。	
+settings.wall_sound.name	Components/SettingsMenu.cs	108	Wall sound	牆壁音效	墙壁音效	
+settings.wall_sound.desc	Components/SettingsMenu.cs	109	The continuous wall hum. Saved, so it stays as you leave it across sessions. N toggles it in a dungeon.	持續的牆壁嗡鳴聲。設定會儲存，跨場次維持你離開時的狀態。在迷宮中按 N 切換。	持续的墙壁嗡鸣声。设置会保存，跨场次维持你离开时的状态。在迷宫中按 N 切换。	
+settings.shadow_radar.name	Components/SettingsMenu.cs	116	Shadow radar	陰影雷達	阴影雷达	
+settings.shadow_radar.desc	Components/SettingsMenu.cs	117	Stereo tones at each shadow's real position. Saved across sessions. The period key toggles it in a dungeon.	在每個陰影的實際位置發出立體聲音調。跨場次儲存。在迷宮中按句號鍵切換。	在每个阴影的实际位置发出立体声音调。跨场次保存。在迷宫中按句号键切换。	
+settings.stairs_beacon.name	Components/SettingsMenu.cs	124	Stairs beacon	樓梯信標	楼梯信标	
+settings.stairs_beacon.desc	Components/SettingsMenu.cs	125	A ping from the next-floor stairs once the minimap knows them. Saved across sessions. Slash toggles it in a dungeon.	小地圖記錄到下一層樓梯後，從樓梯位置發出提示音。跨場次儲存。在迷宮中按斜線鍵切換。	小地图记录到下一层楼梯后，从楼梯位置发出提示音。跨场次保存。在迷宫中按斜杠键切换。	
+settings.chest_beacon.name	Components/SettingsMenu.cs	132	Chest beacon	寶箱信標	宝箱信标	
+settings.chest_beacon.desc	Components/SettingsMenu.cs	133	A ping from the nearest chest. Saved across sessions. Comma toggles it in a dungeon.	從最近的寶箱發出提示音。跨場次儲存。在迷宮中按逗號鍵切換。	从最近的宝箱发出提示音。跨场次保存。在迷宫中按逗号键切换。	
+settings.vol_wall_hum.name	Components/SettingsMenu.cs	138	Wall hum volume	牆壁嗡鳴音量	墙壁嗡鸣音量	
+settings.vol_wall_hum.desc	Components/SettingsMenu.cs	139	The four directional wall sounds while walking a dungeon.	在迷宮行走時四個方向的牆壁音效。	在迷宫行走时四个方向的墙壁音效。	
+settings.vol_door.name	Components/SettingsMenu.cs	142	Door cue volume	門提示音量	门提示音量	
+settings.vol_door.desc	Components/SettingsMenu.cs	143	The distinct door sound inside the wall hum.	牆壁嗡鳴中特殊的門音效。	墙壁嗡鸣中特殊的门音效。	
+settings.vol_stairs.name	Components/SettingsMenu.cs	146	Stairs beacon volume	樓梯信標音量	楼梯信标音量	
+settings.vol_stairs.desc	Components/SettingsMenu.cs	147	The looping beacon toward the stairs.	指向樓梯的循環信標音。	指向楼梯的循环信标音。	
+settings.vol_chest.name	Components/SettingsMenu.cs	150	Chest beacon volume	寶箱信標音量	宝箱信标音量	
+settings.vol_chest.desc	Components/SettingsMenu.cs	151	The looping beacon toward the nearest chest.	指向最近寶箱的循環信標音。	指向最近宝箱的循环信标音。	
+settings.vol_nav.name	Components/SettingsMenu.cs	154	Navigation beacon volume	導航信標音量	导航信标音量	
+settings.vol_nav.desc	Components/SettingsMenu.cs	155	The ping toward your selected target, in dungeons and town.	指向所選目標的提示音，迷宮和城鎮都適用。	指向所选目标的提示音，迷宫和城镇都适用。	
+settings.vol_shadow.name	Components/SettingsMenu.cs	158	Shadow sound volume	陰影音效音量	阴影音效音量	
+settings.vol_shadow.desc	Components/SettingsMenu.cs	159	The shadow sound and danger cues while the radar is on.	雷達開啟時的陰影音效和危險提示音。	雷达开启时的阴影音效和危险提示音。	
+settings.vol_gold.name	Components/SettingsMenu.cs	162	Golden hand volume	黃金之手音量	黄金之手音量	
+settings.vol_gold.desc	Components/SettingsMenu.cs	163	The golden hand sound while the radar is on.	雷達開啟時的黃金之手音效。	雷达开启时的黄金之手音效。	
+settings.vol_choice.name	Components/SettingsMenu.cs	166	Choice sound volume	選項音效音量	选项音效音量	
+settings.vol_choice.desc	Components/SettingsMenu.cs	167	The chime when a dialogue choice appears.	對話選項出現時的提示音。	对话选项出现时的提示音。	
+settings.check_sound.name	Components/SettingsMenu.cs	172	Check sound	調查音效	调查音效	
+settings.check_sound.desc	Components/SettingsMenu.cs	173	A short blip whenever a Check prompt appears, before its name is spoken.	出現調查提示時，在唸出名稱前先播一聲短音。	出现调查提示时，在念出名称前先播一声短音。	
+settings.vol_check.name	Components/SettingsMenu.cs	178	Check sound volume	調查音效音量	调查音效音量	
+settings.vol_check.desc	Components/SettingsMenu.cs	179	The blip when a Check prompt appears.	調查提示出現時的短音。	调查提示出现时的短音。	
+settings.vol_cursor.name	Components/SettingsMenu.cs	182	Cursor beeps volume	游標提示音音量	光标提示音音量	
+settings.vol_cursor.desc	Components/SettingsMenu.cs	183	The short ticks from the mapping cursor and the navigation browsers.	地圖游標和導航瀏覽的短促滴答聲。	地图光标和导航浏览的短促滴答声。	
+settings.vol_chime.name	Components/SettingsMenu.cs	186	Arrival chime volume	到達提示音音量	到达提示音音量	
+settings.vol_chime.desc	Components/SettingsMenu.cs	187	The rising three-note chime when auto-walk arrives.	自動行走到達時上揚的三音提示音。	自动行走到达时上扬的三音提示音。	
+settings.vol_bump.name	Components/SettingsMenu.cs	190	Wall bump volume	撞牆音量	撞墙音量	
+settings.vol_bump.desc	Components/SettingsMenu.cs	191	The thunk when you push into a wall.	撞到牆壁時的悶響。	撞到墙壁时的闷响。	
+settings.cat.cursor.name	Components/SettingsMenu.cs	198	Cursor	游標	光标	
+settings.cat.cursor.desc	Components/SettingsMenu.cs	199	How the H mapping cursor starts.	H 鍵地圖游標的初始狀態。	H 键地图光标的初始状态。	
+settings.nav_sort.name	Components/SettingsMenu.cs	204	Navigation sorting	導航排序	导航排序	
+settings.nav_sort.desc	Components/SettingsMenu.cs	205	How the navigation lists are ordered. By distance keeps the nearest first; Alphabetical keeps a stable order. It applies in town and in dungeon lobbies; dungeon floors always stay by distance.	導航清單的排列方式。依距離會把最近的排在最前面；依字母則保持固定順序。適用於城鎮和迷宮大廳；迷宮樓層一律依距離排序。	导航列表的排列方式。按距离会把最近的排在最前面；按字母则保持固定顺序。适用于城镇和迷宫大厅；迷宫楼层一律按距离排序。	
+settings.nav_sort.opt.distance	Components/SettingsMenu.cs	206	By distance	依距離	按距离	
+settings.nav_sort.opt.alpha	Components/SettingsMenu.cs	206	Alphabetical	依字母	按字母	
+settings.cursor_mode.name	Components/SettingsMenu.cs	212	Cursor default mode	游標預設模式	光标默认模式	
+settings.cursor_mode.desc	Components/SettingsMenu.cs	213	What the mapping cursor starts in each time you open it. Walk steps the player; Look surveys without moving.	每次開啟地圖游標時的初始模式。行走會實際移動玩家；查看則原地探查不移動。	每次开启地图光标时的初始模式。行走会实际移动玩家；查看则原地探查不移动。	
+settings.cursor_mode.opt.walk	Components/SettingsMenu.cs	214	Walk	行走	行走	
+settings.cursor_mode.opt.look	Components/SettingsMenu.cs	214	Look	查看	查看	
+settings.cursor_frame.name	Components/SettingsMenu.cs	220	Cursor default directions	游標預設方向	光标默认方向	
+settings.cursor_frame.desc	Components/SettingsMenu.cs	221	The direction frame at game start. Compass is fixed north south west east; Camera is ahead behind left right.	遊戲開始時使用的方向座標。羅盤固定為北、南、西、東；鏡頭則是前方、後方、左邊、右邊。	游戏开始时使用的方向坐标。罗盘固定为北、南、西、东；镜头则是前方、后方、左边、右边。	
+settings.cursor_frame.opt.compass	Components/SettingsMenu.cs	222	Compass	羅盤	罗盘	
+settings.cursor_frame.opt.camera	Components/SettingsMenu.cs	222	Camera	鏡頭	镜头	
+settings.cat.readers.name	Components/SettingsMenu.cs	230	Readers	朗讀功能	朗读功能	
+settings.cat.readers.desc	Components/SettingsMenu.cs	231	The spoken reader toggles. Their shortcuts keep working and stay in sync.	各朗讀功能的開關。原本的快捷鍵仍然有效並保持同步。	各朗读功能的开关。原本的快捷键仍然有效并保持同步。	
+settings.text_language.name	Components/SettingsMenu.cs	236	Game text language	遊戲文字語言	游戏文字语言	
+settings.text_language.desc	Components/SettingsMenu.cs	237	Which script the game's text is decoded with. Auto follows the language set for the game in Steam. Takes effect after restarting the game.	遊戲文字用哪種文字編碼解讀。自動會跟隨 Steam 中該遊戲的語言設定。重新啟動遊戲後生效。	游戏文字用哪种文字编码解读。自动会跟随 Steam 中该游戏的语言设置。重新启动游戏后生效。	
+settings.dialogue_reader.name	Components/SettingsMenu.cs	244	Dialogue reader	對話朗讀	对话朗读	
+settings.dialogue_reader.desc	Components/SettingsMenu.cs	245	Automatic reading of dialogue text.	自動朗讀對話文字。	自动朗读对话文字。	
+settings.subtitles.name	Components/SettingsMenu.cs	252	Cutscene subtitles	過場字幕	过场字幕	
+settings.subtitles.desc	Components/SettingsMenu.cs	253	Reading of anime cutscene subtitles. Note: subtitles must also be turned on in the game's own settings for this to read.	朗讀動畫過場的字幕。注意：遊戲本身設定中也必須開啟字幕才能朗讀。	朗读动画过场的字幕。注意：游戏本身设置中也必须开启字幕才能朗读。	
+settings.movie_desc.name	Components/SettingsMenu.cs	260	Cutscene descriptions	過場描述	过场描述	
+settings.movie_desc.desc	Components/SettingsMenu.cs	261	Hand written descriptions of cutscene visuals.	人工撰寫的過場畫面描述。	人工撰写的过场画面描述。	
+lang.auto	Native/Text/GameLanguage.cs	17	Auto	自動	自动	
+lang.efigs	Native/Text/GameLanguage.cs	17	English and European	英文與歐洲語言	英语与欧洲语言	
+lang.japanese	Native/Text/GameLanguage.cs	17	Japanese	日文	日语	
+lang.schinese	Native/Text/GameLanguage.cs	17	Simplified Chinese	簡體中文	简体中文	
+lang.tchinese	Native/Text/GameLanguage.cs	17	Traditional Chinese	繁體中文	繁体中文	
+lang.korean	Native/Text/GameLanguage.cs	17	Korean	韓文	韩语	
+title.press_any	Components/TitleMenu.cs	90	Press any button to continue	按任意鍵繼續	按任意键继续	
+title.new_game	Components/TitleMenu.cs	23	New Game	新遊戲	新游戏	
+title.load_game	Components/TitleMenu.cs	23	Load Game	載入遊戲	读取游戏	
+title.continue	Components/TitleMenu.cs	23	Continue	繼續遊戲	继续游戏	
+title.config	Components/TitleMenu.cs;Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	24;83;809	Config	設定	设置	
+title.tv_listing	Components/TitleMenu.cs	24	TV Listing	電視節目表	电视节目表	
+title.exit	Components/TitleMenu.cs	24	Exit	離開遊戲	退出游戏	
+difficulty.very_easy	Components/DifficultyMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;491	Very Easy	非常簡單	非常简单	
+difficulty.easy	Components/DifficultyMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;491	Easy	簡單	简单	
+difficulty.normal	Components/DifficultyMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;491	Normal	普通	普通	
+difficulty.hard	Components/DifficultyMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;491	Hard	困難	困难	
+difficulty.very_hard	Components/DifficultyMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;491	Very Hard	非常困難	非常困难	
+difficulty.desc.very_easy	Components/DifficultyMenu.cs	26	This mode is easier than easy. Relax and enjoy the story. If your party is wiped in battle, you can instantly retry.	這個模式比簡單還要簡單。放鬆享受劇情吧。戰鬥中全滅也能立即重試。	这个模式比简单还要简单。放松享受剧情吧。战斗中全灭也能立即重试。	
+difficulty.desc.easy	Components/DifficultyMenu.cs	27	For those who are less than confident in their skills. The battles are easier than Normal mode, so don't get too worked up.	給對自己技術沒什麼信心的玩家。戰鬥比普通模式輕鬆，不用太緊張。	给对自己技术没什么信心的玩家。战斗比普通模式轻松，不用太紧张。	
+difficulty.desc.normal	Components/DifficultyMenu.cs	28	This is the best balance of difficulty and enjoyment. Please experience the tension.	難度和樂趣最平衡的模式。請好好體驗那份緊張感。	难度和乐趣最平衡的模式。请好好体验那份紧张感。	
+difficulty.desc.hard	Components/DifficultyMenu.cs	29	This is for the confident. Battles are more challenging, and you'll experience severe gameplay.	給有自信的玩家。戰鬥更有挑戰性，遊戲過程會相當嚴酷。	给有自信的玩家。战斗更有挑战性，游戏过程会相当严酷。	
+difficulty.desc.very_hard	Components/DifficultyMenu.cs	30	Do you hate yourself, or are you supremely self-confident? This difficulty requires a strength of heart that never gives in.	你是討厭自己，還是對自己超有自信？這個難度需要永不屈服的堅強內心。	你是讨厌自己，还是对自己超有自信？这个难度需要永不屈服的坚强内心。	
+dialog.yes	Components/InternetDialog.cs	29	Yes	是	是	
+dialog.no	Components/InternetDialog.cs	29	No	否	否	
+sysmenu.change_difficulty	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	84;810	Change Difficulty	變更難度	更改难度	
+sysmenu.suspend	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	85;811	Suspend	中斷存檔	中断存档	
+sysmenu.delete_data	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	86;812	Delete Data	刪除資料	删除数据	
+sysmenu.load_data	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	87;813	Load Data	載入資料	读取数据	
+sysmenu.return_to_title	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	88;814	Return to Title	返回標題畫面	返回标题画面	
+sysmenu.end_game	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	89;815	End Game	結束遊戲	结束游戏	
+sysmenu.option_n	Components/EarlyMenu.cs;Components/CommandMenus/PlayerMenu.cs	90;816	Option {0}	選項 {0}	选项 {0}	$"Option {id}"
+cfgmenu.tab.audio	Components/ConfigMenu.cs	60	Audio	音訊	音频	
+cfgmenu.tab.game	Components/ConfigMenu.cs	60	Game	遊戲	游戏	
+cfgmenu.tab.graphics	Components/ConfigMenu.cs	60	Graphics	畫質	画质	
+cfgmenu.tab.display	Components/ConfigMenu.cs	60	Display	顯示	显示	
+cfgmenu.tab.keyboard	Components/ConfigMenu.cs	60	Keyboard	鍵盤	键盘	
+cfgmenu.tab.controller	Components/ConfigMenu.cs	60	Controller	手把	手柄	
+cfgmenu.confirm	Components/ConfigMenu.cs	38	Confirm	確認	确认	
+cfgmenu.bgm	Components/ConfigMenu.cs	38	BGM	BGM	BGM	
+cfgmenu.se	Components/ConfigMenu.cs	38	SE	SE	SE	
+cfgmenu.voice	Components/ConfigMenu.cs	38	Voice	語音	语音	
+cfgmenu.voiced_line	Components/ConfigMenu.cs	38	Voiced Line	語音台詞	语音台词	
+cfgmenu.audio_language	Components/ConfigMenu.cs	38	Audio Language	語音語言	语音语言	
+cfgmenu.sound_output_device	Components/ConfigMenu.cs	38	Sound Output Device	音訊輸出裝置	声音输出设备	
+cfgmenu.auto_text	Components/ConfigMenu.cs	42	Auto Text	自動文字	自动文字	
+cfgmenu.cursor_position_memory	Components/ConfigMenu.cs	42	Cursor Position Memory	游標位置記憶	光标位置记忆	
+cfgmenu.battle_order_memory	Components/ConfigMenu.cs	42	Battle Order Memory	戰鬥指令記憶	战斗指令记忆	
+cfgmenu.equipped_persona_memory	Components/ConfigMenu.cs	42	Equipped Persona Memory	裝備人格面具記憶	装备人格面具记忆	
+cfgmenu.program_guide_notification	Components/ConfigMenu.cs	42	Program Guide Notification	節目表通知	节目表通知	
+cfgmenu.inverted_camera	Components/ConfigMenu.cs	42	Inverted Camera	鏡頭反轉	镜头反转	
+cfgmenu.camera_speed	Components/ConfigMenu.cs	42	Camera Speed	鏡頭速度	镜头速度	
+cfgmenu.network_function	Components/ConfigMenu.cs	42	Network Function	網路功能	网络功能	
+cfgmenu.anime_subtitles	Components/ConfigMenu.cs	42	Anime Subtitles	動畫字幕	动画字幕	
+cfgmenu.presets	Components/ConfigMenu.cs	47	Presets	預設組合	预设方案	
+cfgmenu.rendering_scale	Components/ConfigMenu.cs	47	Rendering Scale	渲染比例	渲染比例	
+cfgmenu.shadow_quality	Components/ConfigMenu.cs	47	Shadow Quality	陰影品質	阴影质量	
+cfgmenu.shadow	Components/ConfigMenu.cs	47	Shadow	陰影	阴影	
+cfgmenu.anisotropic_filter	Components/ConfigMenu.cs	47	Anisotropic Filter	各向異性過濾	各向异性过滤	
+cfgmenu.anti_aliasing	Components/ConfigMenu.cs	47	Anti Aliasing	反鋸齒	抗锯齿	
+cfgmenu.contrast	Components/ConfigMenu.cs	47	Contrast	對比度	对比度	
+cfgmenu.resolution	Components/ConfigMenu.cs	49	Resolution	解析度	分辨率	
+cfgmenu.monitor	Components/ConfigMenu.cs	49	Monitor	螢幕	显示器	
+cfgmenu.screen_mode	Components/ConfigMenu.cs	49	Screen Mode	螢幕模式	屏幕模式	
+cfgmenu.vsync	Components/ConfigMenu.cs	49	V Sync	垂直同步	垂直同步	
+cfgmenu.fps_limit	Components/ConfigMenu.cs	49	FPS Limit	FPS 上限	FPS 上限	
+cfgmenu.move_forward	Components/ConfigMenu.cs	53;56	Character Movement(Forward)	角色移動（前）	角色移动（前）	
+cfgmenu.move_back	Components/ConfigMenu.cs	53;56	Character Movement(Back)	角色移動（後）	角色移动（后）	
+cfgmenu.move_left	Components/ConfigMenu.cs	53;56	Character Movement(Left)	角色移動（左）	角色移动（左）	
+cfgmenu.move_right	Components/ConfigMenu.cs	53;56	Character Movement(Right)	角色移動（右）	角色移动（右）	
+cfgmenu.confirm_action	Components/ConfigMenu.cs	53;56	Confirm, Action	確認、行動	确认、行动	
+cfgmenu.cancel	Components/ConfigMenu.cs	53;56	Cancel	取消	取消	
+cfgmenu.2d_display	Components/ConfigMenu.cs	53	2D Display	2D 顯示	2D 显示	
+cfgmenu.command_menu	Components/ConfigMenu.cs	53;56	Command Menu	指令選單	指令菜单	
+cfgmenu.sub_menu	Components/ConfigMenu.cs	53;56	Sub Menu	子選單	子菜单	
+cfgmenu.rotate_camera_left	Components/ConfigMenu.cs	53;56	Rotate Camera(Left)	旋轉鏡頭（左）	旋转镜头（左）	
+cfgmenu.rotate_camera_right	Components/ConfigMenu.cs	53;56	Rotate Camera(Right)	旋轉鏡頭（右）	旋转镜头（右）	
+cfgmenu.center_camera	Components/ConfigMenu.cs	53;56	Center Camera	鏡頭置中	镜头居中	
+cfgmenu.button_display	Components/ConfigMenu.cs	56	Button Display	按鈕顯示	按钮显示	
+cfgmenu.item_n	Components/ConfigMenu.cs	254	Item {0}	第 {0} 項	第 {0} 项	$"Item {row + 1}"
+cfgmenu.tab_item	Components/ConfigMenu.cs	282;283	{0}, {1}	{0}，{1}	{0}，{1}	$"{itemName}, {valueStr}" / $"{TabNames[_currentTab]}, {label}"
+save.slot	Components/LoadScreenTracker.cs	132	Save slot {0}: {1}	存檔欄位 {0}：{1}	存档位 {0}：{1}	$"Save slot {slotNum}: {desc}"
+save.unknown	Components/LoadScreenTracker.cs	142	unknown	未知	未知	
+save.unreadable	Components/LoadScreenTracker.cs	145	unreadable	無法讀取	无法读取	
+save.level	Components/LoadScreenTracker.cs	183	Level {0}	等級 {0}	等级 {0}	"Level " + ascii.Substring(lv + 3).Trim()
+save.playtime_hm	Components/LoadScreenTracker.cs	242	{0} hours {1} minutes	{0} 小時 {1} 分鐘	{0} 小时 {1} 分钟	$"{h} hour{(h != 1 ? "s" : "")} {m} minute{(m != 1 ? "s" : "")}"
+save.playtime_h	Components/LoadScreenTracker.cs	243	{0} hours	{0} 小時	{0} 小时	$"{h} hour{(h != 1 ? "s" : "")}"
+save.playtime_m	Components/LoadScreenTracker.cs	244	{0} minutes	{0} 分鐘	{0} 分钟	$"{m} minute{(m != 1 ? "s" : "")}"
+save.playtime_less_min	Components/LoadScreenTracker.cs	245	less than a minute	不到一分鐘	不到一分钟	
+date.month.january	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	January	一月	一月	
+date.month.february	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	February	二月	二月	
+date.month.march	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	March	三月	三月	
+date.month.april	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	April	四月	四月	
+date.month.may	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	May	五月	五月	
+date.month.june	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;928	June	六月	六月	
+date.month.july	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;26;929	July	七月	七月	
+date.month.august	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;27;929	August	八月	八月	
+date.month.september	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;27;929	September	九月	九月	
+date.month.october	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;27;929	October	十月	十月	
+date.month.november	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;27;929	November	十一月	十一月	
+date.month.december	Components/LoadScreenTracker.cs;Components/CalendarReader.cs;Components/VelvetFusion.cs	234;27;929	December	十二月	十二月	
+date.weekday.sunday	Components/CalendarReader.cs	30	Sunday	星期日	星期日	
+date.weekday.monday	Components/CalendarReader.cs	30	Monday	星期一	星期一	
+date.weekday.tuesday	Components/CalendarReader.cs	30	Tuesday	星期二	星期二	
+date.weekday.wednesday	Components/CalendarReader.cs	30	Wednesday	星期三	星期三	
+date.weekday.thursday	Components/CalendarReader.cs	30	Thursday	星期四	星期四	
+date.weekday.friday	Components/CalendarReader.cs	30	Friday	星期五	星期五	
+date.weekday.saturday	Components/CalendarReader.cs	30	Saturday	星期六	星期六	
+calendar.fusion_effect	Components/CalendarReader.cs	113	, fusion: {0}	，合體：{0}	，合体：{0}	$", fusion: {fc.Effect}"
+calendar.fusion_trigger	Components/CalendarReader.cs	113	, fusion, {0}: {1}	，合體，{0}：{1}	，合体，{0}：{1}	$", fusion, {fc.Trigger}: {fc.Effect}"
+calendar.today	Components/CalendarReader.cs	115	, today	，今天	，今天	
+calendar.event	Components/CalendarReader.cs	137	, event	，有事件	，有事件	
+weather.forecast_intro	Components/WeatherNews.cs	64	Seven day forecast. J and L to browse.	七天天氣預報。按 J 和 L 瀏覽。	七天天气预报。按 J 和 L 浏览。	
+weather.unavailable	Components/WeatherNews.cs	85	Forecast unavailable.	無法取得預報。	无法获取预报。	
+field.date_announce	Components/FieldTracker.cs	3438;3441;3445	{0}, {1}, {2}	{0}，{1}，{2}	{0}，{1}，{2}	FormatDate + ", {weather}" + ", {period}"
+field.date_format	Components/FieldTracker.cs	6421	{0} {1}, {2}	{0}{1}日，{2}	{0}{1}日，{2}	$"{date:MMMM d}, {date.DayOfWeek}"
+field.forecast_line	Components/FieldTracker.cs	6410	{0}, {1} {2}. {3}.	{0}，{1}{2}日。{3}。	{0}，{1}{2}日。{3}。	$"{date.DayOfWeek}, {date:MMMM d}. {w}."
+field.time.early_morning	Components/FieldTracker.cs	6373	Early Morning	清晨	清晨	
+field.time.morning	Components/FieldTracker.cs	6374	Morning	早上	早上	
+field.time.lunchtime	Components/FieldTracker.cs	6375	Lunchtime	午休	午休	
+field.time.daytime	Components/FieldTracker.cs	6376	Daytime	白天	白天	
+field.time.after_school	Components/FieldTracker.cs	6377	After School	放學後	放学后	
+field.time.evening	Components/FieldTracker.cs	6378	Evening	傍晚	傍晚	
+field.time.night	Components/FieldTracker.cs	6379	Night	夜晚	夜晚	
+field.time.late_night	Components/FieldTracker.cs	6380	Late Night	深夜	深夜	
+field.time.period_n	Components/FieldTracker.cs	6381	Time period {0}	時段 {0}	时段 {0}	$"Time period {period}"
+field.status_line	Components/FieldTracker.cs	3678-3681	{0}, {1}, {2}, {3}	{0}，{1}，{2}，{3}	{0}，{1}，{2}，{3}	$"{date}, {time}, {weather}, {area}"
+field.not_in_area	Components/FieldTracker.cs;Components/Navigation/NavigationAssist.cs	3660;248	Not in a field area.	不在場景區域內。	不在场景区域内。	
+field.position_unavailable	Components/FieldTracker.cs;Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs;Components/Navigation/AutoWalk/AutoWalker.cs	1555;210;741;944;1716	Position unavailable.	無法取得位置。	无法获取位置。	
+field.facing_unavailable	Components/FieldTracker.cs	1557;1631	Facing unavailable.	無法取得朝向。	无法获取朝向。	
+field.collision_unavailable	Components/FieldTracker.cs	1633	Collision unavailable.	無法取得碰撞資訊。	无法获取碰撞信息。	
+field.cardinal_open	Components/FieldTracker.cs	1648	{0} open	{0}暢通	{0}畅通	$"{n} open"
+field.cardinals	Components/FieldTracker.cs	1649	Ahead {0}, behind {1}, left {2}, right {3}.	前方{0}，後方{1}，左邊{2}，右邊{3}。	前方{0}，后方{1}，左边{2}，右边{3}。	$"{Part("Ahead", dA)}, {Part("behind", dB)}, {Part("left", dL)}, {Part("right", dR)}."
+field.nsew	Components/FieldTracker.cs	3881	N {0}, S {1}, E {2}, W {3}	北{0}，南{1}，東{2}，西{3}	北{0}，南{1}，东{2}，西{3}	$"N {FSpoken(dN)}, S {FSpoken(dS)}, E {FSpoken(dE)}, W {FSpoken(dW)}"
+field.dist_none	Components/FieldTracker.cs	3885	none	無	无	
+treasure.count_nearest	Components/FieldTracker.cs	2080	{0} treasures on floor. Nearest {1} steps {2}.	這層有 {0} 個寶箱，最近的在{2} {1} 步。	这层有 {0} 个宝箱，最近的在{2} {1} 步。	$"{populated} treasure{(populated == 1 ? "" : "s")} on floor. Nearest {steps} step{(steps == 1 ? "" : "s")} {dir}."
+treasure.none	Components/FieldTracker.cs	2084;2152;2363	No treasures on this floor.	這層沒有寶箱。	这层没有宝箱。	
+treasure.teleport_dungeon_only	Components/FieldTracker.cs	2115	Treasure teleport only works in dungeons.	寶箱傳送只能在迷宮使用。	宝箱传送只能在迷宫使用。	
+treasure.teleport_only_dungeon	Components/FieldTracker.cs	2324	Teleport only works in dungeons.	傳送只能在迷宮使用。	传送只能在迷宫使用。	
+treasure.array_unreadable	Components/FieldTracker.cs	1952;2120;2330	Treasure array unreadable.	無法讀取寶箱資料。	无法读取宝箱数据。	
+treasure.player_pos_unavailable	Components/FieldTracker.cs	2127;2338;2510	Player position unavailable.	無法取得玩家位置。	无法获取玩家位置。	
+treasure.teleported	Components/FieldTracker.cs	2226	Teleported to treasure {0} steps away.	已傳送到 {0} 步外的寶箱。	已传送到 {0} 步外的宝箱。	$"Teleported to treasure {steps} steps away."
+treasure.at_chest	Components/FieldTracker.cs	2461	At chest, {0} steps away. Press Enter now.	已到寶箱旁，{0} 步。現在按 Enter。	已到宝箱旁，{0} 步。现在按 Enter。	$"At chest, {announceSteps} steps away. Press Enter now."
+check.prefix	Components/CheckLabel.cs;Components/FieldTracker.cs	105;3501	Check: {0}	調查：{0}	调查：{0}	$"Check: {s}"
+check.plain	Components/FieldTracker.cs	3501	Check	調查	调查	
+area.choose_where	Components/FieldTracker.cs	5896	Choose where to go	選擇要去哪裡	选择要去哪里	
+area.school_front	Components/FieldTracker.cs	5899	School, Front Entrance	學校，正門	学校，正门	
+area.school_hallway	Components/FieldTracker.cs	5900	School Hallway	學校走廊	学校走廊	
+area.school_hallway_2f	Components/FieldTracker.cs	5901	School Hallway, Second Floor	學校走廊，二樓	学校走廊，二楼	
+area.school_courtyard	Components/FieldTracker.cs	5902	School Courtyard	學校中庭	学校中庭	
+area.classroom_2_2	Components/FieldTracker.cs	5903	Classroom 2-2	2年2班教室	2年2班教室	
+area.classroom_2_1	Components/FieldTracker.cs	5904	Classroom 2-1	2年1班教室	2年1班教室	
+area.classroom_2_3	Components/FieldTracker.cs	5905	Classroom 2-3	2年3班教室	2年3班教室	
+area.school_library	Components/FieldTracker.cs	5906	School Library	學校圖書室	学校图书室	
+area.school_gym	Components/FieldTracker.cs	5907	School Gym	學校體育館	学校体育馆	
+area.home_ec_room	Components/FieldTracker.cs	5908	Home Economics Room	家政教室	家政教室	
+area.practice_building	Components/FieldTracker.cs	5909	Practice Building	實習大樓	实习楼	
+area.school_rooftop	Components/FieldTracker.cs	5910	School Rooftop	學校頂樓	学校天台	
+area.school_gate	Components/FieldTracker.cs	5911	School Gate	校門	校门	
+area.yasogami_n	Components/FieldTracker.cs	5912	Yasogami High, Area {0}	八十神高中，區域 {0}	八十神高中，区域 {0}	$"Yasogami High, Area {minor}"
+area.dojima	Components/FieldTracker.cs	5916	Dojima Residence	堂島家	堂岛家	
+area.dojima_living	Components/FieldTracker.cs	5917	Dojima Residence, Living Room	堂島家，客廳	堂岛家，客厅	
+area.your_room	Components/FieldTracker.cs	5918	Your Room	你的房間	你的房间	
+area.dojima_hallway	Components/FieldTracker.cs	5919	Dojima Residence, Hallway	堂島家，走廊	堂岛家，走廊	
+area.dojima_n	Components/FieldTracker.cs	5920	Dojima Residence, Area {0}	堂島家，區域 {0}	堂岛家，区域 {0}	$"Dojima Residence, Area {minor}"
+area.shopping_north	Components/FieldTracker.cs	5924	Shopping District, North	商店街，北側	商店街，北侧	
+area.shopping_south	Components/FieldTracker.cs	5925	Shopping District, South	商店街，南側	商店街，南侧	
+area.velvet_room	Components/FieldTracker.cs	5926	Velvet Room	天鵝絨房間	天鹅绒房间	
+area.daidara_outside	Components/FieldTracker.cs	5927	Daidara Metalworks, Outside	大達金屬工房，外面	大达金属工房，外面	
+area.daidara_inside	Components/FieldTracker.cs	5928	Daidara Metalworks, Inside	大達金屬工房，裡面	大达金属工房，里面	
+area.shopping_alley	Components/FieldTracker.cs	5929	Shopping District, Side Alley	商店街，小巷	商店街，小巷	
+area.tatsuhime	Components/FieldTracker.cs	5931	Tatsuhime Shrine	辰姬神社	辰姬神社	
+area.shopping_n	Components/FieldTracker.cs	5932	Shopping District, Area {0}	商店街，區域 {0}	商店街，区域 {0}	$"Shopping District, Area {minor}"
+area.junes_food_court	Components/FieldTracker.cs	5936	Junes, Food Court	Junes，美食廣場	Junes，美食广场	
+area.junes_entrance	Components/FieldTracker.cs	5937	Junes, Entrance	Junes，入口	Junes，入口	
+area.junes_electronics	Components/FieldTracker.cs	5938	Junes, Electronics Department	Junes，電器賣場	Junes，电器卖场	
+area.junes_west	Components/FieldTracker.cs	5939	Junes, West Side	Junes，西側	Junes，西侧	
+area.junes_n	Components/FieldTracker.cs	5940	Junes, Area {0}	Junes，區域 {0}	Junes，区域 {0}	$"Junes, Area {minor}"
+area.samegawa_plain	Components/FieldTracker.cs	5944	Samegawa Flood Plain	鮫川河堤	鲛川河堤	
+area.samegawa_riverbank	Components/FieldTracker.cs	5945	Samegawa Riverbank	鮫川河岸	鲛川河岸	
+area.samegawa_n	Components/FieldTracker.cs	5946	Samegawa Area {0}	鮫川，區域 {0}	鲛川，区域 {0}	$"Samegawa Area {minor}"
+area.okina_city	Components/FieldTracker.cs	5955	Okina City	沖奈市	冲奈市	
+area.shiroku_store	Components/FieldTracker.cs	5956	Shiroku Store	白鹿商店	白鹿商店	
+area.daidara	Components/FieldTracker.cs	5957	Daidara Metalworks	大達金屬工房	大达金属工房	
+area.hanamura	Components/FieldTracker.cs	5958	Hanamura Residence	花村家	花村家	
+area.farm_n	Components/FieldTracker.cs	5959	Farm area {0}	農園，區域 {0}	农园，区域 {0}	$"Farm area {minor}"
+area.ski_lodge	Components/FieldTracker.cs	5960	Ski Lodge	滑雪小屋	滑雪小屋	
+area.snow_mountain	Components/FieldTracker.cs	5960	Snow Mountain	雪山	雪山	
+area.unknown_dungeon	Components/FieldTracker.cs	5980;6021	???	???	???	
+area.battle_floor	Components/FieldTracker.cs	6015	Battle (floor {0})	戰鬥（第 {0} 層）	战斗（第 {0} 层）	$"Battle (floor {minor})"
+area.pair_n	Components/FieldTracker.cs	6021	Area {0}-{1}	區域 {0}-{1}	区域 {0}-{1}	$"Area {major}-{minor}"
+area.yukiko_gate	Components/FieldTracker.cs;Components/Navigation/DungeonNav.cs	6011;293	Yukiko's Castle, Gate	雪子的城堡，大門	雪子的城堡，大门	
+area.yukiko_2f	Components/FieldTracker.cs;Components/Navigation/DungeonNav.cs	6012;295	Yukiko's Castle 2F	雪子的城堡 2 樓	雪子的城堡 2 楼	
+area.yukiko_1f	Components/FieldTracker.cs;Components/Navigation/DungeonNav.cs	6013;294	Yukiko's Castle 1F	雪子的城堡 1 樓	雪子的城堡 1 楼	
+area.tv_entrance	Components/FieldTracker.cs	6014	Entrance	入口	入口	
+floor.bath_3	Components/FieldTracker.cs	6032	Steamy Bathhouse, Bath number 3	蒸氣澡堂，3 號浴池	蒸气澡堂，3 号浴池	
+floor.bath_7	Components/FieldTracker.cs	6033	Steamy Bathhouse, Bath number 7	蒸氣澡堂，7 號浴池	蒸气澡堂，7 号浴池	
+floor.bathhouse_changing	Components/FieldTracker.cs	6039	Bathhouse, Changing Area	澡堂，更衣區	澡堂，更衣区	
+floor.marukyu_seats	Components/FieldTracker.cs	6040	Marukyu Striptease Seats	丸久脫衣舞場，觀眾席	丸久脱衣舞场，观众席	
+floor.void_quest_title	Components/FieldTracker.cs	6041	Void Quest Title Screen	虛空任務標題畫面	虚空任务标题画面	
+floor.void_quest_endgame	Components/FieldTracker.cs	6043	Void Quest Endgame	虛空任務最終關	虚空任务最终关	
+floor.secret_lab_entrance	Components/FieldTracker.cs	6045	Secret Laboratory Entrance	秘密實驗室入口	秘密实验室入口	
+floor.heaven_gates	Components/FieldTracker.cs	6047	Heaven, Pearly Gates	天堂，珍珠之門	天堂，珍珠之门	
+floor.desolate_bedroom	Components/FieldTracker.cs	6049	Desolate Bedroom	荒涼的臥室	荒凉的卧室	
+floor.grave_hollow_memories	Components/FieldTracker.cs	6052	Grave of Hollow Memories	空洞記憶之墓	空洞记忆之墓	
+floor.ashihara_nakatsu	Components/FieldTracker.cs	6054	Ashihara Nakatsu	葦原中津	苇原中津	
+floor.twisted_shopping	Components/FieldTracker.cs	6060	Twisted Shopping District	扭曲的商店街	扭曲的商店街	
+floor.former_konishi	Components/FieldTracker.cs	6061	Former Konishi Liquors	舊小西酒店	旧小西酒店	
+dungeon.yukiko	Components/FieldTracker.cs	6087	Yukiko's Castle	雪子的城堡	雪子的城堡	
+dungeon.bathhouse	Components/FieldTracker.cs	6087	Steamy Bathhouse	蒸氣澡堂	蒸气澡堂	
+dungeon.marukyu	Components/FieldTracker.cs	6087	Marukyu Striptease	丸久脫衣舞場	丸久脱衣舞场	
+dungeon.void_quest	Components/FieldTracker.cs	6087	Void Quest	虛空任務	虚空任务	
+dungeon.secret_lab	Components/FieldTracker.cs	6088	Secret Laboratory	秘密實驗室	秘密实验室	
+dungeon.heaven	Components/FieldTracker.cs	6088	Heaven	天堂	天堂	
+dungeon.magatsu	Components/FieldTracker.cs	6088;5975	Magatsu Inaba	禍津稻羽	祸津稻羽	
+dungeon.yomotsu	Components/FieldTracker.cs	6088	Yomotsu Hirasaka	黃泉比良坂	黄泉比良坂	
+dungeon.hollow_forest	Components/FieldTracker.cs	6088	Hollow Forest	空洞之森	空洞之森	
+floor.yukiko_nf	Components/FieldTracker.cs	6198	Yukiko's Castle {0}F	雪子的城堡{0}樓	雪子的城堡{0}层	$"Yukiko's Castle {floor}F"
+floor.bath_n	Components/FieldTracker.cs	6199	Steamy Bathhouse, Bath number {0}	蒸氣澡堂，第{0}浴場	蒸气澡堂，第{0}浴场	$"Steamy Bathhouse, Bath number {floor}"
+floor.marukyu_nf	Components/FieldTracker.cs	6200	Marukyu Striptease {0}F	丸久脫衣舞場{0}樓	丸久脱衣舞场{0}层	$"Marukyu Striptease {floor}F"
+floor.void_chapter_n	Components/FieldTracker.cs	6201	Void Quest Chapter {0}	虛空任務第{0}章	虚空任务第{0}章	$"Void Quest Chapter {floor}"
+floor.lab_bnf	Components/FieldTracker.cs	6202	Secret Laboratory B{0}F	秘密實驗室地下{0}樓	秘密实验室地下{0}层	$"Secret Laboratory B{floor}F"
+floor.heaven_paradise_n	Components/FieldTracker.cs	6203	Heaven, Paradise number {0}	天堂，第{0}樂園	天堂，第{0}乐园	$"Heaven, Paradise number {floor}"
+floor.mandala_n	Components/FieldTracker.cs	6210	Magatsu Mandala World {0}	禍津曼荼羅世界{0}	祸津曼荼罗世界{0}	$"Magatsu Mandala World {id - 122}"
+floor.yomotsu_path_n	Components/FieldTracker.cs	6216	Yomotsu Hirasaka, Path {0}	黃泉比良坂，路徑{0}	黄泉比良坂，路径{0}	$"Yomotsu Hirasaka, Path {floor}"
+floor.generic	Components/FieldTracker.cs	6208	{0}, floor {1}	{0}，{1}樓	{0}，{1}层	$"{DungeonDisplayNames[did - 1]}, floor {floor}"
+floor.hf.parting	Components/FieldTracker.cs	6094	Memories of Parting	離別的記憶	离别的记忆	
+floor.hf.pain	Components/FieldTracker.cs	6094	Memories of Pain	痛苦的記憶	痛苦的记忆	
+floor.hf.grief	Components/FieldTracker.cs	6094	Memories of Grief	悲慟的記憶	悲恸的记忆	
+floor.hf.sorrow	Components/FieldTracker.cs	6095	Memories of Sorrow	哀傷的記憶	哀伤的记忆	
+floor.hf.love	Components/FieldTracker.cs	6095	Memories of Love	愛的記憶	爱的记忆	
+floor.hf.suffering	Components/FieldTracker.cs	6095	Memories of Suffering	苦難的記憶	苦难的记忆	
+floor.hf.anger	Components/FieldTracker.cs	6096	Memories of Anger	憤怒的記憶	愤怒的记忆	
+floor.hf.loneliness	Components/FieldTracker.cs	6096	Memories of Loneliness	孤獨的記憶	孤独的记忆	
+floor.hf.invitation	Components/FieldTracker.cs	6096	Memories of Invitation	邀約的記憶	邀约的记忆	
+floor.hf.meeting	Components/FieldTracker.cs	6097	Memories of Meeting	相遇的記憶	相遇的记忆	
+cursor.dungeon_only	Components/Navigation/DungeonCursor.cs	200	Cursor only works in dungeons.	游標只能在迷宮中使用。	光标只能在迷宫中使用。	
+cursor.off	Components/Navigation/DungeonCursor.cs	205	Cursor off.	游標關閉。	光标关闭。	
+cursor.not_on_map	Components/Navigation/DungeonCursor.cs	215	Your position isn't on the map yet.	你的位置還沒出現在地圖上。	你的位置还没出现在地图上。	
+cursor.on	Components/Navigation/DungeonCursor.cs	233	Cursor on. You face {0}. {1}. {2}. {3}. {4}.	游標開啟。你面向{0}。{1}。{2}。{3}。{4}。	光标开启。你面向{0}。{1}。{2}。{3}。{4}。	$"Cursor on. You face {FacingWord()}. {ModeWord()}. {FrameWord()}. {ContentHere()}. {OpenDirections()}."
+cursor.direction_unavailable	Components/Navigation/DungeonCursor.cs	333;424	Direction unavailable.	無法取得方向。	无法获取方向。	
+cursor.edge_of_map	Components/Navigation/DungeonCursor.cs	339	Edge of map.	地圖邊緣。	地图边缘。	
+cursor.wall	Components/Navigation/DungeonCursor.cs	348;392	Wall.	牆。	墙。	
+cursor.unexplored_probe	Components/Navigation/DungeonCursor.cs	392	Unexplored.	未探索。	未探索。	
+cursor.wall_or_unexplored	Components/Navigation/DungeonCursor.cs	392	Wall or unexplored.	牆或未探索。	墙或未探索。	
+cursor.busy	Components/Navigation/DungeonCursor.cs	419;472	Busy.	忙碌中。	忙碌中。	
+cursor.cant_step	Components/Navigation/DungeonCursor.cs	452	Can't step there.	走不到那裡。	走不到那里。	
+cursor.blocked	Components/Navigation/DungeonCursor.cs	465	Blocked.	被擋住了。	被挡住了。	
+cursor.walk_mode_full	Components/Navigation/DungeonCursor.cs	483	Walk mode. {0}. {1}.	行走模式。{0}。{1}。	行走模式。{0}。{1}。	$"Walk mode. {ContentHere()}. {OpenDirections()}."
+cursor.look_mode_full	Components/Navigation/DungeonCursor.cs	488	Look mode. {0}.	查看模式。{0}。	查看模式。{0}。	$"Look mode. {ContentHere()}."
+cursor.frame_change	Components/Navigation/DungeonCursor.cs	498	{0}. You face {1}. {2}.	{0}。你面向{1}。{2}。	{0}。你面向{1}。{2}。	$"{FrameWord()}. You face {FacingWord()}. {OpenDirections()}."
+cursor.compass_mode	Components/Navigation/DungeonCursor.cs	546	Compass mode	羅盤模式	罗盘模式	
+cursor.camera_mode	Components/Navigation/DungeonCursor.cs	546	Camera mode	鏡頭模式	镜头模式	
+cursor.walk_mode	Components/Navigation/DungeonCursor.cs	547	Walk mode	行走模式	行走模式	
+cursor.look_mode	Components/Navigation/DungeonCursor.cs	547	Look mode	查看模式	查看模式	
+cursor.no_way_out	Components/Navigation/DungeonCursor.cs	527	No way out	無路可走	无路可走	
+cursor.only_dir	Components/Navigation/DungeonCursor.cs	528	Only {0}	只有{0}	只有{0}	$"Only {parts[0]}"
+cursor.open_dirs	Components/Navigation/DungeonCursor.cs	529	Open {0}	可走{0}	可走{0}	"Open " + NaturalJoin(parts)
+cursor.join_and	Components/Navigation/DungeonCursor.cs	629	{0} and {1}	{0}和{1}	{0}和{1}	parts joined with " and "
+cursor.unknown_direction	Components/Navigation/DungeonCursor.cs	555	an unknown direction	未知方向	未知方向	
+cursor.here	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs	673;1906;958	here	這裡	这里	
+cursor.floor	Components/Navigation/DungeonCursor.cs	656;657	Floor	地板	地板	
+cursor.unexplored	Components/Navigation/DungeonCursor.cs	656	Unexplored	未探索	未探索	
+cursor.facing_you	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs	650;1101	, facing you	，面向你	，面向你	
+cursor.facing_away	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs	650;1101	, facing away	，背對你	，背对你	
+dir.north	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs;Components/Navigation/NavigationAssist.cs	522;1907;959;799	north	北	北	
+dir.south	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs;Components/Navigation/NavigationAssist.cs	524;1907;959;803	south	南	南	
+dir.east	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs;Components/Navigation/NavigationAssist.cs	523;1908;960;801	east	東	东	
+dir.west	Components/Navigation/DungeonCursor.cs;Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs;Components/Navigation/NavigationAssist.cs	525;1908;960;805	west	西	西	
+dir.north_east	Components/Navigation/NavigationAssist.cs	800	north-east	東北	东北	
+dir.south_east	Components/Navigation/NavigationAssist.cs	802	south-east	東南	东南	
+dir.south_west	Components/Navigation/NavigationAssist.cs	804	south-west	西南	西南	
+dir.north_west	Components/Navigation/NavigationAssist.cs	806	north-west	西北	西北	
+dir.ahead	Components/Navigation/DungeonCursor.cs;Components/Navigation/AutoWalk/RouteSpeech.cs;Components/Navigation/MinimapTracker.cs	515;75;210	ahead	前方	前方	
+dir.behind	Components/Navigation/DungeonCursor.cs;Components/Navigation/AutoWalk/RouteSpeech.cs	517;79	behind	後方	后方	
+dir.left	Components/Navigation/DungeonCursor.cs;Components/Navigation/MinimapTracker.cs	518;212	left	左邊	左边	
+dir.right	Components/Navigation/DungeonCursor.cs;Components/Navigation/MinimapTracker.cs	516;211	right	右邊	右边	
+dir.back	Components/Navigation/MinimapTracker.cs	209	back	後方	后方	
+dnav.cat.doors	Components/Navigation/DungeonNav.cs	90	Doors	門	门	
+dnav.cat.all_doors	Components/Navigation/DungeonNav.cs	90	All doors	所有門	所有门	
+dnav.cat.chests	Components/Navigation/DungeonNav.cs	90	Chests	寶箱	宝箱	
+dnav.cat.shadows	Components/Navigation/DungeonNav.cs	91	Shadows	陰影	阴影	
+dnav.cat.stairs	Components/Navigation/DungeonNav.cs	91	Stairs	樓梯	楼梯	
+dnav.cat.interactables	Components/Navigation/DungeonNav.cs	92	Interactables	可互動物件	可互动物件	
+dnav.cat.events	Components/Navigation/DungeonNav.cs	92	Events	事件	事件	
+dnav.none.doors	Components/Navigation/DungeonNav.cs	552	Doors: none nearby.	門：附近沒有。	门：附近没有。	
+dnav.none.all_doors	Components/Navigation/DungeonNav.cs	553	All doors: none on this floor.	所有門：這層樓沒有。	所有门：这层楼没有。	
+dnav.none.chests	Components/Navigation/DungeonNav.cs	554	Chests: none nearby.	寶箱：附近沒有。	宝箱：附近没有。	
+dnav.none.shadows	Components/Navigation/DungeonNav.cs	555	Shadows: none nearby.	陰影：附近沒有。	阴影：附近没有。	
+dnav.none.stairs	Components/Navigation/DungeonNav.cs	556	Stairs: none found on this floor.	樓梯：這層樓沒找到。	楼梯：这层楼没找到。	
+dnav.none.interactables	Components/Navigation/DungeonNav.cs	557	Interactables: none nearby.	可互動物件：附近沒有。	可互动物件：附近没有。	
+dnav.none.events	Components/Navigation/DungeonNav.cs	558	Events: none on this floor.	事件：這層樓沒有。	事件：这层楼没有。	
+dnav.none.generic	Components/Navigation/DungeonNav.cs	559	{0}: none.	{0}：沒有。	{0}：没有。	$"{name}: none."
+dnav.none_nearby	Components/Navigation/DungeonNav.cs	633	{0}: none nearby.	{0}：附近沒有。	{0}：附近没有。	$"{CatName(cat)}: none nearby."
+dnav.list_open	Components/Navigation/DungeonNav.cs	564	{0}: {1}. {2}.	{0}：{1}個。{2}。	{0}：{1}个。{2}。	$"{name}: {_entries.Count}. {_entries[0].Say}."
+dnav.pick_category	Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs	624;923	Pick a category with minus or equals first.	請先用減號或等號選擇類別。	请先用减号或等号选择类别。	
+dnav.pick_category_short	Components/Navigation/DungeonNav.cs	656;671	Pick a category first.	請先選擇類別。	请先选择类别。	
+dnav.first	Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs	639;930	First.	第一個。	第一个。	
+dnav.last	Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs	640;931	Last.	最後一個。	最后一个。	
+dnav.entry_ordinal	Components/Navigation/DungeonNav.cs	646-648	{0} of {1}: {2}.	第{0}個，共{1}個：{2}。	第{0}个，共{1}个：{2}。	$"{_cursor + 1} of {_entries.Count}: {_entries[_cursor].Say}."
+dnav.nothing_selected	Components/Navigation/DungeonNav.cs;Components/Navigation/OverworldNav.cs	660;942	Nothing selected.	尚未選擇。	尚未选择。	
+dnav.no_shadow_position	Components/Navigation/DungeonNav.cs	687	No shadow position.	沒有陰影位置。	没有阴影位置。	
+dnav.no_position_to_walk	Components/Navigation/DungeonNav.cs	708;714	No position to walk to.	沒有可前往的位置。	没有可前往的位置。	
+dnav.mark_recorded	Components/Navigation/DungeonNav.cs	749	Recorded a mark on this floor.	已在這層樓記下標記。	已在这层楼记下标记。	
+dnav.pick_cat_entry	Components/Navigation/DungeonNav.cs	759	Pick a category and an entry first.	請先選擇類別和項目。	请先选择类别和项目。	
+dnav.already_event_mark	Components/Navigation/DungeonNav.cs	761	That is already an event mark.	那已經是事件標記了。	那已经是事件标记了。	
+dnav.no_position_to_save	Components/Navigation/DungeonNav.cs	766	That entry has no position to save.	這個項目沒有可儲存的位置。	这个项目没有可保存的位置。	
+dnav.added_event	Components/Navigation/DungeonNav.cs	774	Added {0} to events on this floor.	已把{0}加入這層樓的事件。	已把{0}加入这层楼的事件。	$"Added {e.Label} to events on this floor."
+dnav.mark_removed	Components/Navigation/DungeonNav.cs	874	Removed the last mark.	已移除最後一個標記。	已移除最后一个标记。	
+dnav.no_marks	Components/Navigation/DungeonNav.cs	875	No marks to remove.	沒有可移除的標記。	没有可移除的标记。	
+dnav.stealth_unreachable	Components/Navigation/DungeonNav.cs	923	Can't reach the stealth flag.	無法抵達隱身旗標。	无法抵达隐身旗标。	
+dnav.invisibility_on	Components/Navigation/DungeonNav.cs	929	Invisibility on. Shadows cannot notice you. It ends if a battle starts or you change floors.	隱身開啟。陰影不會發現你。開戰或換樓層時會解除。	隐身开启。阴影不会发现你。开战或换楼层时会解除。	
+dnav.invisibility_off	Components/Navigation/DungeonNav.cs	930	Invisibility off.	隱身關閉。	隐身关闭。	
+dnav.invisibility_label	Components/Navigation/DungeonNav.cs	910	Make yourself invisible	讓自己隱身	让自己隐身	
+dnav.currently_on	Components/Navigation/DungeonNav.cs	940	, currently on	，目前開啟	，当前开启	
+dnav.currently_off	Components/Navigation/DungeonNav.cs	940	, currently off	，目前關閉	，当前关闭	
+dnav.mark	Components/Navigation/DungeonNav.cs	165;746	Mark	標記	标记	
+dnav.unmapped_marker	Components/Navigation/DungeonNav.cs	481	Unmapped marker	地圖外記號	地图外记号	
+dnav.marker	Components/Navigation/DungeonNav.cs	481	Marker	記號	记号	
+dnav.dropped_item	Components/Navigation/DungeonNav.cs	948	Dropped item	掉落物	掉落物	
+dnav.entry_steps	Components/Navigation/DungeonNav.cs	975	{0}{1}, {2} steps	{0}{1}，{2}步	{0}{1}，{2}步	$"{m.Label}{mdir}, {steps} step{(steps == 1 ? "" : "s")}"
+dnav.dungeon_entrance	Components/Navigation/DungeonNav.cs	1003	Dungeon entrance	迷宮入口	迷宫入口	
+dnav.exit	Components/Navigation/DungeonNav.cs	1003	Exit	出口	出口	
+dnav.stairs_n_steps	Components/Navigation/DungeonNav.cs	1049	Stairs {0}{1}, {2} steps	樓梯{0}{1}，{2}步	楼梯{0}{1}，{2}步	$"Stairs {i + 1}{dir}, {steps} steps"
+dnav.stairs_steps	Components/Navigation/DungeonNav.cs	1049	Stairs{0}, {1} steps	樓梯{0}，{1}步	楼梯{0}，{1}步	$"Stairs{dir}, {steps} steps"
+dnav.chest_steps	Components/Navigation/DungeonNav.cs	1072	Chest {0}, {1} steps	寶箱{0}，{1}步	宝箱{0}，{1}步	$"Chest {dir}, {steps} step{(steps == 1 ? "" : "s")}"
+dnav.chest	Components/Navigation/DungeonNav.cs;Components/Navigation/DungeonCursor.cs	1073;654	Chest	寶箱	宝箱	
+dnav.door	Components/Navigation/DungeonNav.cs;Components/Navigation/DungeonCursor.cs	884;655	Door	門	门	
+dnav.locked_door	Components/Navigation/DungeonNav.cs	1126	Locked door	上鎖的門	上锁的门	
+dnav.open_door	Components/Navigation/DungeonNav.cs	1127	Open door	開著的門	开着的门	
+dnav.shadow	Components/Navigation/DungeonNav.cs	1446	Shadow	陰影	阴影	
+dnav.strong_shadow	Components/Navigation/DungeonNav.cs	1444	Strong shadow	強力陰影	强力阴影	
+dnav.golden_hand	Components/Navigation/DungeonNav.cs	1445	Golden hand	黃金之手	黄金之手	
+dnav.save_point	Components/Navigation/DungeonNav.cs;Components/RoomActionMenu.cs	1248;49	Save point	存檔點	存档点	
+dnav.interactable	Components/Navigation/DungeonNav.cs	1249	Interactable	可互動物件	可互动物件	
+dnav.person_n	Components/Navigation/DungeonNav.cs	1242;1246	Person {0}	人物{0}	人物{0}	$"Person {(ushort)id}"
+dnav.the_chest	Components/Navigation/DungeonNav.cs	720	the chest	寶箱	宝箱	
+dnav.floor_jump_unavailable	Components/Navigation/DungeonNav.cs	1806	Floor jump not available here.	這裡不能跳樓層。	这里不能跳楼层。	
+dnav.no_next_floor	Components/Navigation/DungeonNav.cs	1807	No next floor.	沒有下一層。	没有下一层。	$"No {(dir > 0 ? "next" : "previous")} floor."
+dnav.no_previous_floor	Components/Navigation/DungeonNav.cs	1807	No previous floor.	沒有上一層。	没有上一层。	$"No {(dir > 0 ? "next" : "previous")} floor."
+dnav.teleporting_to	Components/Navigation/DungeonNav.cs	1812	Teleporting to {0}.	正在傳送到{0}。	正在传送到{0}。	$"Teleporting to {target.name}."
+dnav.teleporting_next	Components/Navigation/DungeonNav.cs	1836	Teleporting to the next floor.	正在傳送到下一層。	正在传送到下一层。	
+dnav.teleporting_previous	Components/Navigation/DungeonNav.cs	1836	Teleporting to the previous floor.	正在傳送到上一層。	正在传送到上一层。	
+dnav.floor_jump_not_ready	Components/Navigation/DungeonNav.cs	1846	Floor jump not ready, try again.	跳樓層還沒準備好，請再試一次。	跳楼层还没准备好，请再试一次。	
+dnav.teleport_not_ready	Components/Navigation/DungeonNav.cs;Components/Navigation/NavigationAssist.cs	1866;419	Teleport not ready, try again.	傳送還沒準備好，請再試一次。	传送还没准备好，请再试一次。	
+npc.yosuke	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1206;60;99	Yosuke	陽介	阳介	
+npc.teddie	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1207;66;99	Teddie	熊	熊	
+npc.chie	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1208;61;99	Chie	千枝	千枝	
+npc.yukiko	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1209;62;99	Yukiko	雪子	雪子	
+npc.kanji	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1210;64;99	Kanji	完二	完二	
+npc.rise	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1211;63;99	Rise	理世	理世	
+npc.naoto	Components/Navigation/DungeonNav.cs;Components/Battle/PartyStatus.cs;Components/ShopMenu.cs	1212;65;99	Naoto	直斗	直斗	
+npc.fox	Components/Navigation/DungeonNav.cs;Components/CommandMenus/PlayerMenu.cs	1213;767	Fox	狐狸	狐狸	
+npc.you	Components/Navigation/DungeonNav.cs;Components/ShopMenu.cs;Components/CommandMenus/PlayerMenu.cs	1233;99;55	You	你	你	
+npc.yu	Components/Battle/PartyStatus.cs	59	Yu	悠	悠	
+npc.townsperson	Components/Navigation/OverworldNav.cs	779;782	Townsperson	鎮民	镇民	
+npc.n	Components/Navigation/OverworldNav.cs	641	NPC {0}	NPC {0}	NPC {0}	$"NPC {person}"
+onav.cat.places	Components/Navigation/OverworldNav.cs	63	Places	地點	地点	
+onav.cat.exits	Components/Navigation/OverworldNav.cs	63	Exits	出口	出口	
+onav.cat.npcs	Components/Navigation/OverworldNav.cs	65	NPCs	NPC	NPC	
+onav.cat.other	Components/Navigation/OverworldNav.cs	63	Other	其他	其他	
+onav.none_here	Components/Navigation/OverworldNav.cs	888;926	{0}: none here.	{0}：這裡沒有。	{0}：这里没有。	$"{CatName(cat)}: none here."
+onav.list_open	Components/Navigation/OverworldNav.cs	892	{0}: {1}. {2}.	{0}：{1}個。{2}。	{0}：{1}个。{2}。	$"{CatName(cat)}: {_entries.Count}. {Say(_entries[0])}."
+onav.entry_ordinal	Components/Navigation/OverworldNav.cs	936	{0}, {1} of {2}.	{0}，第{1}個，共{2}個。	{0}，第{1}个，共{2}个。	$"{Say(_entries[_cursor])}, {_cursor + 1} of {_entries.Count}."
+onav.entry_steps	Components/Navigation/OverworldNav.cs	850	{0}, {1} steps	{0}，{1}步	{0}，{1}步	$"{e.t.Name}, {steps} step{(steps == 1 ? "" : "s")}"
+onav.where_is	Components/Navigation/OverworldNav.cs	950	{0}: {1}, {2} steps.	{0}：{1}，{2}步。	{0}：{1}，{2}步。	$"{t.Name}: {dir}, {steps} step{(steps == 1 ? "" : "s")}."
+onav.not_a_person	Components/Navigation/OverworldNav.cs	989	{0} is not a person, no id to rename.	{0}不是人物，沒有可改名的ID。	{0}不是人物，没有可改名的ID。	$"{t.Name} is not a person, no id to rename."
+onav.id_info	Components/Navigation/OverworldNav.cs	997	{0}. Area {1} {2}. Id {3}. Model {4}.	{0}。區域{1} {2}。ID {3}。模型{4}。	{0}。区域{1} {2}。ID {3}。模型{4}。	$"{t.Name}. Area {maj} {min}. Id {spoken}. Model {mkSpoken}."
+onav.select_target_first	Components/Navigation/OverworldNav.cs	1050;1073;1211	Select a target first.	請先選擇目標。	请先选择目标。	
+onav.spot_recorded	Components/Navigation/OverworldNav.cs	1055	Recorded the spot for {0}. Auto walk will use it next time.	已記下{0}的位置，下次自動行走會使用。	已记下{0}的位置，下次自动行走会使用。	$"Recorded the spot for {t.Name}. Auto walk will use it next time."
+onav.beacon_on_target	Components/Navigation/OverworldNav.cs	1075	Beacon on: {0}.	信標開啟：{0}。	信标开启：{0}。	$"Beacon on: {t.Name}."
+onav.walking_to	Components/Navigation/OverworldNav.cs	1215;1249	Walking to {0}.	正走向{0}。	正走向{0}。	$"Walking to {t.Name}."
+onav.walk_cancelled	Components/Navigation/OverworldNav.cs	504	Walk cancelled.	行走已取消。	行走已取消。	
+onav.cant_walk_blocked	Components/Navigation/OverworldNav.cs	1381	Can't walk from here, blocked.	沒辦法從這裡走，被擋住了。	没办法从这里走，被挡住了。	
+onav.at_exit	Components/Navigation/OverworldNav.cs	1627	At {0}. Walk forward to leave.	已到{0}。往前走即可離開。	已到{0}。往前走即可离开。	$"At {t.Name}. Walk forward to leave."
+onav.action_available	Components/Navigation/OverworldNav.cs	1638	{0}. {1} available.	{0}。可以{1}。	{0}。可以{1}。	$"{t.Name}. {word} available."
+onav.turn_to_find	Components/Navigation/OverworldNav.cs	1639	You're at {0}. Turn to find the {1}.	你在{0}。轉身尋找{1}。	你在{0}。转身寻找{1}。	$"You're at {t.Name}. Turn to find the {(npc ? "person" : "check")}."
+onav.word_talk	Components/Navigation/OverworldNav.cs	1637	Talk	交談	交谈	
+onav.word_check	Components/Navigation/OverworldNav.cs	1637	Check	調查	调查	
+onav.word_person	Components/Navigation/OverworldNav.cs	1639	person	人	人	
+onav.word_check_lower	Components/Navigation/OverworldNav.cs	1639	check	調查點	调查点	
+onav.check_available	Components/Navigation/OverworldNav.cs	1658;1685	{0}. Check available.	{0}。可以調查。	{0}。可以调查。	$"{t.Name}. Check available."
+onav.turn_to_check	Components/Navigation/OverworldNav.cs	1662	You're at {0}. Turn to face it to check.	你在{0}。轉向它就能調查。	你在{0}。转向它就能调查。	$"You're at {t.Name}. Turn to face it to check."
+onav.no_check_now	Components/Navigation/OverworldNav.cs	1687	At {0}, but there's no check here right now.	已到{0}，但現在這裡沒有可調查的。	已到{0}，但现在这里没有可调查的。	$"At {t.Name}, but there's no check here right now."
+onav.no_check_prompt	Components/Navigation/OverworldNav.cs	1134	At {0}, no check prompt here right now.	已到{0}，現在沒有調查提示。	已到{0}，现在没有调查提示。	$"At {t.Name}, no check prompt here right now."
+onav.area_changed	Components/Navigation/OverworldNav.cs	1695	Area changed, walk ended.	區域改變，行走結束。	区域改变，行走结束。	
+onav.couldnt_reach	Components/Navigation/OverworldNav.cs	2088	Couldn't reach {0}. It's {1} steps away.	無法抵達{0}，距離{1}步。	无法抵达{0}，距离{1}步。	$"Couldn't reach {t.Name}. It's {steps} steps away."
+onav.walk_timed_out	Components/Navigation/OverworldNav.cs	2123	Walk timed out.	行走逾時。	行走超时。	
+onav.unknown_trigger	Components/Navigation/OverworldNav.cs	335	Unknown trigger	未知觸發點	未知触发点	
+zone.announce	Components/Navigation/OverworldZones.cs	146	{0}.	{0}。	{0}。	$"{zone}."
+zone.no_description	Components/Navigation/OverworldZones.cs	182	No description for this place yet.	這個地方還沒有描述。	这个地方还没有描述。	
+zone.description	Components/Navigation/OverworldZones.cs	192	{0}. {1} {2}	{0}。{1} {2}	{0}。{1} {2}	$"{zoneName}. {detail} {desc}"
+beacon.off	Components/Navigation/NavBeacon.cs;Components/Navigation/OverworldNav.cs	167;1072	Beacon off.	信標關閉。	信标关闭。	
+beacon.select_first	Components/Navigation/NavBeacon.cs	182	Select something to beacon first.	請先選擇要設信標的目標。	请先选择要设信标的目标。	
+beacon.moved	Components/Navigation/NavBeacon.cs	191	Beacon moved.	信標已移動。	信标已移动。	
+beacon.on	Components/Navigation/NavBeacon.cs	198	Beacon on.	信標開啟。	信标开启。	
+beacon.missing_sound	Components/Navigation/ProximityBeacon.cs	155	{0} unavailable, sound file missing.	{0}無法使用，缺少音效檔。	{0}无法使用，缺少音效文件。	$"{Label} unavailable, sound file missing."
+beacon.label_off	Components/Navigation/ProximityBeacon.cs	162	{0} off.	{0}關閉。	{0}关闭。	$"{Label} off."
+beacon.dungeon_only	Components/Navigation/ProximityBeacon.cs	166	{0} only works in dungeons.	{0}只能在迷宮中使用。	{0}只能在迷宫中使用。	$"{Label} only works in dungeons."
+beacon.label_on	Components/Navigation/ProximityBeacon.cs	170	{0} on.	{0}開啟。	{0}开启。	$"{Label} on."
+beacon.chest_label	Components/Navigation/ChestBeacon.cs	13	Chest beacon	寶箱信標	宝箱信标	
+beacon.exit_label	Components/Navigation/ExitBeacon.cs	16	Exit beacon	出口信標	出口信标	
+radar.off	Components/Navigation/EnemyRadar.cs	223	Shadow radar off.	陰影雷達關閉。	阴影雷达关闭。	
+radar.dungeon_only	Components/Navigation/EnemyRadar.cs	231	Shadow radar only works in dungeons.	陰影雷達只能在迷宮中使用。	阴影雷达只能在迷宫中使用。	
+radar.on	Components/Navigation/EnemyRadar.cs	237	Shadow radar on.	陰影雷達開啟。	阴影雷达开启。	
+radar.strike	Components/Navigation/EnemyRadar.cs	327	Strike.	出擊。	出击。	
+radar.dodge	Components/Navigation/EnemyRadar.cs	372	Dodge.	閃避。	闪避。	
+wallhum.on	Components/Navigation/WallHum.cs	63;146	Wall sound on.	牆壁音效開啟。	墙壁音效开启。	
+wallhum.off	Components/Navigation/WallHum.cs	63;146	Wall sound off.	牆壁音效關閉。	墙壁音效关闭。	
+camnorth.field_only	Components/Navigation/CameraNorth.cs	86	Camera north only works in the field.	鏡頭朝北只能在場景中使用。	镜头朝北只能在场景中使用。	
+camnorth.unreadable	Components/Navigation/CameraNorth.cs	88	Camera unreadable.	無法讀取鏡頭。	无法读取镜头。	
+camnorth.done	Components/Navigation/CameraNorth.cs	90;134	Camera north.	鏡頭已朝北。	镜头已朝北。	
+camnorth.unavailable	Components/Navigation/CameraNorth.cs	94	Camera control unavailable.	無法控制鏡頭。	无法控制镜头。	
+camnorth.cant_turn	Components/Navigation/CameraNorth.cs	113	The camera can't be turned here.	這裡不能轉動鏡頭。	这里不能转动镜头。	
+camnorth.failed	Components/Navigation/CameraNorth.cs	141	Camera could not reach north.	鏡頭轉不到北方。	镜头转不到北方。	
+autowalk.heading_stairs	Components/Navigation/AutoWalk/AutoWalker.cs	133	Heading to the stairs.	正前往樓梯。	正前往楼梯。	
+autowalk.arrived_find_door	Components/Navigation/AutoWalk/AutoWalker.cs	133	Arrived. Find the door to go to the next floor.	已到達。找到門就能前往下一層。	已到达。找到门就能前往下一层。	
+autowalk.traveling_to	Components/Navigation/AutoWalk/AutoWalker.cs	141	Traveling to {0}.	正前往{0}。	正前往{0}。	$"Traveling to {label}."
+autowalk.reached	Components/Navigation/AutoWalk/AutoWalker.cs	141;412	Reached {0}.	已到達{0}。	已到达{0}。	$"Reached {label}."
+autowalk.reached_interact	Components/Navigation/AutoWalk/AutoWalker.cs	411	Reached {0}. Press to interact.	已到達{0}。按鍵互動。	已到达{0}。按键互动。	$"Reached {label}. Press to interact."
+autowalk.heading_chest	Components/Navigation/AutoWalk/AutoWalker.cs	147	Heading to the chest.	正前往寶箱。	正前往宝箱。	
+autowalk.at_chest_open	Components/Navigation/AutoWalk/AutoWalker.cs	160;406	At the chest. Press to open.	已到寶箱。按鍵開啟。	已到宝箱。按键开启。	
+autowalk.at_chest	Components/Navigation/AutoWalk/AutoWalker.cs	160;406	At the chest.	已到寶箱。	已到宝箱。	
+autowalk.heading_shadow	Components/Navigation/AutoWalk/AutoWalker.cs	182;441	Heading to the shadow.	正前往陰影。	正前往阴影。	
+autowalk.failed	Components/Navigation/AutoWalk/AutoWalker.cs	215	Auto-walk failed.	自動行走失敗。	自动行走失败。	
+autowalk.stairs_not_found	Components/Navigation/AutoWalk/AutoWalker.cs	344	Stairs not found. Explore more.	沒找到樓梯，再多探索一下。	没找到楼梯，再多探索一下。	
+autowalk.no_route_stairs	Components/Navigation/AutoWalk/AutoWalker.cs	345	No route to the stairs.	沒有通往樓梯的路線。	没有通往楼梯的路线。	
+autowalk.walking_stairs	Components/Navigation/AutoWalk/AutoWalker.cs	346	Walking to the stairs.	正走向樓梯。	正走向楼梯。	
+autowalk.arrived_stairs_near	Components/Navigation/AutoWalk/AutoWalker.cs	354	Arrived. The stairs are near.	已到達。樓梯就在附近。	已到达。楼梯就在附近。	
+autowalk.arrived_check_door	Components/Navigation/AutoWalk/AutoWalker.cs	354	Arrived. Check nearest door.	已到達。調查最近的門。	已到达。调查最近的门。	
+autowalk.no_route_to	Components/Navigation/AutoWalk/AutoWalker.cs	377	No route to {0}.	沒有通往{0}的路線。	没有通往{0}的路线。	$"No route to {label}."
+autowalk.walking_to	Components/Navigation/AutoWalk/AutoWalker.cs	378	Walking to {0}.	正走向{0}。	正走向{0}。	$"Walking to {label}."
+autowalk.at_door_open	Components/Navigation/AutoWalk/AutoWalker.cs	409;1267	At the door. Press to open.	已到門前。按鍵開門。	已到门前。按键开门。	
+autowalk.at_door	Components/Navigation/AutoWalk/AutoWalker.cs	409	At the door.	已到門前。	已到门前。	
+autowalk.no_route_shadow	Components/Navigation/AutoWalk/AutoWalker.cs	440	No route to the shadow.	沒有通往陰影的路線。	没有通往阴影的路线。	
+autowalk.stopped	Components/Navigation/AutoWalk/AutoWalker.cs	481	Auto-walk stopped.	自動行走已停止。	自动行走已停止。	
+autowalk.stopped_sliding	Components/Navigation/AutoWalk/AutoWalker.cs	512	Stopped. Kept sliding off the route.	已停止。一直偏離路線。	已停止。一直偏离路线。	
+autowalk.stopped_door	Components/Navigation/AutoWalk/AutoWalker.cs	579	Stopped. A door would not open.	已停止。有扇門打不開。	已停止。有扇门打不开。	
+autowalk.stopped_stuck	Components/Navigation/AutoWalk/AutoWalker.cs	653	Stopped. Couldn't get through.	已停止。過不去。	已停止。过不去。	
+autowalk.no_mapped_path	Components/Navigation/AutoWalk/AutoWalker.cs	1113	No mapped path to walk.	沒有已繪製的路徑可走。	没有已绘制的路径可走。	
+autowalk.walking_steps	Components/Navigation/AutoWalk/AutoWalker.cs	1119	Walking to {0}, {1} steps.	正走向{0}，{1}步。	正走向{0}，{1}步。	$"Walking to {label.ToLowerInvariant()}, {totalSteps} step{(totalSteps == 1 ? "" : "s")}."
+autowalk.at_stairs	Components/Navigation/AutoWalk/AutoWalker.cs	1267	At the stairs.	已到樓梯。	已到楼梯。	
+autowalk.turn_right	Components/Navigation/AutoWalk/AutoWalker.cs	1299	Right, {0}.	右轉，{0}步。	右转，{0}步。	$"{(bend > 0 ? "Right" : "Left")}, {legSteps}."
+autowalk.turn_left	Components/Navigation/AutoWalk/AutoWalker.cs	1299	Left, {0}.	左轉，{0}步。	左转，{0}步。	$"{(bend > 0 ? "Right" : "Left")}, {legSteps}."
+autowalk.arrived_label	Components/Navigation/AutoWalk/AutoWalker.cs	1378	Arrived. {0}.	已到達。{0}。	已到达。{0}。	$"Arrived. {label}."
+autowalk.right_there	Components/Navigation/AutoWalk/AutoWalker.cs	1384	{0} is right there, a step ahead.	{0}就在眼前，再一步。	{0}就在眼前，再一步。	$"{label} is right there, a step ahead."
+autowalk.get_closer	Components/Navigation/AutoWalk/AutoWalker.cs	1435	Couldn't reach it from here. Try getting a little closer.	從這裡到不了，再靠近一點試試。	从这里到不了，再靠近一点试试。	
+autowalk.right_ahead	Components/Navigation/AutoWalk/AutoWalker.cs	1566	It's right ahead.	就在正前方。	就在正前方。	
+autowalk.close_as_possible	Components/Navigation/AutoWalk/AutoWalker.cs	1571	This is as close as I can get from here.	已經是最接近的位置了。	已经是最接近的位置了。	
+autowalk.no_way_there	Components/Navigation/AutoWalk/AutoWalker.cs	1651	Can't find a way there.	找不到過去的路。	找不到过去的路。	
+autowalk.no_shadow_nearby	Components/Navigation/AutoWalk/AutoWalker.cs	1713	No shadow nearby.	附近沒有陰影。	附近没有阴影。	
+autowalk.walking_to_shadow	Components/Navigation/AutoWalk/AutoWalker.cs	1720	Walking to shadow, {0} steps.	正走向陰影，{0}步。	正走向阴影，{0}步。	$"Walking to shadow, {steps0} step{(steps0 == 1 ? "" : "s")}."
+autowalk.engaged	Components/Navigation/AutoWalk/AutoWalker.cs	1742	Engaged!	接敵！	接敌！	
+autowalk.another_shadow	Components/Navigation/AutoWalk/AutoWalker.cs	1772	Another shadow close!	又有陰影接近！	又有阴影接近！	
+autowalk.closing_in	Components/Navigation/AutoWalk/AutoWalker.cs	1780	Closing in.	接近中。	接近中。	
+autowalk.position_lost	Components/Navigation/AutoWalk/AutoWalker.cs	1212;1750	Position lost, stopping.	位置遺失，停止。	位置丢失，停止。	
+autowalk.camera_lost	Components/Navigation/AutoWalk/AutoWalker.cs	1251;1328;1824	Camera unreadable, stopping.	無法讀取鏡頭，停止。	无法读取镜头，停止。	
+autowalk.blocked_wall	Components/Navigation/AutoWalk/AutoWalker.cs	1343	Blocked by a wall.	被牆擋住。	被墙挡住。	
+autowalk.stuck	Components/Navigation/AutoWalk/AutoWalker.cs	1369	Stuck.	卡住了。	卡住了。	
+autowalk.shadow_lost	Components/Navigation/AutoWalk/AutoWalker.cs	1755	Shadow lost.	陰影不見了。	阴影不见了。	
+autowalk.cant_reach	Components/Navigation/AutoWalk/AutoWalker.cs	1829	Can't reach it.	到不了。	到不了。	
+autowalk.cancelled	Components/Navigation/AutoWalk/AutoWalker.cs	2171	Cancelled.	已取消。	已取消。	
+autowalk.lost_focus	Components/Navigation/AutoWalk/AutoWalker.cs	2174	Lost focus.	視窗失去焦點。	窗口失去焦点。	
+autowalk.battle	Components/Navigation/AutoWalk/AutoWalker.cs	2184	Battle.	戰鬥。	战斗。	
+autowalk.floor_changed	Components/Navigation/AutoWalk/AutoWalker.cs	2185	Floor changed.	樓層改變。	楼层改变。	
+autowalk.steps_remaining	Components/Navigation/AutoWalk/AutoWalker.cs	2200	{0} steps remaining.	剩{0}步。	剩{0}步。	$"{steps} step{(steps == 1 ? "" : "s")} remaining."
+route.right_here	Components/Navigation/AutoWalk/RouteSpeech.cs	27;56	{0}: right here.	{0}：就在這裡。	{0}：就在这里。	$"{label}: right here."
+route.dir_steps	Components/Navigation/AutoWalk/RouteSpeech.cs	59	{0}: {1}{2} steps.	{0}：{1}{2}步。	{0}：{1}{2}步。	$"{label}: {dir}{steps} step{(steps == 1 ? "" : "s")}."
+route.slight_side	Components/Navigation/AutoWalk/RouteSpeech.cs	76	slight {0}	稍偏{0}	稍偏{0}	$"slight {side}"
+route.sharp_side	Components/Navigation/AutoWalk/RouteSpeech.cs	78	sharp {0}	大幅偏{0}	大幅偏{0}	$"sharp {side}"
+navassist.dungeon_no_data	Components/Navigation/NavigationAssist.cs	167	Dungeon area, no navigation data.	迷宮區域，沒有導航資料。	迷宫区域，没有导航数据。	
+navassist.area_not_in_db	Components/Navigation/NavigationAssist.cs	167	Area not in database yet.	這個區域還沒收錄進資料庫。	这个区域还没收录进数据库。	
+navassist.none_here	Components/Navigation/NavigationAssist.cs	259;280	No {0}s here.	這裡沒有{0}。	这里没有{0}。	$"No {label.ToLower()}s here."
+navassist.count	Components/Navigation/NavigationAssist.cs	260	{0}: {1}	{0}：{1}	{0}：{1}	$"{plural}: {entries.Length}"
+navassist.entry_pos	Components/Navigation/NavigationAssist.cs	294	{0} {1} of {2}	{0}第{1}個，共{2}個	{0}第{1}个，共{2}个	$"{label} {index + 1} of {total}"
+navassist.entry_text	Components/Navigation/NavigationAssist.cs	296	{0}: {1}. {2}{3}	{0}：{1}。{2}{3}	{0}：{1}。{2}{3}	$"{pos}: {entry.Name}. {dist}{hint}"
+navassist.browse_first_teleport	Components/Navigation/NavigationAssist.cs	335	Browse an entry first with the minus, equals, or bracket keys, then press backslash to teleport.	請先用減號、等號或中括號鍵瀏覽項目，再按反斜線傳送。	请先用减号、等号或中括号键浏览项目，再按反斜杠传送。	
+navassist.no_recorded_position	Components/Navigation/NavigationAssist.cs	354	No recorded position for {0}. Walk there and press Numpad 7.	{0}沒有記錄位置。走到那裡按數字鍵盤7。	{0}没有记录位置。走到那里按小键盘7。	$"No recorded position for {name}. Walk there and press Numpad 7."
+navassist.no_entry_data	Components/Navigation/NavigationAssist.cs	360	No entry data for this area. Press Numpad 8 to cycle entries, then try again.	這個區域沒有項目資料。按數字鍵盤8切換項目後再試。	这个区域没有项目数据。按小键盘8切换项目后再试。	
+navassist.teleport_not_ready_moment	Components/Navigation/NavigationAssist.cs	460	Teleport not ready, try again in a moment.	傳送還沒準備好，稍後再試。	传送还没准备好，稍后再试。	
+navassist.player_pos_wait	Components/Navigation/NavigationAssist.cs	663;718;750	Player position not available yet. Try again in a moment.	還取不到玩家位置，稍後再試。	还获取不到玩家位置，稍后再试。	
+navassist.cycle_first_record	Components/Navigation/NavigationAssist.cs	651	Cycle to an entry first with minus, equals, or bracket keys, then press Numpad 7.	請先用減號、等號或中括號鍵切換到項目，再按數字鍵盤7。	请先用减号、等号或中括号键切换到项目，再按小键盘7。	
+navassist.recorded_facing	Components/Navigation/NavigationAssist.cs	679	Recorded {0} at X {1}, Z {2}. Facing X {3}, Z {4}.	已記錄{0}，X {1}，Z {2}。面向X {3}，Z {4}。	已记录{0}，X {1}，Z {2}。面向X {3}，Z {4}。	$"Recorded {_lastAnnounced.Name} at X {px:F0}, Z {pz:F0}. Facing X {fx:F2}, Z {fz:F2}."
+navassist.recorded_no_facing	Components/Navigation/NavigationAssist.cs	685	Recorded {0} at X {1}, Z {2}. Facing unavailable.	已記錄{0}，X {1}，Z {2}。無法取得面向。	已记录{0}，X {1}，Z {2}。无法获取面向。	$"Recorded {_lastAnnounced.Name} at X {px:F0}, Z {pz:F0}. Facing unavailable."
+navassist.cycle_first_approach	Components/Navigation/NavigationAssist.cs	701	Cycle to an entry first, then press Numpad 9 to record your position as the approach point.	請先切換到項目，再按數字鍵盤9把目前位置記為接近點。	请先切换到项目，再按小键盘9把当前位置记为接近点。	
+navassist.no_target_position	Components/Navigation/NavigationAssist.cs	706	{0} has no target position yet. Record the target first with Numpad 7.	{0}還沒有目標位置。請先按數字鍵盤7記錄目標。	{0}还没有目标位置。请先按小键盘7记录目标。	$"{_lastAnnounced.Name} has no target position yet. Record the target first with Numpad 7."
+navassist.approach_set	Components/Navigation/NavigationAssist.cs	728	Approach point for {0} set at X {1}, Z {2}. {3} units from target.	已設定{0}的接近點，X {1}，Z {2}。距目標{3}單位。	已设定{0}的接近点，X {1}，Z {2}。距目标{3}单位。	$"Approach point for {_lastAnnounced.Name} set at X {px:F0}, Z {pz:F0}. {dist:F1} units from target."
+navassist.approach_save_failed	Components/Navigation/NavigationAssist.cs	732	Could not save approach — record the target's position first with Numpad 7.	無法儲存接近點——請先按數字鍵盤7記錄目標位置。	无法保存接近点——请先按小键盘7记录目标位置。	
+navassist.custom_added	Components/Navigation/NavigationAssist.cs	762	Added {0} at X {1}, Z {2}. Edit navigation positions JSON to rename.	已新增{0}，X {1}，Z {2}。要改名請編輯導航位置JSON。	已添加{0}，X {1}，Z {2}。要改名请编辑导航位置JSON。	$"Added {name} at X {px:F0}, Z {pz:F0}. Edit navigation positions JSON to rename."
+navassist.custom_n	Components/Navigation/NavigationAssist.cs	757	Custom {0}	自訂{0}	自定义{0}	$"Custom {n}"
+navassist.right_here	Components/Navigation/NavigationAssist.cs	780	right here	就在這裡	就在这里	
+navassist.very_close	Components/Navigation/NavigationAssist.cs	781	very close {0}	{0}方很近	{0}方很近	$"very close {dir}"
+navassist.nearby	Components/Navigation/NavigationAssist.cs	782	nearby {0}	{0}方不遠	{0}方不远	$"nearby {dir}"
+navassist.steps_dir	Components/Navigation/NavigationAssist.cs	785	{0} steps {1}	{1}方{0}步	{1}方{0}步	$"{steps} step{(steps == 1 ? "" : "s")} {dir}"
+room.entry_n	Components/RoomActionMenu.cs	149	Entry {0}.	項目{0}。	项目{0}。	$"Entry {e}."
+room.nav_unavailable	Components/RoomActionMenu.cs	218	Navigation not available.	無法導航。	无法导航。	
+room.cant_start_walk	Components/RoomActionMenu.cs	224	{0}: can't start the walk here.	{0}：沒辦法從這裡開始走。	{0}：没办法从这里开始走。	$"{o.label}: can't start the walk here."
+room.press_to_interact	Components/RoomActionMenu.cs	238;248	{0}. Press to interact.	{0}。按鍵互動。	{0}。按键互动。	$"{o.label}. Press to interact."
+room.press_if_near	Components/RoomActionMenu.cs	238;248	{0}. Press to interact if you're near it.	{0}。靠近時按鍵互動。	{0}。靠近时按键互动。	$"{o.label}. Press to interact if you're near it."
+room.futon	Components/RoomActionMenu.cs	40	Futon	被褥	被褥	
+room.small_desk	Components/RoomActionMenu.cs	41	Small desk	小桌子	小桌子	
+room.tv	Components/RoomActionMenu.cs	42	TV	電視	电视	
+room.desk	Components/RoomActionMenu.cs	43	Desk	書桌	书桌	
+room.sofa	Components/RoomActionMenu.cs	44	Sofa	沙發	沙发	
+room.calendar	Components/RoomActionMenu.cs	45	Calendar	日曆	日历	
+room.fridge	Components/RoomActionMenu.cs	50	Fridge	冰箱	冰箱	
+room.farm	Components/RoomActionMenu.cs	51	Farm	菜園	菜园	
+room.aiya	Components/RoomActionMenu.cs	55	Aiya Chinese Diner	中華食堂愛家	中华食堂爱家	
+room.bulletin_board	Components/RoomActionMenu.cs	56	Bulletin board	佈告欄	布告栏	
+room.bus_stop	Components/RoomActionMenu.cs	60	Bus stop	公車站	公交车站	
+room.okina_clothing	Components/RoomActionMenu.cs	67	Okina clothing store	沖奈服飾店	冲奈服饰店	
+room.okina_theater	Components/RoomActionMenu.cs	68	Okina theater	沖奈電影院	冲奈电影院	
+room.okina_cafe	Components/RoomActionMenu.cs	69	Okina Cafe	沖奈咖啡廳	冲奈咖啡厅	
+place.art_room_back	Components/Navigation/PlaceNames.cs	18	Art Room, back	美術教室後方	美术教室后方	
+place.art_room_front	Components/Navigation/PlaceNames.cs	18	Art Room, front	美術教室前方	美术教室前方	
+place.english_room_back	Components/Navigation/PlaceNames.cs	19	English Room, back	英語教室後方	英语教室后方	
+place.english_room_front	Components/Navigation/PlaceNames.cs	19	English Room, front	英語教室前方	英语教室前方	
+place.crafts_room_back	Components/Navigation/PlaceNames.cs	20	Crafts Room, back	工藝教室後方	工艺教室后方	
+place.crafts_room_front	Components/Navigation/PlaceNames.cs	20	Crafts Room, front	工藝教室前方	工艺教室前方	
+place.sewing_room_back	Components/Navigation/PlaceNames.cs	21	Sewing Room, back	縫紉教室後方	缝纫教室后方	
+place.sewing_room_front	Components/Navigation/PlaceNames.cs	21	Sewing Room, front	縫紉教室前方	缝纫教室前方	
+place.broadcasting_back	Components/Navigation/PlaceNames.cs	22	Broadcasting Room, back	廣播室後方	广播室后方	
+place.broadcasting_front	Components/Navigation/PlaceNames.cs	22	Broadcasting Room, front	廣播室，前方	广播室，前方	
+place.chemistry_back	Components/Navigation/PlaceNames.cs	23	Chemistry Room, back	化學教室，後方	化学教室，后方	
+place.chemistry_front	Components/Navigation/PlaceNames.cs	23	Chemistry Room, front	化學教室，前方	化学教室，前方	
+place.computer_back	Components/Navigation/PlaceNames.cs	24	Computer Room, back	電腦教室，後方	电脑教室，后方	
+place.computer_front	Components/Navigation/PlaceNames.cs	24	Computer Room, front	電腦教室，前方	电脑教室，前方	
+place.biology_back	Components/Navigation/PlaceNames.cs	25	Biology Room, back	生物教室，後方	生物教室，后方	
+place.biology_front	Components/Navigation/PlaceNames.cs	25	Biology Room, front	生物教室，前方	生物教室，前方	
+place.social_studies_back	Components/Navigation/PlaceNames.cs	26	Social Studies Room, back	社會科教室，後方	社会科教室，后方	
+place.social_studies_front	Components/Navigation/PlaceNames.cs	26	Social Studies Room, front	社會科教室，前方	社会科教室，前方	
+place.calligraphy_back	Components/Navigation/PlaceNames.cs	27	Calligraphy Room, back	書法教室，後方	书法教室，后方	
+place.calligraphy_front	Components/Navigation/PlaceNames.cs	27	Calligraphy Room, front	書法教室，前方	书法教室，前方	
+place.av_room_back	Components/Navigation/PlaceNames.cs	28	AV Room, back	視聽教室，後方	视听教室，后方	
+place.av_room_front	Components/Navigation/PlaceNames.cs	28	AV Room, front	視聽教室，前方	视听教室，前方	
+place.cooking_back	Components/Navigation/PlaceNames.cs	29	Cooking Room, back	烹飪教室，後方	烹饪教室，后方	
+place.cooking_front	Components/Navigation/PlaceNames.cs	29	Cooking Room, front	烹飪教室，前方	烹饪教室，前方	
+place.student_council_back	Components/Navigation/PlaceNames.cs	30	Student Council Room, back	學生會室，後方	学生会室，后方	
+place.student_council_front	Components/Navigation/PlaceNames.cs	30	Student Council Room, front	學生會室，前方	学生会室，前方	
+place.guidance_back	Components/Navigation/PlaceNames.cs	31	Guidance Office, back	輔導室，後方	辅导室，后方	
+place.guidance_front	Components/Navigation/PlaceNames.cs	31	Guidance Office, front	輔導室，前方	辅导室，前方	
+place.library_back	Components/Navigation/PlaceNames.cs	32	Library, back	圖書室，後方	图书室，后方	
+place.library_front	Components/Navigation/PlaceNames.cs	32	Library, front	圖書室，前方	图书室，前方	
+place.faculty_left	Components/Navigation/PlaceNames.cs	33	Faculty Office, left	教職員室，左邊	教职员室，左边	
+place.faculty_right	Components/Navigation/PlaceNames.cs	33	Faculty Office, right	教職員室，右邊	教职员室，右边	
+place.girls_restroom	Components/Navigation/PlaceNames.cs	34	Girls' Restroom	女廁	女厕所	
+place.boys_restroom	Components/Navigation/PlaceNames.cs	35	Boys' Restroom	男廁	男厕所	
+place.shoe_lockers	Components/Navigation/PlaceNames.cs	38	Shoe Lockers	鞋櫃	鞋柜	
+place.nurses_office	Components/Navigation/PlaceNames.cs	38	Nurse's Office	保健室	保健室	
+place.bulletin_board	Components/Navigation/PlaceNames.cs	38	Bulletin Board	佈告欄	公告栏	
+place.meeting_room	Components/Navigation/PlaceNames.cs	39	Meeting Room	會議室	会议室	
+place.sports_clubs	Components/Navigation/PlaceNames.cs	39	Sports Clubs	運動社團	运动社团	
+place.drama_club	Components/Navigation/PlaceNames.cs	39	Drama Club	戲劇社	戏剧社	
+place.music_room	Components/Navigation/PlaceNames.cs	40	Music Room	音樂教室	音乐教室	
+place.music_prep	Components/Navigation/PlaceNames.cs	40	Music Prep Room	音樂準備室	音乐准备室	
+place.class_1_1_back	Components/Navigation/PlaceNames.cs	43	Class 1-1, back	1年1班，後方	1年1班，后方	
+place.class_1_1_front	Components/Navigation/PlaceNames.cs	43	Class 1-1, front	1年1班，前方	1年1班，前方	
+place.class_1_2_back	Components/Navigation/PlaceNames.cs	44	Class 1-2, back	1年2班，後方	1年2班，后方	
+place.class_1_2_front	Components/Navigation/PlaceNames.cs	44	Class 1-2, front	1年2班，前方	1年2班，前方	
+place.class_1_3_back	Components/Navigation/PlaceNames.cs	45	Class 1-3, back	1年3班，後方	1年3班，后方	
+place.class_1_3_front	Components/Navigation/PlaceNames.cs	45	Class 1-3, front	1年3班，前方	1年3班，前方	
+place.class_2_1_back	Components/Navigation/PlaceNames.cs	46	Class 2-1, back	2年1班，後方	2年1班，后方	
+place.class_2_1_front	Components/Navigation/PlaceNames.cs	46	Class 2-1, front	2年1班，前方	2年1班，前方	
+place.class_2_3_back	Components/Navigation/PlaceNames.cs	47	Class 2-3, back	2年3班，後方	2年3班，后方	
+place.class_2_3_front	Components/Navigation/PlaceNames.cs	47	Class 2-3, front	2年3班，前方	2年3班，前方	
+place.class_3_1_back	Components/Navigation/PlaceNames.cs	48	Class 3-1, back	3年1班，後方	3年1班，后方	
+place.class_3_1_front	Components/Navigation/PlaceNames.cs	48	Class 3-1, front	3年1班，前方	3年1班，前方	
+place.class_3_2_back	Components/Navigation/PlaceNames.cs	49	Class 3-2, back	3年2班，後方	3年2班，后方	
+place.class_3_2_front	Components/Navigation/PlaceNames.cs	49	Class 3-2, front	3年2班，前方	3年2班，前方	
+place.class_3_3_back	Components/Navigation/PlaceNames.cs	50	Class 3-3, back	3年3班，後方	3年3班，后方	
+place.class_3_3_front	Components/Navigation/PlaceNames.cs	50	Class 3-3, front	3年3班，前方	3年3班，前方	
+place.into_classroom_left	Components/Navigation/PlaceNames.cs	51	Into classroom, left	進教室，左邊	进教室，左边	
+place.into_classroom_right	Components/Navigation/PlaceNames.cs	51	Into classroom, right	進教室，右邊	进教室，右边	
+place.out_classroom_upper	Components/Navigation/PlaceNames.cs	52	Out of classroom, upper	出教室，上方	出教室，上方	
+place.out_classroom_lower	Components/Navigation/PlaceNames.cs	52	Out of classroom, lower	出教室，下方	出教室，下方	
+place.examine_futon	Components/Navigation/PlaceNames.cs	55	Examine futon	查看棉被	查看被褥	
+place.examine_bike	Components/Navigation/PlaceNames.cs	55	Examine bike	查看腳踏車	查看自行车	
+place.examine_desk	Components/Navigation/PlaceNames.cs	56	Examine desk	查看書桌	查看书桌	
+place.examine_diary	Components/Navigation/PlaceNames.cs	56	Examine diary	查看日記	查看日记	
+place.examine_field	Components/Navigation/PlaceNames.cs	57	Examine field	查看田地	查看田地	
+place.examine_farm_tools	Components/Navigation/PlaceNames.cs	57	Examine farm tools	查看農具	查看农具	
+place.examine_fishing_gear	Components/Navigation/PlaceNames.cs	58	Examine fishing gear	查看釣具	查看钓具	
+place.examine_kitchen	Components/Navigation/PlaceNames.cs	58	Examine kitchen	查看廚房	查看厨房	
+place.examine_living_tv	Components/Navigation/PlaceNames.cs	59	Examine living room TV	查看客廳電視	查看客厅电视	
+place.examine_small_desk	Components/Navigation/PlaceNames.cs	59	Examine small desk	查看小桌子	查看小桌子	
+place.examine_my_tv	Components/Navigation/PlaceNames.cs	60	Examine my room TV	查看我房間的電視	查看我房间的电视	
+place.examine_fridge	Components/Navigation/PlaceNames.cs	60	Examine fridge	查看冰箱	查看冰箱	
+place.examine_shelf	Components/Navigation/PlaceNames.cs	61	Examine shelf	查看架子	查看架子	
+place.examine_sofa	Components/Navigation/PlaceNames.cs	61	Examine sofa	查看沙發	查看沙发	
+place.examine_trophy	Components/Navigation/PlaceNames.cs	62	Examine trophy	查看獎盃	查看奖杯	
+place.home_entrance	Components/Navigation/PlaceNames.cs	63	Home entrance	家門口	家门口	
+place.stairs_my_room	Components/Navigation/PlaceNames.cs	63	Stairs to my room	往我房間的樓梯	往我房间的楼梯	
+place.living_room_door	Components/Navigation/PlaceNames.cs	64	Living room door	客廳門	客厅门	
+place.entrance_door	Components/Navigation/PlaceNames.cs	64	Entrance door	玄關門	玄关门	
+place.okina_notice_board	Components/Navigation/PlaceNames.cs	67	Okina notice board	沖奈告示板	冲奈告示板	
+place.okina_bookstore	Components/Navigation/PlaceNames.cs	67	Okina bookstore	沖奈書店	冲奈书店	
+place.okina_cafe	Components/Navigation/PlaceNames.cs	68	Okina cafe	沖奈咖啡廳	冲奈咖啡厅	
+place.okina_clothing	Components/Navigation/PlaceNames.cs	68	Okina clothing store	沖奈服飾店	冲奈服装店	
+place.okina_police	Components/Navigation/PlaceNames.cs	69	Okina police box	沖奈派出所	冲奈派出所	
+place.okina_station	Components/Navigation/PlaceNames.cs	69	Okina Station	沖奈車站	冲奈车站	
+place.okina_theater	Components/Navigation/PlaceNames.cs	70	Okina theater	沖奈電影院	冲奈电影院	
+place.to_food_court	Components/Navigation/PlaceNames.cs	70	To food court	往美食廣場	往美食广场	
+place.enter_shop	Components/Navigation/PlaceNames.cs	71	Enter shop	進入商店	进入商店	
+place.exit_shop	Components/Navigation/PlaceNames.cs	71	Exit shop	離開商店	离开商店	
+place.down_riverbank	Components/Navigation/PlaceNames.cs	74	Down to riverbank	下到河岸	下到河岸	
+place.up_riverbank	Components/Navigation/PlaceNames.cs	74	Up from riverbank	從河岸上來	从河岸上来	
+place.farm_shop	Components/Navigation/PlaceNames.cs	75	Farm shop	農場商店	农场商店	
+place.bushes	Components/Navigation/PlaceNames.cs	75	Bushes	草叢	草丛	
+place.tanabata	Components/Navigation/PlaceNames.cs	76	Tanabata display	七夕裝飾	七夕装饰	
+place.cushion	Components/Navigation/PlaceNames.cs	76	Cushion	坐墊	坐垫	
+place.crane_game	Components/Navigation/PlaceNames.cs	76	Crane game	夾娃娃機	抓娃娃机	
+place.boss_room_door	Components/Navigation/PlaceNames.cs	79	Boss room door	頭目房間門	头目房间门	
+place.boss_room_stairs_down	Components/Navigation/PlaceNames.cs	79	Boss room, stairs down	頭目房間，往下樓梯	头目房间，往下楼梯	
+place.boss_room_exit	Components/Navigation/PlaceNames.cs	80	Boss room exit	頭目房間出口	头目房间出口	
+place.boss_floor_door	Components/Navigation/PlaceNames.cs	80	Boss floor door	頭目樓層門	头目楼层门	
+place.stairs_up_1f_entrance	Components/Navigation/PlaceNames.cs	81	Stairs up, 1F entrance	上樓梯，1樓入口	上楼梯，1楼入口	
+place.stairs_up_1f_passage	Components/Navigation/PlaceNames.cs	81	Stairs up, 1F passage	上樓梯，1樓通道	上楼梯，1楼通道	
+place.stairs_up_2f_entrance	Components/Navigation/PlaceNames.cs	82	Stairs up, 2F entrance	上樓梯，2樓入口	上楼梯，2楼入口	
+place.stairs_up_2f_passage	Components/Navigation/PlaceNames.cs	82	Stairs up, 2F passage	上樓梯，2樓通道	上楼梯，2楼通道	
+place.stairs_up_2f_left	Components/Navigation/PlaceNames.cs	83	Stairs up, 2F left	上樓梯，2樓左邊	上楼梯，2楼左边	
+place.stairs_up_2f_right	Components/Navigation/PlaceNames.cs	83	Stairs up, 2F right	上樓梯，2樓右邊	上楼梯，2楼右边	
+place.stairs_up_3f_4f	Components/Navigation/PlaceNames.cs	84	Stairs up, 3F to 4F	上樓梯，3樓到4樓	上楼梯，3楼到4楼	
+place.stairs_down_1f_left	Components/Navigation/PlaceNames.cs	85	Stairs down, 1F left	下樓梯，1樓左邊	下楼梯，1楼左边	
+place.stairs_down_1f_right	Components/Navigation/PlaceNames.cs	85	Stairs down, 1F right	下樓梯，1樓右邊	下楼梯，1楼右边	
+place.stairs_down_2f_entrance	Components/Navigation/PlaceNames.cs	86	Stairs down, 2F entrance	下樓梯，2樓入口	下楼梯，2楼入口	
+place.stairs_down_2f_passage	Components/Navigation/PlaceNames.cs	86	Stairs down, 2F passage	下樓梯，2樓通道	下楼梯，2楼通道	
+place.stairs_down_3f_entrance	Components/Navigation/PlaceNames.cs	87	Stairs down, 3F entrance	下樓梯，3樓入口	下楼梯，3楼入口	
+place.stairs_down_3f_passage	Components/Navigation/PlaceNames.cs	87	Stairs down, 3F passage	下樓梯，3樓通道	下楼梯，3楼通道	
+place.stairs_down_4f_3f	Components/Navigation/PlaceNames.cs	88	Stairs down, 4F to 3F	下樓梯，4樓到3樓	下楼梯，4楼到3楼	
+place.stairs_down_boss	Components/Navigation/PlaceNames.cs	88	Stairs down, boss floor	下樓梯，頭目樓層	下楼梯，头目楼层	
+place.passage_1f	Components/Navigation/PlaceNames.cs	89	Passage, 1F	通道，1樓	通道，1楼	
+place.passage_2f	Components/Navigation/PlaceNames.cs	90	Passage, 2F	通道，2樓	通道，2楼	
+place.entrance	Components/Navigation/PlaceNames.cs	91	Entrance	入口	入口	
+place.return_point	Components/Navigation/PlaceNames.cs	91	Return point	返回點	返回点	
+place.pit	Components/Navigation/PlaceNames.cs	91	Pit	坑洞	坑洞	
+place.dressing_room_door	Components/Navigation/PlaceNames.cs	92	Dressing room door	更衣室門	更衣室门	
+place.enter_dressing_room	Components/Navigation/PlaceNames.cs	92	Enter dressing room	進入更衣室	进入更衣室	
+place.exit_dressing_room	Components/Navigation/PlaceNames.cs	93	Exit dressing room	離開更衣室	离开更衣室	
+place.lodge_entrance	Components/Navigation/PlaceNames.cs	93	Lodge entrance	滑雪小屋入口	滑雪小屋入口	
+place.enter_base	Components/Navigation/PlaceNames.cs	96	Enter base	進入基地	进入基地	
+place.enter_castle	Components/Navigation/PlaceNames.cs	96	Enter castle	進入城堡	进入城堡	
+place.enter_game_world	Components/Navigation/PlaceNames.cs	96	Enter game world	進入遊戲世界	进入游戏世界	
+place.enter_heaven	Components/Navigation/PlaceNames.cs	97	Enter Heaven	進入天堂	进入天堂	
+place.enter_final_area	Components/Navigation/PlaceNames.cs	97	Enter final area	進入最終區域	进入最终区域	
+place.enter_over_city	Components/Navigation/PlaceNames.cs	97	Enter over the city	進入城市上空	进入城市上空	
+place.enter_playhouse	Components/Navigation/PlaceNames.cs	98	Enter playhouse	進入劇場	进入剧场	
+place.enter_sauna	Components/Navigation/PlaceNames.cs	98	Enter sauna	進入三溫暖	进入桑拿房	
+place.enter_tomb	Components/Navigation/PlaceNames.cs	98	Enter tomb	進入墓穴	进入墓穴	
+place.treasure	Components/Navigation/PlaceNames.cs	99	Treasure	寶箱	宝箱	
+place.quest_item	Components/Navigation/PlaceNames.cs	101	Quest item	任務道具	任务道具	
+place.bones	Components/Navigation/PlaceNames.cs	102	Bones	骨頭	骨头	
+place.margaret	Components/Navigation/PlaceNames.cs	102	Margaret	瑪格麗特	玛格丽特	
+place.temptation	Components/Navigation/PlaceNames.cs	102	Temptation	誘惑	诱惑	
+place.shrine	Components/Navigation/PlaceNames.cs	103	Shrine	神社	神社	
+teleport.daidara	Components/Navigation/TeleportTargets.cs	54	Daidara	大達金屬工房	大达金属工房	
+teleport.save_point	Components/Navigation/TeleportTargets.cs	58	Save Point	存檔點	存档点	
+teleport.junes_road	Components/Navigation/TeleportTargets.cs	63	Junes Road	Junes路	Junes路	
+teleport.shopping_north	Components/Navigation/TeleportTargets.cs	68	Shopping North	商店街北側	商店街北侧	
+teleport.samegawa_road	Components/Navigation/TeleportTargets.cs	73	Samegawa Road	鮫川路	鲛川路	
+teleport.pharmacy	Components/Navigation/TeleportTargets.cs	77	Pharmacy	藥局	药店	
+teleport.bookstore	Components/Navigation/TeleportTargets.cs	82	Bookstore	書店	书店	
+townmap.yasogami	Components/TownMapReader.cs	27	Yasogami High School	八十神高中	八十神高中	
+townmap.shopping_district	Components/TownMapReader.cs	28	Central Shopping District	中央商店街	中央商店街	
+townmap.junes	Components/TownMapReader.cs	29	Junes Department Store	Junes百貨	Junes百货	
+townmap.samegawa	Components/TownMapReader.cs	30	Samegawa Flood Plain	鮫川河堤	鲛川河堤	
+townmap.dojima	Components/TownMapReader.cs	31	Dojima Residence	堂島家	堂岛家	
+townmap.okina	Components/TownMapReader.cs	32	Okina City	沖奈市	冲奈市	
+townmap.shichiri	Components/TownMapReader.cs	33	Shichiri Beach	七里海灘	七里海滩	
+townmap.destination_n	Components/TownMapReader.cs	86	Destination {0}	目的地{0}	目的地{0}	$"Destination {cursor + 1}"
+tutorial.world	Components/Tutorial.cs	80	You're free to explore the world around you. You can set a sound beacon on nearby things, and even auto-walk to them. Whenever you like, press F to open the travel menu. It has more options to help you on your journey.	你可以自由探索周圍的世界。可以在附近的東西上設置聲音信標，甚至自動走向它們。隨時按 F 開啟移動選單，裡面有更多能幫助你旅程的選項。	你可以自由探索周围的世界。可以在附近的东西上设置声音信标，甚至自动走向它们。随时按 F 打开移动菜单，里面有更多能帮助你旅程的选项。	
+tutorial.quick_interact	Components/Tutorial.cs	101	In certain places, you can press Shift and F, or Left Trigger plus X on a controller, to open the Quick Interact menu. From it, choose a spot and you'll be taken straight to it. You can also press F1, or hold both triggers and press Start, to open the Accessibility Settings and its Help.	在某些地方，你可以按 Shift 加 F，或手把的左扳機加 X，開啟快速互動選單。從中選一個地點，就會直接帶你過去。你也可以按 F1，或按住兩個扳機再按 Start，開啟無障礙設定和它的說明。	在某些地方，你可以按 Shift 加 F，或手柄的左扳机加 X，打开快速互动菜单。从中选一个地点，就会直接带你过去。你也可以按 F1，或按住两个扳机再按 Start，打开无障碍设置和它的帮助。	
+tutorial.dungeon	Components/Tutorial.cs	125	In dungeons, sound is your guide: beacons for the stairs and chests, the shadow radar, and the wall sounds. Explore freely until you find the stairs, then open the menu with F, X on a controller, and travel to the next floor. Learn more any time in the dungeon tips, under Help in the Accessibility Settings.	在迷宮裡，聲音就是你的嚮導：樓梯和寶箱的信標、陰影雷達，還有牆壁音效。自由探索直到找到樓梯，然後按 F（手把是 X）開啟選單，前往下一層。想了解更多，隨時可以看無障礙設定的說明裡的迷宮提示。	在迷宫里，声音就是你的向导：楼梯和宝箱的信标、阴影雷达，还有墙壁音效。自由探索直到找到楼梯，然后按 F（手柄是 X）打开菜单，前往下一层。想了解更多，随时可以看无障碍设置的帮助里的迷宫提示。	
+battle.cmd.analysis	Components/Battle/Battle.cs	14	Analysis	分析	分析	
+battle.cmd.tactics	Components/Battle/Battle.cs	15	Tactics	戰術	战术	
+battle.cmd.guard	Components/Battle/Battle.cs	16	Guard	防禦	防御	
+battle.cmd.attack	Components/Battle/Battle.cs	17	Attack	攻擊	攻击	
+battle.cmd.skill	Components/Battle/Battle.cs	18	Skill	技能	技能	
+battle.cmd.persona	Components/Battle/Battle.cs	19	Persona	人格面具	人格面具	
+battle.cmd.item	Components/Battle/Battle.cs	20	Item	道具	道具	
+battle.cmd.escape	Components/Battle/Battle.cs	21	Escape	逃跑	逃跑	
+battle.turn_of	Components/Battle/TurnReader.cs	56	{0}'s turn.	{0}的回合。	{0}的回合。	$"{name}'s turn."
+battle.elem.physical	Components/Battle/Battle.cs	443	Physical	物理	物理	
+battle.elem.fire	Components/Battle/Battle.cs	443	Fire	火焰	火焰	
+battle.elem.ice	Components/Battle/Battle.cs	443	Ice	冰凍	冰冻	
+battle.elem.electric	Components/Battle/Battle.cs	443	Electric	電擊	电击	
+battle.elem.wind	Components/Battle/Battle.cs	444	Wind	疾風	疾风	
+battle.elem.light	Components/Battle/Battle.cs	444	Light	光	光	
+battle.elem.dark	Components/Battle/Battle.cs	444	Dark	闇	暗	
+battle.aff.weak	Components/Battle/Battle.cs	464;1451	weak	弱點	弱点	
+battle.aff.resist	Components/Battle/Battle.cs	463	resist	耐性	耐性	
+battle.aff.null	Components/Battle/Battle.cs	457	null	無效	无效	
+battle.aff.drain	Components/Battle/Battle.cs	456	drain	吸收	吸收	
+battle.aff.repel	Components/Battle/Battle.cs	455	repel	反彈	反弹	
+battle.aff.normal	Components/Battle/Battle.cs	465	normal	普通	普通	
+battle.aff.resists	Components/Battle/Battle.cs	1452	resists	耐性	耐性	
+battle.aff.nulls	Components/Battle/Battle.cs	1453	nulls	無效	无效	
+battle.aff.drains	Components/Battle/Battle.cs	1454	drains	吸收	吸收	
+battle.aff.repels	Components/Battle/Battle.cs	1455	repels	反彈	反弹	
+battle.aff.unknown	Components/Battle/Battle.cs	719;1346	{0} unknown	{0}不明	{0}未知	$"{elemName} unknown"
+battle.aff.classified	Components/Battle/Battle.cs	730;1349	{0} {1}	{0}{1}	{0}{1}	$"{elemName} {cls}"
+battle.buff.attack	Components/Battle/Battle.cs	600	attack {0}	攻擊{0}	攻击{0}	$"attack {atk}"
+battle.buff.defense	Components/Battle/Battle.cs	602	defense {0}	防禦{0}	防御{0}	$"defense {def}"
+battle.buff.agility	Components/Battle/Battle.cs	606	agility {0}	速度{0}	速度{0}	$"agility {hit}"
+battle.buff.hit	Components/Battle/Battle.cs	609	hit {0}	命中{0}	命中{0}	$"hit {hit}"
+battle.buff.evasion	Components/Battle/Battle.cs	610	evasion {0}	迴避{0}	回避{0}	$"evasion {eva}"
+battle.buff.crit	Components/Battle/Battle.cs	624	critical rate {0}	暴擊率{0}	暴击率{0}	$"critical rate {crit}"
+battle.buff.up	Components/Battle/Battle.cs	591	up	上升	上升	
+battle.buff.down	Components/Battle/Battle.cs	591	down	下降	下降	
+battle.buff.mind_charged	Components/Battle/Battle.cs	631	mind charged	精神蓄力	精神蓄力	
+battle.buff.power_charged	Components/Battle/Battle.cs	635	power charged	力量蓄力	力量蓄力	
+battle.status_effect	Components/Battle/Battle.cs	1595	status effect	狀態異常	状态异常	
+battle.ail.afraid	Components/Battle/Battle.cs	1621	afraid	恐懼	恐惧	
+battle.ail.dizzy	Components/Battle/Battle.cs	1622	dizzy	眩暈	眩晕	
+battle.ail.poisoned	Components/Battle/Battle.cs	1623	poisoned	中毒	中毒	
+battle.ail.silenced	Components/Battle/Battle.cs	1624	silenced	沉默	沉默	
+battle.ail.enervated	Components/Battle/Battle.cs	1625	enervated	衰弱	衰弱	
+battle.ail.enraged	Components/Battle/Battle.cs	1626	enraged	激怒	激怒	
+battle.enemy	Components/Battle/Battle.cs;Components/Battle/DamageMonitor.cs;Components/Battle/EnemyStatus.cs;Components/Battle/ProfileNav.cs	509;209;85;142	Enemy	敵人	敌人	
+battle.ally	Components/Battle/DamageMonitor.cs	209	Ally	隊友	队友	
+battle.weak_count	Components/Battle/Battle.cs	551	{0} {1}	{0}個{1}	{0}个{1}	$"{c} {key}" (e.g. "2 weak")
+arcana.fool	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;40	Fool	愚者	愚者	
+arcana.magician	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;40	Magician	魔術師	魔术师	
+arcana.priestess	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;40	Priestess	女教皇	女教皇	
+arcana.empress	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;40	Empress	女帝	女帝	
+arcana.emperor	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;41	Emperor	皇帝	皇帝	
+arcana.hierophant	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;50;41	Hierophant	法皇	法皇	
+arcana.lovers	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	665;51;41	Lovers	戀人	恋人	
+arcana.chariot	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;51;41	Chariot	戰車	战车	
+arcana.justice	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;51;42	Justice	正義	正义	
+arcana.hermit	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;51;42	Hermit	隱者	隐者	
+arcana.fortune	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;51;42	Fortune	命運	命运	
+arcana.strength	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;51;42	Strength	力量	力量	
+arcana.hanged_man	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;52;43	Hanged Man	倒吊人	倒吊人	
+arcana.death	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	666;52;43	Death	死神	死神	
+arcana.temperance	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;52;43	Temperance	節制	节制	
+arcana.devil	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;52;43	Devil	惡魔	恶魔	
+arcana.tower	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;52;44	Tower	高塔	高塔	
+arcana.star	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;52;44	Star	星星	星星	
+arcana.moon	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;53;44	Moon	月亮	月亮	
+arcana.sun	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;53;44	Sun	太陽	太阳	
+arcana.judgement	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	667;53;45	Judgement	審判	审判	
+arcana.world	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs	667;53	World	世界	世界	
+arcana.jester	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	677;53;45	Jester	小丑	小丑	
+arcana.hunger	Components/Battle/Battle.cs;Components/SocialLinkRankUp.cs	678;45	Hunger	飢餓	饥饿	
+arcana.aeon	Components/Battle/Battle.cs;Components/Battle/ShuffleReader.cs;Components/SocialLinkRankUp.cs	679;53;45	Aeon	永劫	永劫	
+arcana.n	Components/Battle/Battle.cs	680	arcana {0}	阿爾卡那{0}	阿尔卡那{0}	$"arcana {aid}"
+stat.strength	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1076;366;665;682	Strength {0}	力量{0}	力量{0}	$"Strength {t[0]}"
+stat.magic	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1076;366;665;682	Magic {0}	魔力{0}	魔力{0}	$"Magic {t[1]}"
+stat.endurance	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1076;366;665;682	Endurance {0}	耐力{0}	耐力{0}	$"Endurance {t[2]}"
+stat.agility	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1077;367;666;682	Agility {0}	速度{0}	速度{0}	$"Agility {t[3]}"
+stat.luck	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1077;367;666;682	Luck {0}	運氣{0}	运气{0}	$"Luck {t[4]}"
+profile.sec.elements	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/Battle/ProfileNav.cs;Components/CommandMenus/PlayerMenu.cs	1067;358;167;657	Elements	屬性	属性	
+profile.sec.stats	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1074;364;663;683	Stats	能力值	能力值	
+profile.sec.skills	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/Battle/ProfileNav.cs;Components/CommandMenus/PlayerMenu.cs;Components/VelvetFusion.cs	1094;383;175;681;718	Skills	技能	技能	
+profile.sec.experience	Components/Battle/Battle.cs;Components/CommandMenus/PlayerMenu.cs	1267;1265	Experience	經驗值	经验值	
+profile.level_n	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/VelvetFusion.cs	1059;348;662	level {0}	等級{0}	等级{0}	$"level {lvl}"
+profile.level_unknown	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/Battle/ProfileNav.cs	1530;348;150	level unknown	等級不明	等级未知	
+profile.no_skills	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	1093;382;680	no skills	沒有技能	没有技能	
+profile.unknown	Components/Battle/Battle.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	1073;363;662	unknown	不明	未知	
+profile.nothing	Components/Battle/PersonaNav.cs;Components/Battle/ProfileNav.cs;Components/CommandMenus/PlayerMenu.cs	243;126;608	nothing	無	无	
+profile.exp_n	Components/Battle/Battle.cs	1252	EXP {0}	EXP {0}	EXP {0}	$"EXP {*(int*)(entry + 0x08)}"
+profile.next_level_in	Components/Battle/Battle.cs	1254	next level in {0}	距離升級還需{0}	距离升级还需{0}	$"next level in {next}"
+profile.learns_at_level	Components/Battle/Battle.cs	1283	learns {0} at level {1}	等級{1}時習得{0}	等级{1}时习得{0}	$"learns {sn} at level {ll}"
+profile.learns_skill_at_level	Components/Battle/Battle.cs	1261	learns skill {0} at level {1}	等級{1}時習得技能{0}	等级{1}时习得技能{0}	$"learns skill {sid} at level {ll}"
+profile.no_more_skills	Components/Battle/Battle.cs	1264	no more skills to learn	沒有更多可學技能	没有更多可学技能	
+profile.max_hp	Components/Battle/ProfileNav.cs	159	Max HP {0}	HP上限{0}	HP上限{0}	$"Max HP {mhp}"
+profile.max_sp	Components/Battle/ProfileNav.cs	159	Max SP {0}	SP上限{0}	SP上限{0}	$"Max SP {msp}"
+profile.max_hp_unknown	Components/Battle/ProfileNav.cs	160	Max HP unknown	HP上限不明	HP上限未知	
+profile.max_sp_unknown	Components/Battle/ProfileNav.cs	160	Max SP unknown	SP上限不明	SP上限未知	
+profile.not_revealed	Components/Battle/ProfileNav.cs	175	not revealed	尚未判明	尚未判明	
+profile.none	Components/Battle/ProfileNav.cs	177	none	無	无	
+profile.persona_unknown	Components/Battle/PersonaNav.cs	341	persona unknown	人格面具不明	人格面具未知	
+profile.section_body	Components/Battle/PersonaNav.cs;Components/Battle/ProfileNav.cs;Components/CommandMenus/PlayerMenu.cs	244;127;609	{0}. {1}	{0}。{1}	{0}。{1}	$"{label}. {body}"
+tactics.act_freely	Components/Battle/Battle.cs	1602	Act Freely	自由行動	自由行动	
+tactics.full_assault	Components/Battle/Battle.cs	1602	Full Assault	全力攻擊	全力攻击	
+tactics.conserve_sp	Components/Battle/Battle.cs	1602	Conserve SP	節約SP	节约SP	
+tactics.heal_support	Components/Battle/Battle.cs	1602	Heal/Support	治療輔助	治疗辅助	
+tactics.direct_commands	Components/Battle/Battle.cs	1603	Direct Commands	直接指令	直接指令	
+tactics.dont_change	Components/Battle/Battle.cs	1603	Don't change tactics	不改變戰術	不改变战术	
+tactics.option_n	Components/Battle/SkillInfoSelect.cs	85	option {0}	選項{0}	选项{0}	$"option {row + 1}"
+tactics.header	Components/Battle/SkillInfoSelect.cs	86	{0}. {1}	{0}。{1}	{0}。{1}	$"{TacticsHeader()}. {text}"
+tactics.member_now	Components/Battle/SkillInfoSelect.cs	107	{0}, now {1}	{0}，現在是{1}	{0}，现在是{1}	$"{n}, now {t}"
+tactics.all_members	Components/Battle/SkillInfoSelect.cs;Components/Battle/TacticsMemberReader.cs	111;68	All Members	全體成員	全体成员	
+tactics.member	Components/Battle/TacticsMemberReader.cs	64	Member	成員	成员	
+tactics.all_members_lc	Components/Battle/TacticsMemberReader.cs	68	All members	全體成員	全体成员	
+dmg.spent_hp	Components/Battle/DamageMonitor.cs	167	spent {0} HP	消耗{0}HP	消耗{0}HP	$"spent {delta} HP"
+dmg.took_defeated	Components/Battle/DamageMonitor.cs	171	took {0} damage, defeated	受到{0}傷害，被擊敗	受到{0}伤害，被击败	$"took {delta} damage, defeated"
+dmg.took	Components/Battle/DamageMonitor.cs	171	took {0} damage	受到{0}傷害	受到{0}伤害	$"took {delta} damage"
+dmg.recovered_hp	Components/Battle/DamageMonitor.cs	174	recovered {0} HP	回復{0}HP	恢复{0}HP	$"recovered {-delta} HP"
+dmg.spent_sp	Components/Battle/DamageMonitor.cs	191	spent {0} SP	消耗{0}SP	消耗{0}SP	$"spent {d} SP"
+dmg.lost_sp	Components/Battle/DamageMonitor.cs	191;196	lost {0} SP	失去{0}SP	失去{0}SP	$"lost {d} SP"
+dmg.recovered_sp	Components/Battle/DamageMonitor.cs	192	recovered {0} SP	回復{0}SP	恢复{0}SP	$"recovered {-d} SP"
+dmg.knocked_down	Components/Battle/DamageMonitor.cs	201	knocked down	倒地	倒地	
+dmg.fled	Components/Battle/DamageMonitor.cs	206	fled	逃走了	逃走了	
+dmg.name_parts	Components/Battle/DamageMonitor.cs	210	{0} {1}	{0}{1}	{0}{1}	$"{name} {string.Join(", ", parts)}"
+dmg.attacks_then	Components/Battle/DamageMonitor.cs	262	{0} attacks. {1}	{0}發動攻擊。{1}	{0}发动攻击。{1}	$"{an} attacks. {line}"
+dmg.attacks	Components/Battle/DamageMonitor.cs;Components/Battle/EnemyActionHook.cs	335;77	{0} attacks	{0}發動攻擊	{0}发动攻击	$"{name} attacks"
+dmg.uses	Components/Battle/DamageMonitor.cs;Components/Battle/EnemyActionHook.cs	336;78	{0} uses {1}	{0}使用{1}	{0}使用{1}	$"{name} uses {sname}"
+enemy.battle_only	Components/Battle/EnemyStatus.cs	66	Enemy status only works in battle.	敵人狀態只能在戰鬥中查看。	敌人状态只能在战斗中查看。	
+enemy.hp_percent	Components/Battle/EnemyStatus.cs	96	{0}, {1} percent	{0}，{1}%	{0}，{1}%	$"{name}, {(int)((long)hp * 100 / maxHp)} percent"
+enemy.hp_unknown	Components/Battle/EnemyStatus.cs	98	{0}, HP unknown	{0}，HP不明	{0}，HP未知	$"{name}, HP unknown"
+enemy.down_suffix	Components/Battle/EnemyStatus.cs;Components/Battle/BattleLog.cs	99;156	, down	，倒地	，倒地	
+enemy.none	Components/Battle/EnemyStatus.cs	109	No enemies.	沒有敵人。	没有敌人。	
+battlelog.percent	Components/Battle/BattleLog.cs	155	, {0}%	，{0}%	，{0}%	$", {pct}%"
+battlelog.ordinal	Components/Battle/BattleLog.cs	165	, {0} of {1}	，第{0}個，共{1}個	，第{0}个，共{1}个	$", {idx} of {cnt}"
+battlelog.hp_of	Components/Battle/BattleLog.cs;Components/Battle/PartyStatus.cs	181;198	{0} of {1} HP	HP{0}，上限{1}	HP{0}，上限{1}	$"{hp} of {maxHp} HP"
+battlelog.hp	Components/Battle/BattleLog.cs;Components/Battle/PartyStatus.cs	181;198	{0} HP	HP{0}	HP{0}	$"{hp} HP"
+battlelog.sp_of	Components/Battle/BattleLog.cs;Components/Battle/PartyStatus.cs	182;199	{0} of {1} SP	SP{0}，上限{1}	SP{0}，上限{1}	$"{sp} of {maxSp} SP"
+battlelog.sp	Components/Battle/BattleLog.cs;Components/Battle/PartyStatus.cs	182;199	{0} SP	SP{0}	SP{0}	$"{sp} SP"
+party.only_in_battle	Components/Battle/PartyStatus.cs	181	Only in battle.	只能在戰鬥中使用。	只能在战斗中使用。	
+party.no_current	Components/Battle/PartyStatus.cs	183;185	No current character.	沒有當前角色。	没有当前角色。	
+party.no_data	Components/Battle/PartyStatus.cs	265	No party data.	沒有隊伍資料。	没有队伍数据。	
+party.current	Components/Battle/PartyStatus.cs	190	Current	當前	当前	
+party.protagonist	Components/Battle/PartyStatus.cs	221	Protagonist	主人公	主人公	
+party.member_n	Components/Battle/PartyStatus.cs;Components/ShopMenu.cs;Components/CommandMenus/PlayerMenu.cs	222;123;835	Member {0}	成員{0}	成员{0}	$"Member {id}"
+party.status_line	Components/Battle/PartyStatus.cs	207;244	{0}, {1}, {2}, {3}	{0}，{1}，{2}，{3}	{0}，{1}，{2}，{3}	$"{name}, {hpStr}, {spStr}, {ail}"
+party.guarding	Components/Battle/PartyStatus.cs	239	guarding	防禦中	防御中	
+party.down	Components/Battle/PartyStatus.cs	203;238	down	倒地	倒地	
+multitarget.all_allies	Components/Battle/MultiTargetReader.cs	90	All allies.	全體我方。	全体我方。	
+multitarget.all_enemies_info	Components/Battle/MultiTargetReader.cs	98	All enemies. {0}.	全體敵人。{0}。	全体敌人。{0}。	$"All enemies. {aoe}."
+multitarget.all_enemies	Components/Battle/MultiTargetReader.cs	98;100	All enemies.	全體敵人。	全体敌人。	
+multitarget.all	Components/Battle/MultiTargetReader.cs	101	All.	全體。	全体。	
+skill.passive	Components/Battle/SkillSelect.cs	94	{0}: Passive Skill. 	{0}：被動技能。	{0}：被动技能。	$"{skillName}: Passive Skill. "
+skill.costed	Components/Battle/SkillSelect.cs	105	{0}: {1} skill that costs {2} {3}. 	{0}：{1}技能，消耗{2}{3}。	{0}：{1}技能，消耗{2}{3}。	$"{skillName}: {elementText} skill that costs {skillCost} {costType}. "
+skill.support	Components/Battle/SkillSelect.cs;Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	101;217;1147	Support	輔助	辅助	
+skill.passive_suffix	Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	212;1142	: Passive skill.	：被動技能。	：被动技能。	
+skill.elem_suffix	Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	218;1148	: {0} skill	：{0}技能	：{0}技能	$": {elemText} skill"
+skill.cost_suffix	Components/Battle/PersonaNav.cs;Components/CommandMenus/PlayerMenu.cs	225;1153	 that costs {0} {1}	，消耗{0}{1}	，消耗{0}{1}	$" that costs {cost} {costType}"
+skill.name_desc	Components/Battle/SkillInfoSelect.cs;Components/Battle/Battle.cs	64;1321	{0}. {1}	{0}。{1}	{0}。{1}	$"{name}. {desc}"
+skill.generic_n	Components/Battle/Battle.cs;Components/CommandMenus/PlayerMenu.cs;Components/SkillRegainMenu.cs	145;277;69	skill {0}	技能{0}	技能{0}	$"skill {sid}"
+battle.persona_equipped	Components/Battle/PersonaNav.cs	97	{0} equipped.	已裝備{0}。	已装备{0}。	$"{nm} equipped."
+battle.persona_level	Components/Battle/PersonaSelect.cs	69	{0}, level {1}	{0}，等級{1}	{0}，等级{1}	$"{name}, level {lvl}"
+battle.item_qty	Components/Battle/ItemSelect.cs;Components/CommandMenus/PlayerMenu.cs	80;373	{0}, {1}	{0}，{1}個	{0}，{1}个	$"{name}, {qty}"
+result.correction	Components/Battle/ResultReader.cs	59	Correction, {0} yen	更正，{0}日圓	更正，{0}日元	$"Correction, {money} yen"
+result.gained	Components/Battle/ResultReader.cs	64;125	Gained {0} EXP, {1} yen{2}	獲得{0}EXP、{1}日圓{2}	获得{0}EXP、{1}日元{2}	$"Gained {exp} EXP, {money} yen{items}"
+result.item_n	Components/Battle/ResultReader.cs;Components/CommandMenus/PlayerMenu.cs	81;1316	item {0}	道具{0}	道具{0}	$"item {id}"
+result.item_times	Components/Battle/ResultReader.cs	82	, {0} times {1}	、{0}，{1}個	、{0}，{1}个	$", {name} times {cnt}"
+shuffle.found	Components/Battle/ShuffleReader.cs	172	Shuffle Time, {0} cards{1}	洗牌時間，{0}張牌{1}	洗牌时间，{0}张牌{1}	$"Shuffle Time, {_count} cards{list}"
+shuffle.one_more	Components/Battle/ShuffleReader.cs	331	One more.	再來一次。	再来一次。	
+shuffle.lead_cards	Components/Battle/ShuffleReader.cs	334	{0}{1} cards	{0}{1}張牌	{0}{1}张牌	$"{lead}{remaining} cards"
+shuffle.card_changed_to	Components/Battle/ShuffleReader.cs	362	Card {0} changed to {1}.	第{0}張牌變成{1}。	第{0}张牌变成{1}。	$"Card {i + 1} changed to {chName}."
+shuffle.card_changed	Components/Battle/ShuffleReader.cs	378	Card {0} changed.	第{0}張牌變了。	第{0}张牌变了。	$"Card {i + 1} changed."
+shuffle.card_of	Components/Battle/ShuffleReader.cs	474	Card {0} of {1}{2}{3}{4}	第{0}張，共{1}張{2}{3}{4}	第{0}张，共{1}张{2}{3}{4}	$"Card {cursor + 1} of {totalDisp}{name}{effStr}{triesStr}"
+shuffle.take_n	Components/Battle/ShuffleReader.cs	411;485	You can take {0} cards.	可以拿{0}張牌。	可以拿{0}张牌。	$"You can take {tries} card{(tries == 1 ? "" : "s")}."
+shuffle.changed_unavailable	Components/Battle/ShuffleReader.cs	401	card changed, name unavailable	牌已變更，名稱不明	牌已变更，名称不明	
+shuffle.rank_insert	Components/Battle/ShuffleReader.cs	462	, rank {0}	，等級{0}	，等级{0}	$", rank {mr.Groups[1].Value}"
+shuffle.arcana_card	Components/Battle/ShuffleReader.cs	1145	{0} card	{0}牌	{0}牌	$"{ArcanaNames[arc]} card"
+shuffle.arcana_n_card	Components/Battle/ShuffleReader.cs	1145	Arcana {0} card	阿爾卡那{0}牌	阿尔卡那{0}牌	$"Arcana {arc} card"
+shuffle.persona_card_n	Components/Battle/ShuffleReader.cs	1157	Persona card {0}	人格面具牌{0}	人格面具牌{0}	$"Persona card {pid}"
+shuffle.persona_name	Components/Battle/ShuffleReader.cs	1160	Persona {0}	人格面具{0}	人格面具{0}	$"Persona {pname}"
+shuffle.level_suffix	Components/Battle/ShuffleReader.cs	1175	, level {0}	，等級{0}	，等级{0}	$", level {lb[0]}"
+shuffle.persona_effect	Components/Battle/ShuffleReader.cs	1178	Adds this Persona to your stock.	把這個人格面具加入持有清單。	把这个人格面具加入持有列表。	
+shuffle.suit_rank	Components/Battle/ShuffleReader.cs	1186	{0} rank {1}	{0}{1}	{0}{1}	$"{suit} rank {rank}"
+shuffle.suit.wands	Components/Battle/ShuffleReader.cs	1194	Wands	權杖	权杖	
+shuffle.suit.swords	Components/Battle/ShuffleReader.cs	1195	Swords	寶劍	宝剑	
+shuffle.suit.cups	Components/Battle/ShuffleReader.cs	1197	Cups	聖杯	圣杯	
+shuffle.suit.coins	Components/Battle/ShuffleReader.cs	1198	Coins	錢幣	钱币	
+shuffle.eff.wands	Components/Battle/ShuffleReader.cs	1194	Bonus experience.	額外經驗值。	额外经验值。	
+shuffle.eff.swords	Components/Battle/ShuffleReader.cs	1195	Gives a Skill Card.	獲得技能卡。	获得技能卡。	
+shuffle.eff.cups	Components/Battle/ShuffleReader.cs	1197	Restores HP and SP.	回復HP和SP。	恢复HP和SP。	
+shuffle.eff.coins	Components/Battle/ShuffleReader.cs	1198	Bonus money.	額外金錢。	额外金钱。	
+shuffle.eff.fool	Components/Battle/ShuffleReader.cs	1205	Changes all cards; plus one draw.	更換所有牌；加抽一次。	更换所有牌；加抽一次。	
+shuffle.eff.magician	Components/Battle/ShuffleReader.cs	1206	Changes your equipped Persona's skill.	更換裝備中人格面具的技能。	更换装备中人格面具的技能。	
+shuffle.eff.priestess	Components/Battle/ShuffleReader.cs	1207	Plus one draw; changes an undrawn card to a random arcana.	加抽一次；把一張未抽的牌變成隨機阿爾卡那。	加抽一次；把一张未抽的牌变成随机阿尔卡那。	
+shuffle.eff.empress	Components/Battle/ShuffleReader.cs	1208	Plus one draw; removes an undrawn card.	加抽一次；移除一張未抽的牌。	加抽一次；移除一张未抽的牌。	
+shuffle.eff.emperor	Components/Battle/ShuffleReader.cs	1209	Levels up your equipped Persona.	裝備中的人格面具升級。	装备中的人格面具升级。	
+shuffle.eff.hierophant	Components/Battle/ShuffleReader.cs	1210	Plus one draw; turns an undrawn card into a random Persona.	加抽一次；把一張未抽的牌變成隨機人格面具。	加抽一次；把一张未抽的牌变成随机人格面具。	
+shuffle.eff.lovers	Components/Battle/ShuffleReader.cs	1211	Plus two draws, but loses obtained items.	加抽兩次，但失去已獲得的道具。	加抽两次，但失去已获得的道具。	
+shuffle.eff.chariot	Components/Battle/ShuffleReader.cs	1212	Raises your equipped Persona's Agility.	提升裝備中人格面具的速度。	提升装备中人格面具的速度。	
+shuffle.eff.justice	Components/Battle/ShuffleReader.cs	1213	Raises your equipped Persona's Strength.	提升裝備中人格面具的力量。	提升装备中人格面具的力量。	
+shuffle.eff.hermit	Components/Battle/ShuffleReader.cs	1214	Avoid encounters for a while.	一段時間內不會遇敵。	一段时间内不会遇敌。	
+shuffle.eff.fortune	Components/Battle/ShuffleReader.cs	1215	Raises your equipped Persona's Luck.	提升裝備中人格面具的運氣。	提升装备中人格面具的运气。	
+shuffle.eff.strength	Components/Battle/ShuffleReader.cs	1216	Raises your equipped Persona's Magic.	提升裝備中人格面具的魔力。	提升装备中人格面具的魔力。	
+shuffle.eff.hanged_man	Components/Battle/ShuffleReader.cs	1217	Raises your equipped Persona's Endurance.	提升裝備中人格面具的耐力。	提升装备中人格面具的耐力。	
+shuffle.eff.death	Components/Battle/ShuffleReader.cs	1218	Ends Shuffle Time.	結束洗牌時間。	结束洗牌时间。	
+shuffle.eff.temperance	Components/Battle/ShuffleReader.cs	1219	Gives one Treasure Key.	獲得一把寶箱鑰匙。	获得一把宝箱钥匙。	
+shuffle.eff.devil	Components/Battle/ShuffleReader.cs	1220	Plus three draws, but only 1 experience.	加抽三次，但經驗值只有1。	加抽三次，但经验值只有1。	
+shuffle.eff.tower	Components/Battle/ShuffleReader.cs	1221	Plus three draws, but no money from this battle.	加抽三次，但這場戰鬥拿不到金錢。	加抽三次，但这场战斗拿不到金钱。	
+shuffle.eff.star	Components/Battle/ShuffleReader.cs	1222	Plus one draw; removes one already-drawn card.	加抽一次；移除一張已抽的牌。	加抽一次；移除一张已抽的牌。	
+shuffle.eff.moon	Components/Battle/ShuffleReader.cs	1223	Plus two draws, but half experience.	加抽兩次，但經驗值減半。	加抽两次，但经验值减半。	
+shuffle.eff.sun	Components/Battle/ShuffleReader.cs	1224	Plus two draws, but half money.	加抽兩次，但金錢減半。	加抽两次，但金钱减半。	
+shuffle.eff.judgement	Components/Battle/ShuffleReader.cs	1225	No effect.	沒有效果。	没有效果。	
+shuffle.eff.world	Components/Battle/ShuffleReader.cs	1226	No effect.	沒有效果。	没有效果。	
+shuffle.eff.aeon	Components/Battle/ShuffleReader.cs	1228	Plus four draws.	加抽四次。	加抽四次。	
+shuffle.text_persona	Components/Battle/ShuffleText.cs	193	Persona	人格面具	人格面具	
+shuffle.text_level	Components/Battle/ShuffleText.cs	200	level {0}	等級{0}	等级{0}	"level " + t[2..]
+shuffle.text_card	Components/Battle/ShuffleText.cs	205	 card	牌	牌	
+gameover.title	Components/GameOverReader.cs	56	Game over.	遊戲結束。	游戏结束。	
+cmenu.skill	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	16;50	Skill Menu	技能選單	技能菜单	
+cmenu.item	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	17;50	Item Menu	道具選單	道具菜单	
+cmenu.equip	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	18;50	Equipment Menu	裝備選單	装备菜单	
+cmenu.persona	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	19;50	Persona Menu	人格面具選單	人格面具菜单	
+cmenu.status	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	20;51	Status Menu	狀態選單	状态菜单	
+cmenu.social_link	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	21;51	Social Link Menu	社群選單	社群菜单	
+cmenu.quest	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	22;51	Quest Menu	任務選單	任务菜单	
+cmenu.system	Components/CommandMenus/CommandMenu.cs;Components/CommandMenus/PlayerMenu.cs	23;51	System Menu	系統選單	系统菜单	
+pmenu.you_have_yen	Components/CommandMenus/PlayerMenu.cs;Components/ShopMenu.cs	158;1145	You have {0} yen.	持有{0}日圓。	持有{0}日元。	$"You have {yen} yen."
+pmenu.persona_level_text	Components/CommandMenus/PersonaMenu.cs	38	{0} level {1}	{0}，等級{1}	{0}，等级{1}	$"{name} level {level}"
+pmenu.skill_n	Components/CommandMenus/PlayerMenu.cs	277	Skill {0}	技能{0}	技能{0}	$"Skill {skillId}"
+pmenu.skill_cost	Components/CommandMenus/PlayerMenu.cs	280	{0}, {1}	{0}，{1}	{0}，{1}	$"{skill}, {cost}" (cost = "{n} HP"/"{n} SP")
+pmenu.item_id	Components/CommandMenus/PlayerMenu.cs	372;467	Item {0}	道具{0}	道具{0}	$"Item {id}"
+pmenu.nothing	Components/CommandMenus/PlayerMenu.cs	465;987	Nothing	無	无	
+pmenu.effect	Components/CommandMenus/PlayerMenu.cs	471	. Effect {0}	。效果：{0}	。效果：{0}	$". Effect {eff}"
+pmenu.persona_ordinal	Components/CommandMenus/PlayerMenu.cs	405	{0}, level {1}, {2} of {3}	{0}，等級{1}，第{2}個，共{3}個	{0}，等级{1}，第{2}个，共{3}个	$"{nm}, level {level}, {cursor + 1} of {count}"
+pmenu.persona_n	Components/CommandMenus/PlayerMenu.cs;Components/PersonaReleaseMenu.cs	403;245	Persona {0}	人格面具{0}	人格面具{0}	$"Persona {cursor + 1}"
+pmenu.equip_slot.weapon	Components/CommandMenus/PlayerMenu.cs	57	Weapon	武器	武器	
+pmenu.equip_slot.armor	Components/CommandMenus/PlayerMenu.cs	57	Armor	防具	防具	
+pmenu.equip_slot.accessory	Components/CommandMenus/PlayerMenu.cs	57	Accessory	飾品	饰品	
+pmenu.equip_slot.clothes	Components/CommandMenus/PlayerMenu.cs	57	Clothes	服裝	服装	
+pmenu.equip_line	Components/CommandMenus/PlayerMenu.cs	914	{0}: {1}{2}, effect {3}	{0}：{1}{2}，效果{3}	{0}：{1}{2}，效果{3}	$"{label}: {current}{EquippedStatText(charId, slot)}{", effect {eff}"}"
+pmenu.attack_hit	Components/CommandMenus/PlayerMenu.cs	924	, attack {0}, hit {1}	，攻擊{0}，命中{1}	，攻击{0}，命中{1}	$", attack {a}, hit {b}"
+pmenu.defense_evade	Components/CommandMenus/PlayerMenu.cs	925	, defense {0}, evade {1}	，防禦{0}，迴避{1}	，防御{0}，回避{1}	$", defense {a}, evade {b}"
+pmenu.stat_up	Components/CommandMenus/PlayerMenu.cs;Components/ShopMenu.cs	966;732	, up {0}	，提升{0}	，提升{0}	$", up {a - ca}"
+pmenu.stat_down	Components/CommandMenus/PlayerMenu.cs;Components/ShopMenu.cs	966;732	, down {0}	，降低{0}	，降低{0}	$", down {ca - a}"
+pmenu.slot_n	Components/CommandMenus/PlayerMenu.cs	910	Slot {0}	欄位{0}	槽位{0}	$"Slot {slot}"
+pmenu.diff.damage_taken	Components/CommandMenus/PlayerMenu.cs	487	Damage taken	受到的傷害	受到的伤害	
+pmenu.diff.damage_given	Components/CommandMenus/PlayerMenu.cs	487	Damage given	造成的傷害	造成的伤害	
+pmenu.diff.exp_won	Components/CommandMenus/PlayerMenu.cs	487	EXP won	獲得的EXP	获得的EXP	
+pmenu.diff.money_won	Components/CommandMenus/PlayerMenu.cs	487	Money won	獲得的金錢	获得的金钱	
+pmenu.diff.retries_dungeons	Components/CommandMenus/PlayerMenu.cs	488	Retries in dungeons	迷宮中重試	迷宫中重试	
+pmenu.diff.retries_battles	Components/CommandMenus/PlayerMenu.cs	488	Retries in battles	戰鬥中重試	战斗中重试	
+pmenu.diff.ok	Components/CommandMenus/PlayerMenu.cs	488	OK	確定	确定	
+pmenu.diff.current	Components/CommandMenus/PlayerMenu.cs	491	Current	目前	当前	
+pmenu.diff.great	Components/CommandMenus/PlayerMenu.cs	496	Great	大	大	
+pmenu.diff.small	Components/CommandMenus/PlayerMenu.cs	496	Small	小	小	
+pmenu.diff.more	Components/CommandMenus/PlayerMenu.cs	498	More	多	多	
+pmenu.diff.less	Components/CommandMenus/PlayerMenu.cs	498	Less	少	少	
+pmenu.diff.use	Components/CommandMenus/PlayerMenu.cs	500	Use	使用	使用	
+pmenu.diff.dont_use	Components/CommandMenus/PlayerMenu.cs	500	Don't use	不使用	不使用	
+pmenu.option_ordinal	Components/CommandMenus/PlayerMenu.cs	535	Option {0}	選項{0}	选项{0}	$"Option {opt + 1}"
+pmenu.tab_n	Components/CommandMenus/PlayerMenu.cs	548	Tab {0}	分頁{0}	标签页{0}	$"Tab {tab}"
+pmenu.row_n	Components/CommandMenus/PlayerMenu.cs	556	Row {0}	第{0}列	第{0}行	$"Row {row}"
+pmenu.hp_sp	Components/CommandMenus/PlayerMenu.cs	833;865	{0}. HP {1}. SP {2}	{0}。HP {1}。SP {2}	{0}。HP {1}。SP {2}	$"{CharIdName(charId, idx)}. HP {...}. SP {...}"
+pmenu.status_line	Components/CommandMenus/PlayerMenu.cs	1181	{0}, level {1}, HP {2}, SP {3}	{0}，等級{1}，HP {2}，SP {3}	{0}，等级{1}，HP {2}，SP {3}	$"{CharIdName(charId, -1)}, level {...}, HP {...}, SP {...}"
+pmenu.sec.attack_defense	Components/CommandMenus/PlayerMenu.cs	1206	Attack and defense	攻擊與防禦	攻击与防御	
+pmenu.attack_n	Components/CommandMenus/PlayerMenu.cs	1203	Attack {0}	攻擊{0}	攻击{0}	$"Attack {atk}"
+pmenu.defense_n	Components/CommandMenus/PlayerMenu.cs	1204	Defense {0}	防禦{0}	防御{0}	$"Defense {def}"
+pmenu.sec.persona	Components/CommandMenus/PlayerMenu.cs	1211;1219	Persona	人格面具	人格面具	
+pmenu.no_persona	Components/CommandMenus/PlayerMenu.cs	1227;1265	no persona	沒有人格面具	没有人格面具	
+pmenu.sec.equipment	Components/CommandMenus/PlayerMenu.cs	1269	Equipment	裝備	装备	
+pmenu.equip.weapon	Components/CommandMenus/PlayerMenu.cs	1271	Weapon, {0}	武器，{0}	武器，{0}	$"Weapon, {EquipName(...)}"
+pmenu.equip.armor	Components/CommandMenus/PlayerMenu.cs	1272	Armor, {0}	防具，{0}	防具，{0}	$"Armor, {EquipName(...)}"
+pmenu.equip.accessory	Components/CommandMenus/PlayerMenu.cs	1273	Accessory, {0}	飾品，{0}	饰品，{0}	$"Accessory, {EquipName(...)}"
+pmenu.equip.clothes	Components/CommandMenus/PlayerMenu.cs	1274	Clothes, {0}	服裝，{0}	服装，{0}	$"Clothes, {EquipName(...)}"
+pmenu.sec.social_stats	Components/CommandMenus/PlayerMenu.cs	1277	Social stats	社交能力	社交能力	
+pmenu.social.knowledge	Components/CommandMenus/PlayerMenu.cs	1304	Knowledge, {0}	知識，{0}	知识，{0}	$"Knowledge, {SocialRank(...)}"
+pmenu.social.courage	Components/CommandMenus/PlayerMenu.cs	1305	Courage, {0}	勇氣，{0}	勇气，{0}	$"Courage, {SocialRank(...)}"
+pmenu.social.diligence	Components/CommandMenus/PlayerMenu.cs	1306	Diligence, {0}	勤勉，{0}	勤勉，{0}	$"Diligence, {SocialRank(...)}"
+pmenu.social.understanding	Components/CommandMenus/PlayerMenu.cs	1307	Understanding, {0}	體貼，{0}	体贴，{0}	$"Understanding, {SocialRank(...)}"
+pmenu.social.expression	Components/CommandMenus/PlayerMenu.cs	1308	Expression, {0}	表現力，{0}	表现力，{0}	$"Expression, {SocialRank(...)}"
+pmenu.courage.1	Components/CommandMenus/PlayerMenu.cs	1285	Average	普通	普通	
+pmenu.courage.2	Components/CommandMenus/PlayerMenu.cs	1285	Reliable	可靠	可靠	
+pmenu.courage.3	Components/CommandMenus/PlayerMenu.cs	1285	Brave	勇敢	勇敢	
+pmenu.courage.4	Components/CommandMenus/PlayerMenu.cs	1285	Daring	大膽	大胆	
+pmenu.courage.5	Components/CommandMenus/PlayerMenu.cs	1285	Heroic	英勇	英勇	
+pmenu.knowledge.1	Components/CommandMenus/PlayerMenu.cs	1286	Aware	略懂	略懂	
+pmenu.knowledge.2	Components/CommandMenus/PlayerMenu.cs	1286	Informed	博學	博学	
+pmenu.knowledge.3	Components/CommandMenus/PlayerMenu.cs	1286	Expert	專家	专家	
+pmenu.knowledge.4	Components/CommandMenus/PlayerMenu.cs	1286	Professor	教授	教授	
+pmenu.knowledge.5	Components/CommandMenus/PlayerMenu.cs	1286	Sage	賢者	贤者	
+pmenu.diligence.1	Components/CommandMenus/PlayerMenu.cs	1287	Callow	稚嫩	稚嫩	
+pmenu.diligence.2	Components/CommandMenus/PlayerMenu.cs	1287	Persistent	有毅力	有毅力	
+pmenu.diligence.3	Components/CommandMenus/PlayerMenu.cs	1287	Strong	堅韌	坚韧	
+pmenu.diligence.4	Components/CommandMenus/PlayerMenu.cs	1287	Persuasive	有說服力	有说服力	
+pmenu.diligence.5	Components/CommandMenus/PlayerMenu.cs	1287	Rock Solid	堅若磐石	坚若磐石	
+pmenu.understanding.1	Components/CommandMenus/PlayerMenu.cs	1288	Basic	一般	一般	
+pmenu.understanding.2	Components/CommandMenus/PlayerMenu.cs	1288	Kindly	親切	亲切	
+pmenu.understanding.3	Components/CommandMenus/PlayerMenu.cs	1288	Generous	寬容	宽容	
+pmenu.understanding.4	Components/CommandMenus/PlayerMenu.cs	1288	Motherly	慈愛	慈爱	
+pmenu.understanding.5	Components/CommandMenus/PlayerMenu.cs	1288	Saintly	聖人	圣人	
+pmenu.expression.1	Components/CommandMenus/PlayerMenu.cs	1289	Rough	笨拙	笨拙	
+pmenu.expression.2	Components/CommandMenus/PlayerMenu.cs	1289	Eloquent	能言善道	能说会道	
+pmenu.expression.4	Components/CommandMenus/PlayerMenu.cs	1289	Touching	動人	动人	
+pmenu.expression.5	Components/CommandMenus/PlayerMenu.cs	1289	Enthralling	引人入勝	引人入胜	
+pmenu.none	Components/CommandMenus/PlayerMenu.cs	1314	none	無	无	
+pmenu.character_n	Components/CommandMenus/PlayerMenu.cs	1340	Character {0}	角色{0}	角色{0}	$"Character {charId}"
+pmenu.slink_arcana	Components/CommandMenus/PlayerMenu.cs	751	{0}, {1}, rank {2}	{0}，{1}，等級{2}	{0}，{1}，等级{2}	$"{holder}, {arcName}{rk}"
+slink.holder.investigation_team	Components/CommandMenus/PlayerMenu.cs	758	Investigation Team	特別搜查隊	特别搜查队	
+slink.holder.yosuke	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	759;55	Yosuke Hanamura	花村陽介	花村阳介	
+slink.holder.yukiko	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	760;57	Yukiko Amagi	天城雪子	天城雪子	
+slink.holder.margaret	Components/CommandMenus/PlayerMenu.cs	761	Margaret	瑪格麗特	玛格丽特	
+slink.holder.kanji	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	762;58	Kanji Tatsumi	巽完二	巽完二	
+slink.holder.dojima	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	763;62	Ryotaro Dojima	堂島遼太郎	堂岛辽太郎	
+slink.holder.rise	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	764;59	Rise Kujikawa	久慈川理世	久慈川理世	
+slink.holder.chie	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	765;56	Chie Satonaka	里中千枝	里中千枝	
+slink.holder.nanako	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	766;64	Nanako Dojima	堂島菜菜子	堂岛菜菜子	
+slink.holder.naoto	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	768;60	Naoto Shirogane	白鐘直斗	白钟直斗	
+slink.holder.konishi	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	769;67	Naoki Konishi	小西尚紀	小西尚纪	
+slink.holder.kuroda	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	770;68	Hisano Kuroda	黑田久乃	黑田久乃	
+slink.holder.minami	Components/CommandMenus/PlayerMenu.cs	771	Eri Minami	南繪里	南绘里	
+slink.holder.uehara	Components/CommandMenus/PlayerMenu.cs	772	Sayoko Uehara	上原小夜子	上原小夜子	
+slink.holder.nakajima	Components/CommandMenus/PlayerMenu.cs	773	Shu Nakajima	中島秀	中岛秀	
+slink.holder.ebihara	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	775;69	Ai Ebihara	海老原亞衣	海老原亚衣	
+slink.holder.seekers	Components/CommandMenus/PlayerMenu.cs	776	Seekers of Truth	追尋真相者	追寻真相者	
+slink.holder.marie	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	777;66	Marie	瑪莉	玛莉	
+slink.holder.adachi	Components/CommandMenus/PlayerMenu.cs;Components/SocialLinkRankUp.cs	778;65	Tohru Adachi	足立透	足立透	
+slink.holder.ichijo	Components/SocialLinkRankUp.cs	70	Kou Ichijo	一條康	一条康	
+slink.holder.nagase	Components/SocialLinkRankUp.cs	71	Daisuke Nagase	長瀨大輔	长濑大辅	
+slink.holder.ozawa	Components/SocialLinkRankUp.cs	73	Yumi Ozawa	小澤由美	小泽由美	
+slink.holder.matsunaga	Components/SocialLinkRankUp.cs	74	Ayane Matsunaga	松永綾音	松永绫音	
+slink.holder.the_fox	Components/SocialLinkRankUp.cs	75	The Fox	狐狸	狐狸	
+slink.rank_up	Components/SocialLinkRankUp.cs	171	Rank up!	等級提升！	等级提升！	
+slink.arcana_suffix	Components/SocialLinkRankUp.cs	172	{0} Arcana. 	{0}阿爾卡那。	{0}阿尔卡那。	sb.Append(arc).Append(" Arcana. ")
+slink.rank_n	Components/SocialLinkRankUp.cs	174	Rank {0}.	等級{0}。	等级{0}。	sb.Append("Rank ").Append(rank).Append('.')
+slink.bond_new	Components/SocialLinkBond.cs	124	Thou art I, and I am thou. Thou hast established a new bond. It brings thee closer to the truth. Thou shalt be blessed when creating Personas	汝即吾，吾即汝。汝結下了新的羈絆。它將引領汝更接近真相。合成人格面具時汝將獲得祝福	汝即吾，吾即汝。汝结下了新的羁绊。它将引领汝更接近真相。合成人格面具时汝将获得祝福	
+slink.bond_of_arcana	Components/SocialLinkBond.cs	127;148	 of the {0} Arcana	——{0}阿爾卡那	——{0}阿尔卡那	" of the " + arcana + " Arcana"
+slink.bond_changed	Components/SocialLinkBond.cs	137	Thou art I, and I am thou. Thou hast seen how bonds may change. The bond that hath changed, it is thy first step in learning the truth. Thou must bear thine inner power of The Jester becoming Hunger.	汝即吾，吾即汝。汝已見證羈絆的變化。這份改變的羈絆，是汝了解真相的第一步。汝須承受小丑化為飢餓的內在力量。	汝即吾，吾即汝。汝已见证羁绊的变化。这份改变的羁绊，是汝了解真相的第一步。汝须承受小丑化为饥饿的内在力量。	
+slink.bond_max	Components/SocialLinkBond.cs	145	Thou art I, and I am thou. Thou hast established a genuine bond. These genuine bonds shall be thy eyes to see the truth. We bestow upon thee the ability to create the ultimate form	汝即吾，吾即汝。汝結下了真正的羈絆。這些真正的羈絆將成為汝看清真相之眼。吾等授予汝創造最終形態之力	汝即吾，吾即汝。汝结下了真正的羁绊。这些真正的羁绊将成为汝看清真相之眼。吾等授予汝创造最终形态之力	
+quest.undiscovered	Components/CommandMenus/QuestMenu.cs	195	Quest {0} of {1}, not yet discovered.	任務第{0}個，共{1}個，尚未發現。	任务第{0}个，共{1}个，尚未发现。	$"Quest {row + 1} of {total}, not yet discovered."
+quest.entry	Components/CommandMenus/QuestMenu.cs	197	Quest {0} of {1}. {2}	任務第{0}個，共{1}個。{2}	任务第{0}个，共{1}个。{2}	$"Quest {row + 1} of {total}. {desc}"
+album.rank_lover	Components/AlbumMenu.cs	98	Rank {0}, Lover	等級{0}，戀人	等级{0}，恋人	$"Rank {rankMax}, Lover"
+album.rank_of	Components/AlbumMenu.cs	98	Rank {0} of {1}	等級{0}，共{1}級	等级{0}，共{1}级	$"Rank {rank + 1} of {rankMax}"
+album.entry	Components/AlbumMenu.cs	99	{0}. {1} of {2}.	{0}。第{1}個，共{2}個。	{0}。第{1}个，共{2}个。	$"{name}. {idx + 1} of {count}."
+album.social_link_named	Components/AlbumMenu.cs	110	{0} Social Link	{0}社群	{0}社群	$"{a} Social Link"
+album.social_link_n	Components/AlbumMenu.cs	111	Social Link {0}	社群{0}	社群{0}	$"Social Link {commu}"
+album.social_link	Components/AlbumMenu.cs	111	Social Link	社群	社群	
+shop.character_select	Components/ShopMenu.cs	255	Character select.{0}	選擇角色。{0}	选择角色。{0}	$"Character select.{nm}"
+shop.how_many_each	Components/ShopMenu.cs	263	How many? {0}. {1} yen each.	要幾個？{0}。每個{1}日圓。	要几个？{0}。每个{1}日元。	$"How many? {qty}. {unit} yen each."
+shop.how_many	Components/ShopMenu.cs	264	How many? {0}.	要幾個？{0}。	要几个？{0}。	$"How many? {qty}."
+shop.sell_all	Components/ShopMenu.cs	387	Sell all. {0} yen	全部賣出。{0}日圓	全部卖出。{0}日元	$"Sell all. {price} yen"
+shop.nothing_to_sell	Components/ShopMenu.cs	992	Nothing to sell.	沒有可賣的東西。	没有可卖的东西。	
+shop.qty_total	Components/ShopMenu.cs	1120	{0}. Total {1} yen.	{0}。總計{1}日圓。	{0}。总计{1}日元。	$"{qty}. Total {qty * unit} yen."
+shop.price_suffix	Components/ShopMenu.cs;Components/BookstoreMenu.cs;Components/VelvetFusion.cs	392;83;340	. {0} yen	。{0}日圓	。{0}日元	$". {price} yen"
+shop.wallet_suffix	Components/ShopMenu.cs;Components/BookstoreMenu.cs	556;85	. You have {0} yen	。持有{0}日圓	。持有{0}日元	$". You have {wallet} yen"
+shop.cat.weapons	Components/ShopMenu.cs	355	Weapons	武器	武器	
+shop.cat.armor	Components/ShopMenu.cs	356	Armor	防具	防具	
+shop.cat.accessories	Components/ShopMenu.cs	357	Accessories	飾品	饰品	
+shop.cat.expendables	Components/ShopMenu.cs	358	Expendables	消耗品	消耗品	
+shop.cat.materials	Components/ShopMenu.cs	359	Materials	素材	素材	
+shop.opt.weapon	Components/ShopMenu.cs	405;423	Weapon	武器	武器	
+shop.opt.armor	Components/ShopMenu.cs	405;423	Armor	防具	防具	
+shop.opt.accessory	Components/ShopMenu.cs	405;423	Accessory	飾品	饰品	
+shop.opt.sell	Components/ShopMenu.cs	405;425	Sell	賣出	卖出	
+shop.opt.talk	Components/ShopMenu.cs	405;425	Talk	交談	交谈	
+shop.opt.exit	Components/ShopMenu.cs	405;425	Exit	離開	离开	
+shop.opt.buy	Components/ShopMenu.cs	423	Buy	購買	购买	
+shop.opt.special	Components/ShopMenu.cs	425	Special	特殊	特殊	
+shop.opt.option_n	Components/ShopMenu.cs	435	Option {0}	選項{0}	选项{0}	$"Option {optId}"
+shop.stat.attack	Components/ShopMenu.cs	718	Attack	攻擊	攻击	
+shop.stat.defense	Components/ShopMenu.cs	718	Defense	防禦	防御	
+shop.stat.hit	Components/ShopMenu.cs	719	hit	命中	命中	
+shop.stat.evade	Components/ShopMenu.cs	719	evade	迴避	回避	
+shop.needs	Components/ShopMenu.cs	589	Needs {0}	需要{0}	需要{0}	"Needs " + string.Join("; ", parts)
+shop.material_have	Components/ShopMenu.cs	587	{0} {1}, have {2}	{0}個{1}，持有{2}個	{0}个{1}，持有{2}个	$"{need} {mn}, have {OwnedCount(matId)}"
+velvet.method.search	Components/VelvetFusion.cs	152	Search	搜尋	搜索	
+velvet.method.normal	Components/VelvetFusion.cs	152	Normal	普通	普通	
+velvet.method.triangle	Components/VelvetFusion.cs	152	Triangle	三角	三角	
+velvet.method.cross	Components/VelvetFusion.cs	152	Cross	十字	十字	
+velvet.method.pentagon	Components/VelvetFusion.cs	152	Pentagon	五角	五角	
+velvet.method.hexagon	Components/VelvetFusion.cs	152	Hexagon	六角	六角	
+velvet.method.back	Components/VelvetFusion.cs	152;155	Back	返回	返回	
+velvet.fuse	Components/VelvetFusion.cs	155	Fuse	合體	合体	
+velvet.fusion_forecast	Components/VelvetFusion.cs	155	Fusion Forecast	合體預報	合体预报	
+velvet.inherit_cap	Components/VelvetFusion.cs	173	Can inherit {0} skills	可繼承{0}個技能	可继承{0}个技能	$"Can inherit {cap} skill{(cap == 1 ? "" : "s")}"
+velvet.register_all	Components/VelvetFusion.cs	333	Register all	全部登錄	全部登录	
+velvet.wallet	Components/VelvetFusion.cs	438	You have {0} yen	持有{0}日圓	持有{0}日元	$"You have {w} yen"
+velvet.wallet_level	Components/VelvetFusion.cs	439	{0}. You are level {1}	{0}。你目前等級{1}	{0}。你当前等级{1}	$"{money}. You are level {lv}"
+velvet.persona_level	Components/VelvetFusion.cs	513;1298	{0}, level {1}	{0}，等級{1}	{0}，等级{1}	$"{name}, level {lvl}"
+velvet.persona_arcana_level	Components/VelvetFusion.cs	513;1298	{0}, {1}, level {2}	{0}，{1}，等級{2}	{0}，{1}，等级{2}	$"{name}, {arc}, level {lvl}"
+velvet.cost_wallet	Components/VelvetFusion.cs	609	, {0} yen, you have {1} yen	，{0}日圓，持有{1}日圓	，{0}日元，持有{1}日元	$", {cost} yen, you have {wallet} yen"
+velvet.not_registered	Components/VelvetFusion.cs	615	{0}, level {1}, not registered	{0}，等級{1}，未登錄	{0}，等级{1}，未登录	$"{arc}, level {lvl}, not registered"
+velvet.persona_generic	Components/VelvetFusion.cs	511	persona {0}	人格面具{0}	人格面具{0}	$"persona {id}"
+velvet.sec.resistances	Components/VelvetFusion.cs	675;1036	Resistances	耐性	耐性	
+velvet.sec.inheritance	Components/VelvetFusion.cs	1069;1539	Inheritance	繼承	继承	
+velvet.next_skill	Components/VelvetFusion.cs	725;1077	next skill at level {0}, {1}	下個技能在等級{0}，{1}	下个技能在等级{0}，{1}	$"next skill at level {lvlLearn}, {nm}"
+velvet.next_experience	Components/VelvetFusion.cs	1474;1549	next experience {0}	升級還需{0}經驗值	升级还需{0}经验值	$"next experience {gap}"
+velvet.inherit_more	Components/VelvetFusion.cs	788	. You can inherit {0} more skills	。還可以繼承{0}個技能	。还可以继承{0}个技能	$". You can inherit {rem} more skill{(rem == 1 ? "" : "s")}"
+velvet.from_materials	Components/VelvetFusion.cs	860;905	From {0}	來自{0}	来自{0}	" From " + string.Join(", ", mats)
+velvet.result_ordinal	Components/VelvetFusion.cs	864	{0} of {1}.	第{0}個，共{1}個。	第{0}个，共{1}个。	$" {cursor + 1} of {count}."
+velvet.material_level	Components/VelvetFusion.cs	903	{0} level {1}	{0}，等級{1}	{0}，等级{1}	$"{mn} level {mlvl}"
+velvet.today	Components/VelvetFusion.cs	958	Today	今天	今天	
+velvet.tomorrow	Components/VelvetFusion.cs	958	Tomorrow	明天	明天	
+velvet.date_unknown	Components/VelvetFusion.cs	961	{0}: date not known yet.	{0}：日期還不知道。	{0}：日期还不知道。	$"{dayWord}: date not known yet."
+velvet.forecast	Components/VelvetFusion.cs	964	{0}, {1} {2}: {3}.	{0}，{1}{2}日：{3}。	{0}，{1}{2}日：{3}。	$"{dayWord}, {_monthNames[m]} {d}: {f.Effect}."
+velvet.forecast_trigger	Components/VelvetFusion.cs	965	{0}, {1} {2}: {3}: {4}.	{0}，{1}{2}日：{3}：{4}。	{0}，{1}{2}日：{3}：{4}。	$"{dayWord}, {_monthNames[m]} {d}: {f.Trigger}: {f.Effect}."
+velvet.no_forecast	Components/VelvetFusion.cs	967	{0}, {1} {2}: no fusion forecast.	{0}，{1}{2}日：沒有合體預報。	{0}，{1}{2}日：没有合体预报。	$"{dayWord}, {_monthNames[m]} {d}: no fusion forecast."
+velvet.percent_sp	Components/VelvetFusion.cs	1099	{0} percent SP	百分之{0}的SP	百分之{0}的SP	$"{c8} percent SP"
+velvet.option_ordinal	Components/VelvetFusion.cs	1213;1225	Option {0} of {1}	選項第{0}個，共{1}個	选项第{0}个，共{1}个	$"Option {cursor + 1} of {count}"
+velvet.makes	Components/VelvetFusion.cs	1275	{0}. Makes {1}	{0}。合成出{1}	{0}。合成出{1}	$"{candidate}. Makes {result}"
+velvet.persona_ordinal	Components/VelvetFusion.cs	1276	Persona {0} of {1}	人格面具第{0}個，共{1}個	人格面具第{0}个，共{1}个	$"Persona {sel + 1} of {count}"
+velvet.header_summary	Components/VelvetFusion.cs	1493	{0}: {1}	{0}：{1}	{0}：{1}	$"{header}: {summary}"
+book.generic_n	Components/BookMenu.cs;Components/BookstoreMenu.cs	98;81	Book {0}	書{0}	书{0}	$"Book {abs + 1}"
+book.no_description	Components/BookMenu.cs	105	{0}. No description.	{0}。沒有說明。	{0}。没有说明。	$"{name}. No description."
+book.entry	Components/BookMenu.cs	112	{0}. {1}. {2} of {3}.	{0}。{1}。第{2}本，共{3}本。	{0}。{1}。第{2}本，共{3}本。	$"{name}. {Chapters(read, total)}. {abs + 1} of {count}."
+book.no_chapters	Components/BookMenu.cs	117	no chapters	沒有章節	没有章节	
+book.one_chapter	Components/BookMenu.cs	119	1 chapter	1章	1章	
+book.n_chapters	Components/BookMenu.cs	119	{0} chapters	{0}章	{0}章	$"{total} chapters"
+book.none_read	Components/BookMenu.cs	120	{0}, none read	{0}，尚未閱讀	{0}，尚未阅读	$"{ch}, none read"
+book.all_read	Components/BookMenu.cs	121	{0}, all read	{0}，已全部讀完	{0}，已全部读完	$"{ch}, all read"
+book.n_unread	Components/BookMenu.cs	122	{0}, {1} unread	{0}，{1}章未讀	{0}，{1}章未读	$"{ch}, {unread} unread"
+tv.intro	Components/TvListingsReader.cs	219	TV Listings. Left and right for channels, up and down for programs.	電視節目表。左右切換頻道，上下選擇節目。	电视节目表。左右切换频道，上下选择节目。	
+tv.channel_card	Components/TvListingsReader.cs	239	Channel information card.	頻道資訊卡。	频道信息卡。	
+tv.coming_soon	Components/TvListingsReader.cs	243	Coming soon.	即將推出。	即将推出。	
+tv.program_n	Components/TvListingsReader.cs	246	Program {0}	節目{0}	节目{0}	$"Program {id}"
+tv.new	Components/TvListingsReader.cs	250	 New.	，新內容	，新内容	
+tv.closes_session	Components/TvListingsReader.cs	251	 Watching this program closes the game session.	。觀看這個節目會結束本次遊戲。	。观看这个节目会结束本次游戏。	
+tv.song_list	Components/TvListingsReader.cs	283	Song list.	歌曲清單。	歌曲列表。	
+tv.track_n	Components/TvListingsReader.cs	321	Track {0}	曲目{0}	曲目{0}	$"Track {cursor + 1}"
+tv.track_ordinal	Components/TvListingsReader.cs	324	{0}. {1} of {2}.	{0}。第{1}首，共{2}首。	{0}。第{1}首，共{2}首。	$"{name}. {cursor + 1} of {arr.Count}."
+tv.episode_list	Components/TvListingsReader.cs	352	Episode list.	劇集清單。	剧集列表。	
+tv.art_gallery	Components/TvListingsReader.cs	395	Art gallery. Up and down to browse the pictures.	美術圖庫。上下瀏覽圖片。	美术图库。上下浏览图片。	
+tv.no_new_caption	Components/TvListingsReader.cs	533;551	No new caption.	沒有新的說明文字。	没有新的说明文字。	
+tv.caption_ordinal	Components/TvListingsReader.cs	563	{0}. {1} of {2}	{0}。第{1}張，共{2}張	{0}。第{1}张，共{2}张	$"{_artCaps[best].full}. {best + 1} of {_artCaps.Count}"
+tv.channel_n	Components/TvListingsReader.cs	635	Channel {0}	頻道{0}	频道{0}	$"Channel {ch}"
+backlog.lead	Components/BacklogReader.cs	124	Backlog.	對話紀錄。	对话记录。	
+backlog.voiced	Components/BacklogReader.cs	176	 Voiced.	有語音。	有语音。	
+backlog.speaker_line	Components/BacklogReader.cs	178	{0}{1}: {2}.{3}	{0}{1}：{2}。{3}	{0}{1}：{2}。{3}	$"{prefix}{speaker}: {text}.{suffix}"
+namekb.intro	Components/NameEntryKeyboard.cs	135	Enter your name. Last name first. Press X when finished.	輸入名字。先輸入姓氏。完成後按X。	输入名字。先输入姓氏。完成后按X。	
+namekb.last_name	Components/NameEntryKeyboard.cs	160	Last name	姓氏	姓氏	
+namekb.first_name	Components/NameEntryKeyboard.cs	160	First name	名字	名字	
+namekb.cap	Components/NameEntryKeyboard.cs	151	cap {0}	大寫{0}	大写{0}	$"cap {ch}"
+namekb.sym.plus	Components/NameEntryKeyboard.cs	36	plus	加號	加号	
+namekb.sym.minus	Components/NameEntryKeyboard.cs	36	minus	減號	减号	
+namekb.sym.times	Components/NameEntryKeyboard.cs	36	times	乘號	乘号	
+namekb.sym.divide	Components/NameEntryKeyboard.cs	36	divide	除號	除号	
+namekb.sym.equals	Components/NameEntryKeyboard.cs	36	equals	等號	等号	
+namekb.sym.period	Components/NameEntryKeyboard.cs	43	period	句點	句号	
+namekb.sym.comma	Components/NameEntryKeyboard.cs	43;57	comma	逗號	逗号	
+namekb.sym.open_paren	Components/NameEntryKeyboard.cs	43	open parenthesis	左括號	左括号	
+namekb.sym.close_paren	Components/NameEntryKeyboard.cs	43	close parenthesis	右括號	右括号	
+namekb.sym.question	Components/NameEntryKeyboard.cs	43	question mark	問號	问号	
+namekb.sym.exclamation	Components/NameEntryKeyboard.cs	50	exclamation mark	驚嘆號	感叹号	
+namekb.sym.hash	Components/NameEntryKeyboard.cs	50	hash	井字號	井号	
+namekb.sym.dollar	Components/NameEntryKeyboard.cs	50	dollar	美元符號	美元符号	
+namekb.sym.percent	Components/NameEntryKeyboard.cs	50	percent	百分號	百分号	
+namekb.sym.ampersand	Components/NameEntryKeyboard.cs	50	ampersand	與號	与号	
+namekb.sym.asterisk	Components/NameEntryKeyboard.cs	57	asterisk	星號	星号	
+namekb.sym.slash	Components/NameEntryKeyboard.cs	57	slash	斜線	斜杠	
+namekb.sym.quote	Components/NameEntryKeyboard.cs	57	quote	引號	引号	
+namekb.sym.dot	Components/NameEntryKeyboard.cs	57	dot	點	点	
+namekb.sym.colon	Components/NameEntryKeyboard.cs	64	colon	冒號	冒号	
+namekb.sym.semicolon	Components/NameEntryKeyboard.cs	64	semicolon	分號	分号	
+quiz.question	Components/MiracleQuiz.cs	148	Question {0}. {1}	第{0}題。{1}	第{0}题。{1}	$"Question {qn}. {q}"
+quiz.choice	Components/MiracleQuiz.cs	150;162	{0}: {1}.	{0}：{1}。	{0}：{1}。	$"{(char)('A' + cursor)}: {_curChoices[perm[cursor]]}."
+skillmenu.entry_short	Components/SkillRegainMenu.cs;Components/SkillReplaceMenu.cs	73;200	{0}. {1} of {2}.	{0}。第{1}個，共{2}個。	{0}。第{1}个，共{2}个。	$"{nm}. {cursor + 1} of {count}."
+skillmenu.entry_desc	Components/SkillRegainMenu.cs;Components/SkillReplaceMenu.cs	74;201	{0}. {1}. {2} of {3}.	{0}。{1}。第{2}個，共{3}個。	{0}。{1}。第{2}个，共{3}个。	$"{nm}. {desc}. {cursor + 1} of {count}."
+skillmenu.next_level_skill	Components/SkillReplaceMenu.cs	218	Next level skill: {0}.	下一級技能：{0}。	下一级技能：{0}。	$"Next level skill: {nnm}."
+skillmenu.next_level_skill_desc	Components/SkillReplaceMenu.cs	219	Next level skill: {0}. {1}.	下一級技能：{0}。{1}。	下一级技能：{0}。{1}。	$"Next level skill: {nnm}. {nds}."
+skillmenu.skill_n	Components/SkillReplaceMenu.cs	196	Skill {0}	技能{0}	技能{0}	$"Skill {cursor + 1}"
+prelease.new_persona	Components/PersonaReleaseMenu.cs	171	New persona, {0}, level {1}. 1 of {2}	新人格面具，{0}，等級{1}。第1個，共{2}個	新人格面具，{0}，等级{1}。第1个，共{2}个	$"New persona, {SafeName(nid)}, level {nlv}. 1 of {count}"
+prelease.new_persona_short	Components/PersonaReleaseMenu.cs	172	New persona. 1 of {0}	新人格面具。第1個，共{0}個	新人格面具。第1个，共{0}个	$"New persona. 1 of {count}"
+prelease.item_ordinal	Components/PersonaReleaseMenu.cs	176	Item {0} of {1}	項目第{0}個，共{1}個	项目第{0}个，共{1}个	$"Item {cursor + 1} of {count}"
+prelease.entry	Components/PersonaReleaseMenu.cs	177	{0}, level {1}. {2} of {3}	{0}，等級{1}。第{2}個，共{3}個	{0}，等级{1}。第{2}个，共{3}个	$"{SafeName(...)}, level {...}. {cursor + 1} of {count}"
+prelease.stats_line	Components/PersonaReleaseMenu.cs	234	{0}, level {1}. Strength {2}, Magic {3}, Endurance {4}, Agility {5}, Luck {6}. Skills: {7}.	{0}，等級{1}。力量{2}，魔力{3}，耐力{4}，速度{5}，運氣{6}。技能：{7}。	{0}，等级{1}。力量{2}，魔力{3}，耐力{4}，速度{5}，运气{6}。技能：{7}。	$"{SafeName(id)}, level {lv}. Strength {st}, ... Skills: {string.Join(", ", skills)}."
+prelease.persona	Components/PersonaReleaseMenu.cs	243	Persona	人格面具	人格面具	

@@ -99,6 +99,12 @@
     <Content Include="P4G_Korean.tsv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Translations for the mod's OWN prompts (Components/Localization.cs). Produced by a
+         separate extraction pipeline, so it may legitimately be absent from a checkout —
+         the Condition keeps the build green either way, and the mod just speaks English. -->
+    <Content Include="ui_strings.tsv" Condition="Exists('ui_strings.tsv')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

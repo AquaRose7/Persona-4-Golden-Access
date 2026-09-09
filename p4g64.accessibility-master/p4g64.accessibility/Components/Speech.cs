@@ -38,6 +38,29 @@ internal static class Speech
     private static long _protectedUntilMs;
     private static readonly Dictionary<string, long> _recentSaid = new();
 
+    // FORWARDED GAME TEXT (2026-09-05, user: "…when you're in a pinch,和you to help others…").
+    // These readers do not author prompts of their own — they hand the GAME's text straight to
+    // the screen reader (dialogue lines, subtitles, system messages, tutorial pages …). Such a
+    // line is arbitrary prose, so the translation layer's PATTERN rows have no business touching
+    // it: a row whose literal part is short enough ("{0} and {1}") can match an English sentence
+    // that merely contains that word and swap the word alone, leaving the mixed-language result
+    // the player heard. Lines from these sources are therefore translated by EXACT lookup only
+    // (see Localization.Tr's exactOnly) — their fixed short prompts still get translated, their
+    // forwarded prose never gets rewritten. Names are the source FILE names without .cs, matching
+    // the CallerFilePath tag computed in Say.
+    private static readonly HashSet<string> ForwardedGameTextSources = new(StringComparer.Ordinal)
+    {
+        "Dialogue", "SubtitleReader", "SystemMessage", "MessageBubble", "TelopReader",
+        "BacklogReader", "InternetDialog", "Tutorial", "GameOverReader", "SocialLinkDetail",
+        // DifficultyMenu joined on the same grounds (2026-09-05, user heard "Normal.第This is the
+        // best balance个，共difficulty and enjoyment. Please experience the tension.个"): its option
+        // DESCRIPTIONS are the game's own on-screen prose carried inside the component, so
+        // "Normal. <long English sentence>." was matched by a list-style "{0}. {1} of {2}." row and
+        // poured into the Chinese counter template. Forwarded game text in every way that matters
+        // here, even though those characters happen to live in our source file.
+        "DifficultyMenu",
+    };
+
     // The game's text separates words with the Japanese IDEOGRAPHIC SPACE (U+3000),
     // not an ASCII space — some screen readers stumble on it (words run together /
     // odd pauses). Swap it for a normal space so EVERY announcement reads cleanly.
@@ -55,10 +78,14 @@ internal static class Speech
         // logged with the component that spoke it, so a player's log identifies the culprit
         // of any speech spam. CallerFilePath is a COMPILE-TIME constant — zero runtime cost;
         // the substring below runs once per spoken sentence (a few per second at most).
+        // The tag is also handed to SayCore, which uses it to decide how the translation layer
+        // may touch this line (see ForwardedGameTextSources). Empty for a blank line — SayCore
+        // drops those before it reaches anything that reads the tag.
+        string src = "";
         if (!string.IsNullOrWhiteSpace(text))
         {
             int cut = callerFile.LastIndexOfAny(new[] { '\\', '/' });
-            string src = cut >= 0 ? callerFile.Substring(cut + 1) : callerFile;
+            src = cut >= 0 ? callerFile.Substring(cut + 1) : callerFile;
             if (src.EndsWith(".cs")) src = src.Substring(0, src.Length - 3);
             long now = Environment.TickCount64;
             bool downgraded = false;
@@ -72,11 +99,13 @@ internal static class Speech
         }
         // TEMP perf shim (heaviness diag 2026-07-27): measures the full cost incl. Tolk IPC.
         long t0 = Components.PerfDiag.Begin();
-        try { SayCore(text, interrupt); }
+        try { SayCore(text, interrupt, src); }
         finally { Components.PerfDiag.End(Components.PerfDiag.B.SpeechSay, t0); }
     }
 
-    private static void SayCore(string text, bool interrupt = true)
+    /// <param name="src">Speaking component (file name without .cs) as tagged by <see cref="Say"/>;
+    /// "" when unknown, which simply means the full translation table applies.</param>
+    private static void SayCore(string text, bool interrupt = true, string src = "")
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         text = Normalize(text);
@@ -99,8 +128,18 @@ internal static class Speech
                 }
             }
         }
-        Record(text);
-        Tolk.Output(text, interrupt);
+        // TRANSLATION LAYER (2026-09-05): the mod's own prompts are authored in English at
+        // hundreds of call sites; instead of touching them all, the swap happens HERE — the one
+        // point every announcement converges on — using the ui_strings.tsv table for the game's
+        // language (see Localization). Deliberate split: the spam guard above keys on the
+        // ENGLISH text (stable regardless of language, and it is what the callers actually
+        // repeat), while history + Tolk get the TRANSLATION so repeat/browse read back exactly
+        // what was spoken. No table, or a language with no translations = Localization is
+        // disabled and Tr is a single bool test. Lines forwarded verbatim from the game get the
+        // exact-only mode (no pattern rewriting) — see ForwardedGameTextSources above.
+        string spoken = Localization.Tr(text, ForwardedGameTextSources.Contains(src));
+        Record(spoken);
+        Tolk.Output(spoken, interrupt);
     }
 
     /// <summary>Record a line to history WITHOUT speaking it (e.g. dialogue while auto-read is off).</summary>
@@ -122,7 +161,10 @@ internal static class Speech
     {
         lock (_lock)
         {
-            if (_hist.Count == 0) { Tolk.Output("No history.", true); return; }
+            // The history browser is the only speech that bypasses SayCore (it must NOT re-record
+            // what it reads back), so its own fixed prompts are translated here; the history lines
+            // themselves were already translated on the way in.
+            if (_hist.Count == 0) { Tolk.Output(Localization.Tr("No history."), true); return; }
             _navIdx = _hist.Count;
             Tolk.Output(_hist[^1], true);
         }
@@ -133,11 +175,11 @@ internal static class Speech
     {
         lock (_lock)
         {
-            if (_hist.Count == 0) { Tolk.Output("No history.", true); return; }
+            if (_hist.Count == 0) { Tolk.Output(Localization.Tr("No history."), true); return; }
             if (_navIdx < 0 || _navIdx > _hist.Count - 1) _navIdx = _hist.Count;  // start from newest
             int next = _navIdx + dir;
-            if (next < 0) { _navIdx = 0; Tolk.Output("Start of history. " + _hist[0], true); return; }
-            if (next > _hist.Count - 1) { _navIdx = _hist.Count - 1; Tolk.Output("Newest. " + _hist[^1], true); return; }
+            if (next < 0) { _navIdx = 0; Tolk.Output(Localization.Tr("Start of history.") + " " + _hist[0], true); return; }
+            if (next > _hist.Count - 1) { _navIdx = _hist.Count - 1; Tolk.Output(Localization.Tr("Newest.") + " " + _hist[^1], true); return; }
             _navIdx = next;
             Tolk.Output(_hist[_navIdx], true);
         }

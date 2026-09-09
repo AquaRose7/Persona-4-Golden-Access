@@ -169,6 +169,10 @@ public class Mod : ModBase // <= Do not Remove.
             string table = Native.Text.GameLanguage.ResolveTable(choice);
             Log($"[Language] text table = {table} (setting {Native.Text.GameLanguage.ChoiceLabels[Math.Clamp(choice, 0, 5)]}; Steam language \"{Native.Text.GameLanguage.DetectedSteamLanguage}\")");
             AtlusEncoding.Initiailse(Utils.ModDir, table);
+            // Mod prompt translations (ui_strings.tsv) follow the SAME language choice — must run
+            // after ResolveTable set ActiveTable, and before anything can speak. A missing table
+            // or a language we have no column for just leaves the layer off (English prompts).
+            Localization.Init();
         }
         Dialog.Initialise();
         Party.Initialise();

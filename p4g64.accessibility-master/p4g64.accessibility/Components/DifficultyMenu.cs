@@ -71,7 +71,9 @@ internal unsafe class DifficultyMenu : IDisposable
         if (wasFirstRender) return;
 
         LogDebug($"Difficulty menu: cursor={cursor} -> {Options[cursor]}");
-        Speech.Say($"{Options[cursor]}. {Descriptions[cursor]}", true);
+        // Translate the two halves separately: the spoken line is composed here,
+        // so the whole string never matches a single translation-table entry.
+        Speech.Say($"{Localization.Tr(Options[cursor])}. {Localization.Tr(Descriptions[cursor])}", true);
     }
 
     public void Dispose() { }

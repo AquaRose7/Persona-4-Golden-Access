@@ -137,45 +137,54 @@ internal unsafe class MovieDescription : IDisposable
     private static List<(double, string?, string?)> LoadCues(string code)
     {
         var cues = new List<(double, string?, string?)>();
-        foreach (var dir in DescDirs())
+        string[] dirs;
+        try { dirs = DescDirs(); }
+        catch (Exception ex) { Log($"[Movie] cannot resolve description folders: {ex.Message}"); return cues; }
+
+        foreach (var dir in dirs)
         {
-            if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir)) continue;
-            string sub = System.IO.Path.Combine(dir, code);
-
-            // (1) TEXT scripts:  <dir>/<CODE>.txt|.srt  and any  <dir>/<CODE>/*.txt|*.srt
-            foreach (var ext in new[] { ".txt", ".srt" })
+            // A single unreadable folder/file must not cost us the fallback folders behind it.
+            try
             {
-                string flat = System.IO.Path.Combine(dir, code + ext);
-                if (System.IO.File.Exists(flat)) ParseScript(flat, cues);
-            }
-            if (System.IO.Directory.Exists(sub))
-            {
-                foreach (var t in System.IO.Directory.GetFiles(sub, "*.txt")) ParseScript(t, cues);
-                foreach (var t in System.IO.Directory.GetFiles(sub, "*.srt")) ParseScript(t, cues);
-            }
+                if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir)) continue;
+                string sub = System.IO.Path.Combine(dir, code);
 
-            // (2) AUDIO clips:  <dir>/<CODE>/<NN_MMSS>.{mp3,wav}  +  flat CODE_MMSS / CODE
-            if (System.IO.Directory.Exists(sub))
-                foreach (var f in System.IO.Directory.GetFiles(sub))
+                // (1) TEXT scripts:  <dir>/<CODE>.txt|.srt  and any  <dir>/<CODE>/*.txt|*.srt
+                foreach (var ext in new[] { ".txt", ".srt" })
+                {
+                    string flat = System.IO.Path.Combine(dir, code + ext);
+                    if (System.IO.File.Exists(flat)) ParseScript(flat, cues);
+                }
+                if (System.IO.Directory.Exists(sub))
+                {
+                    foreach (var t in System.IO.Directory.GetFiles(sub, "*.txt")) ParseScript(t, cues);
+                    foreach (var t in System.IO.Directory.GetFiles(sub, "*.srt")) ParseScript(t, cues);
+                }
+
+                // (2) AUDIO clips:  <dir>/<CODE>/<NN_MMSS>.{mp3,wav}  +  flat CODE_MMSS / CODE
+                if (System.IO.Directory.Exists(sub))
+                    foreach (var f in System.IO.Directory.GetFiles(sub))
+                    {
+                        if (!IsAudio(f)) continue;
+                        string fn = System.IO.Path.GetFileNameWithoutExtension(f);
+                        int us = fn.LastIndexOf('_');
+                        if (TryParseTime(us >= 0 ? fn.Substring(us + 1) : fn, out double t))
+                            cues.Add((t, null, f));
+                    }
+                foreach (var f in System.IO.Directory.GetFiles(dir))
                 {
                     if (!IsAudio(f)) continue;
                     string fn = System.IO.Path.GetFileNameWithoutExtension(f);
-                    int us = fn.LastIndexOf('_');
-                    if (TryParseTime(us >= 0 ? fn.Substring(us + 1) : fn, out double t))
+                    if (fn.Equals(code, StringComparison.OrdinalIgnoreCase))
+                        cues.Add((0.0, null, f));
+                    else if (fn.StartsWith(code + "_", StringComparison.OrdinalIgnoreCase)
+                             && TryParseTime(fn.Substring(code.Length + 1), out double t))
                         cues.Add((t, null, f));
                 }
-            foreach (var f in System.IO.Directory.GetFiles(dir))
-            {
-                if (!IsAudio(f)) continue;
-                string fn = System.IO.Path.GetFileNameWithoutExtension(f);
-                if (fn.Equals(code, StringComparison.OrdinalIgnoreCase))
-                    cues.Add((0.0, null, f));
-                else if (fn.StartsWith(code + "_", StringComparison.OrdinalIgnoreCase)
-                         && TryParseTime(fn.Substring(code.Length + 1), out double t))
-                    cues.Add((t, null, f));
             }
+            catch (Exception ex) { Log($"[Movie] description scan failed in \"{dir}\": {ex.Message}"); }
 
-            if (cues.Count > 0) break;
+            if (cues.Count > 0) { Log($"[Movie] {code} descriptions from \"{dir}\""); break; }
         }
         cues.Sort((a, b) => a.Item1.CompareTo(b.Item1));
         return cues;
@@ -287,18 +296,43 @@ internal unsafe class MovieDescription : IDisposable
         return e == ".mp3" || e == ".wav";
     }
 
+    /// <summary>
+    /// The language-suffixed description folder for the game's text language, or "" when that
+    /// language has no translated descriptions (English / Japanese / Korean use the base folder).
+    /// Chinese players get "game seens_zh-TW" / "game seens_zh-CN".
+    /// </summary>
+    private static string LocalizedDescDir()
+        => p4g64.accessibility.Native.Text.GameLanguage.ActiveTable switch
+        {
+            "P4G_CHT.tsv" => DescDir + "_zh-TW",
+            "P4G_CHS.tsv" => DescDir + "_zh-CN",
+            _ => "",
+        };
+
+    /// <summary>
+    /// Where to look for a cutscene's description, best first. The LANGUAGE folders come before
+    /// the base ones, and <see cref="LoadCues"/> stops at the first folder that yields cues — so
+    /// the fallback is PER CUTSCENE: a code the translated folder doesn't cover falls through to
+    /// the English "game seens" on its own, without affecting any other cutscene.
+    /// </summary>
     private static string[] DescDirs()
     {
         var cwd = Environment.CurrentDirectory;
-        return new[]
+        var dirs = new List<string>(7);
+        string loc = LocalizedDescDir();
+        if (loc.Length > 0)
         {
-            // RELEASE: the descriptions ship bundled in "<mod folder>/game seens/" — this is
-            // where players load them from. (ModDir alone is also checked for flat CODE files.)
-            System.IO.Path.Combine(ModDir, DescDir),
-            ModDir,
-            System.IO.Path.Combine(cwd, "Persona 4 golden", "database", DescDir),
-            System.IO.Path.Combine(cwd, "database", DescDir),
-        };
+            dirs.Add(System.IO.Path.Combine(ModDir, loc));
+            dirs.Add(System.IO.Path.Combine(cwd, "Persona 4 golden", "database", loc));
+            dirs.Add(System.IO.Path.Combine(cwd, "database", loc));
+        }
+        // RELEASE: the descriptions ship bundled in "<mod folder>/game seens/" — this is
+        // where players load them from. (ModDir alone is also checked for flat CODE files.)
+        dirs.Add(System.IO.Path.Combine(ModDir, DescDir));
+        dirs.Add(ModDir);
+        dirs.Add(System.IO.Path.Combine(cwd, "Persona 4 golden", "database", DescDir));
+        dirs.Add(System.IO.Path.Combine(cwd, "database", DescDir));
+        return dirs.ToArray();
     }
 
     private void PlayFile(string path)

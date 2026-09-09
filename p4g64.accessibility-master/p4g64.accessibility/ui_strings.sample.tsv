@@ -1,0 +1,6 @@
+key	file	line	en	zh-TW	zh-CN	raw
+speech.no_history	Components/Speech.cs	137	No history.	沒有歷史紀錄。	没有历史记录。	"No history."
+speech.newest	Components/Speech.cs	152	Newest.	最新一則。	最新一条。	"Newest."
+movie.descriptions_on	Components/MovieDescription.cs	41	Descriptions on.	過場描述已開啟。	过场描述已开启。	"Descriptions on."
+movie.no_description	Components/MovieDescription.cs	93	Cutscene {0}, no description.	過場動畫 {0}，沒有描述。	过场动画 {0}，没有描述。	$"Cutscene {id}, no description."
+date.month.april	Components/DateReader.cs	31	April	四月	四月	_monthNames[3]
