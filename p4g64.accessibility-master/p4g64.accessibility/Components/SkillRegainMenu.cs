@@ -13,9 +13,15 @@ namespace p4g64.accessibility.Components;
 /// task **cmp_skill_add_ex** in the task registry (heads 0x1462486F8 / 0x1462486A8 /
 /// 0x146248768; node name @+0x00, work @+0x48, next @+0x50). Its work struct:
 ///   +0x28 u16  COUNT of regainable skills
-///   +0x2A u16  CURSOR (0..count-1)
+///   +0x2A u16  CURSOR — WINDOW-relative (0..4, 5 rows visible)
+///   +0x2C u16  SCROLL (window top). True row = cursor + scroll — live-verified 2026-10-02 on a
+///              17-skill list (Mind Slice = cursor 2 + scroll 6); the old cursor-only read made
+///              every row below the 5th repeat one of the first five (player report, hot spring).
 ///   +0x4C + i*2  u16  skill id for row i  (-> Skill.GetName/GetDescription)
-/// We poll the registry and speak the highlighted skill + its description on move.
+/// We poll the registry and speak the highlighted skill + its description on move. The
+/// highlighted id is also published for SkillReplaceMenu: when a regained skill doesn't fit,
+/// the "which skill to forget" screen opens on top of this list, and its incoming skill IS
+/// the one highlighted here.
 /// </summary>
 internal sealed unsafe class SkillRegainMenu
 {
@@ -28,6 +34,14 @@ internal sealed unsafe class SkillRegainMenu
     private static readonly byte[] Task = Encoding.ASCII.GetBytes("cmp_skill_add_ex");
 
     private int _lastCursor = -1;
+
+    private static volatile int _highlightedId;
+    private static long _highlightedAtMs;
+
+    /// <summary>The skill highlighted on the regain list while that list is up (refreshed every
+    /// poll), else 0.</summary>
+    internal static int ActiveSkillId()
+        => Environment.TickCount64 - Interlocked.Read(ref _highlightedAtMs) < 600 ? _highlightedId : 0;
 
     internal SkillRegainMenu()
     {
@@ -56,14 +70,16 @@ internal sealed unsafe class SkillRegainMenu
         if (work <= 0x10000 || !IsReadable(work + 0x2C, 2)) return;
 
         int count  = *(ushort*)(work + 0x28);
-        int cursor = *(ushort*)(work + 0x2A);
+        int cursor = *(ushort*)(work + 0x2A) + *(ushort*)(work + 0x2C);   // window cursor + scroll
         if (count < 1 || count > 32 || cursor < 0 || cursor >= count) { _lastCursor = -1; return; }
-        if (cursor == _lastCursor) return;
-        _lastCursor = cursor;
-
         if (!IsReadable(work + 0x4C + cursor * 2, 2)) return;
         int sid = *(ushort*)(work + 0x4C + cursor * 2);
         if (sid < 1 || sid > 1024) return;
+        _highlightedId = sid;
+        Interlocked.Exchange(ref _highlightedAtMs, Environment.TickCount64);
+
+        if (cursor == _lastCursor) return;
+        _lastCursor = cursor;
 
         string nm; try { nm = Skill.GetName(sid); } catch { nm = null; }
         if (string.IsNullOrEmpty(nm)) nm = $"skill {sid}";

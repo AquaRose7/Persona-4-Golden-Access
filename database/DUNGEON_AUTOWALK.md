@@ -11,6 +11,36 @@ dead-end evidence.
 
 ---
 
+## ★★ 2026-09-30 UPDATE — THE PREFAB PLANNER (`AutoWalk/TileGrid.cs`) runs BEFORE §0's planner
+- Maze + scripted floors are placed room PREFABS; `dungeon_prefab_walls.json` (⚠ bundle; `tools/tilegrid.py
+  export`) = each piece's wall segments from its `h0TT_0NN.AMD` hit model (piece N = minimap sprite; keep the
+  decoder's Z negation; 1×1 pieces ±600 at the cell centre, w×h blocks ±600·w at the block centre; rotation
+  = cell byte +0x05, (x,z)→(z,−x)). Tileset = the maze major, scripted = major−20 (proven on 60/1, 61/2, 66/3).
+- `StairsPlan.TryPlanTo` calls `TileGrid.TryPlan` first: exact segment clearance, body ≥60u, clearance-
+  weighted A*, goal snapped to a REACHABLE cell, doors woven. The coarse §0 plan is the FALLBACK (floor fails
+  its self-check, unknown piece, no fine path). `TileGrid.LastPlanFine` switches the drive's second-stall
+  step to a 160u per-walk obstacle stamp; wp0 is a real point on fine plans (never skipped).
+- ⚠ Load-bearing data facts: (1) the hit model includes every door's CLOSED PANEL → carve segments ≤100u of an
+  unlocked door + force a body lane along its axis; (2) the two edge-0 cells of a 3×3 stairs block are the
+  staircase footprint (open floor in the model, an actor in the game) → not walkable; (3) the self-check probes
+  from an interior point (mean open-side direction × 300u), never the cell centre (dead-end stubs).
+- Locked doors: sealed; if the target is reachable ONLY through a locked door → `LastLockedBlock` → "The stairs
+  are behind a locked door. Find its key first." (never handed to the coarse plan, which would grind the lock).
+- Browser distances on maze floors = walking distance (`TileGrid.RouteLengths`, one Dijkstra, ~1.5 s cache).
+- Battles keep the browser selection; "Walk paused for the battle. Backspace continues to X."
+- Live evidence + tools: `database/PLAYTEST_2026-09-29_NAV.md` (PART 2 RESULTS).
+
+## ★ 2026-09-29 UPDATE (Claude-driven playtest, round 2) — read with §0
+- **Grid↔world is `cell = round(world / 1200)`, cell centers at k·1200** (`MinimapTracker`). The pre-09-29
+  mapping forgot the renderer's +9px tile half (its `corr` is half the ICON), so every §0 waypoint sat 333u
+  off in −X/−Z. Everything in §0 that compensated (door weave 900u snap, LaneSearch) now runs on true centers.
+- **Stairs walks end AT the staircase**, not the block mouth: 3×3 stairs prefab, rotation = cell byte +0x05,
+  target = block center + rotated per-sprite offset (`GridRouter.StairsPromptOffset`) or the 2×2 room
+  center; tail = push-past ease → turn in place → learn-on-search. Stairs blocks connect by EDGE BITS only.
+- **Crossing doors must lie on the shared edge** (`StairsPlan.CrossingDoorScore`); **multi-cell rooms are
+  crossed straight** (Heaven diagonals) with a cell-by-cell replan after the first stall.
+- Evidence + per-dungeon results: `database/PLAYTEST_2026-09-29_NAV.md` (ROUND 2).
+
 ## 0. THE CURRENT SYSTEM — one honest sensor, one planner, one drive
 
 Design law (proven the hard way, all of §0.6): **the map is innocent until the

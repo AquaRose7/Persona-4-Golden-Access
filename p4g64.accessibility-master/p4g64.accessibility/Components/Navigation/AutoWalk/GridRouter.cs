@@ -189,20 +189,166 @@ internal static class GridRouter
     /// </summary>
     internal static bool FindNearestStairs(float px, float pz, out float wx, out float wz)
     {
+        // THE STAIRCASE ITSELF (2026-09-29): the old answer was the NEAREST stairs-sprite CELL =
+        // the mouth of the 3×3 stairs block, so the walk stopped there ("Check nearest door"),
+        // up to 9 steps short (Marukyu 1F). Now: the point where the game's CHECK prompt lights
+        // for the staircase (see StairsBlock.TX/TZ), else the block's center.
         wx = wz = 0;
+        if (!FindNearestStairsBlock(px, pz, out var b)) return false;
+        wx = b.TX; wz = b.TZ;
+        return true;
+    }
+
+    /// <summary>One 3×3 stairs prefab on the grid. The prefab is ROTATED per layout — the
+    /// cell byte +0x05 holds the quarter-turn (Castle 1F: rot 0 and rot 1 seen, the corridor
+    /// strip/door/staircase all turn with it). BX/BZ = the prefab's true center (offsets are
+    /// relative to it); CX/CZ = the center or, when that is the staircase footprint, the
+    /// nearest open cell; TX/TZ = the staircase prompt point when this dungeon's offset is
+    /// known (Known), else CX/CZ.</summary>
+    internal readonly record struct StairsBlock(float BX, float BZ, float CX, float CZ, byte Sprite, int Rot,
+                                                float TX, float TZ, bool Known, bool Full);
+
+    // Staircase PROMPT point relative to the stairs-block center, in the prefab's LOCAL frame
+    // (rotation 0), measured live where the CHECK prompt lit (2026-09-29 playtest). Rotation
+    // k turns it k quarter-turns: (x,z) → (z,−x) per step — verified on Castle 1F: rot 0
+    // (+648,−426), rot 1 (−433,−656).
+    private static readonly Dictionary<byte, (float x, float z)> StairsPromptOffset = new()
+    {
+        [0x0C] = (648f, -426f),   // Yukiko's Castle + Void Quest (same prefab; verified rot 0/1 + VQ)
+        [0x0E] = (924f, 635f),    // Steamy Bathhouse + Secret Lab (same prefab; Lab B1F rot 1 prompt at
+                                  // (+635,−924) → A took the stairs). The room CENTER misses this one.
+        // 0x0A (Marukyu + Heaven): no entry needed — the room-center rule lit the prompt on
+        // Marukyu 1F (rot 0), 2F, and Heaven #1/#2 (rot 3).
+    };
+    // Offsets learned at runtime by the stairs walk's prompt search (same local frame).
+    private static readonly Dictionary<byte, (float x, float z)> _learnedStairsOffset = new();
+
+    internal static (float x, float z) RotateStairs(float x, float z, int rot)
+    {
+        for (int i = 0; i < (rot & 3); i++) (x, z) = (z, -x);
+        return (x, z);
+    }
+
+    /// <summary>Record where the stairs prompt lit (world dx,dz from the block center) as this
+    /// sprite's local offset — later walks on this dungeon aim straight at it.</summary>
+    internal static void LearnStairsOffset(byte sprite, int rot, float dx, float dz)
+    {
+        // un-rotate: apply the inverse quarter-turns
+        var (lx, lz) = RotateStairs(dx, dz, (4 - (rot & 3)) & 3);
+        _learnedStairsOffset[sprite] = (lx, lz);
+        _stairsCacheMs = -1;
+        Utils.Log($"[StairsOffset] sprite=0x{sprite:X2} rot={rot} local=({lx:F0},{lz:F0}) world=({dx:F0},{dz:F0})");
+    }
+
+    /// <summary>Every stairs block on the explored grid (the fine planner plugs their staircases).</summary>
+    internal static List<StairsBlock> AllStairsBlocks() => StairsBlocks();
+
+    internal static bool FindNearestStairsBlock(float px, float pz, out StairsBlock block)
+    {
+        block = default;
         float best = float.MaxValue;
-        for (int r = 0; r < MinimapTracker.ROWS; r++)
-        for (int c = 0; c < MinimapTracker.COLS; c++)
+        foreach (var b in StairsBlocks())
         {
-            if (!MinimapTracker.ReadCell(r, c, out var cell)) continue;
-            if (cell.Flag != 1 || !IsStairSprite(cell.Sprite)) continue;
-            if (!MinimapTracker.CellToWorld(r, c, out float x, out float z)) continue;
-            float dx = x - px, dz = z - pz;
-            float d = dx * dx + dz * dz;
-            if (d < best) { best = d; wx = x; wz = z; }
+            float dx = b.TX - px, dz = b.TZ - pz, d = dx * dx + dz * dz;
+            if (d < best) { best = d; block = b; }
         }
         return best < float.MaxValue;
     }
+
+    private static List<StairsBlock> _stairsCache = new();
+    private static long _stairsCacheMs = -1;
+    private static int _stairsCacheKey;
+
+    /// <summary>One entry per connected stairs-sprite block on the explored grid (cached ~1.5 s
+    /// per floor — the beacon asks every tick).</summary>
+    private static List<StairsBlock> StairsBlocks()
+    {
+        long now = Environment.TickCount64;
+        int key = FieldTracker.CurrentMajor * 100000 + FieldTracker.CurrentMinor * 1000 + FieldTracker.DungeonFloorId();
+        if (key == _stairsCacheKey && now - _stairsCacheMs < 1500) return _stairsCache;
+
+        var outp = new List<StairsBlock>();
+        var seen = new HashSet<int>();
+        for (int r = 0; r < MinimapTracker.ROWS; r++)
+        for (int c = 0; c < MinimapTracker.COLS; c++)
+        {
+            if (seen.Contains(r * MinimapTracker.COLS + c) || !IsStairCell(r, c)) continue;
+            if (!MinimapTracker.ReadCell(r, c, out var first)) continue;
+            // flood-fill the block (4-connected stairs cells)
+            var stack = new Stack<(int r, int c)>(); stack.Push((r, c)); seen.Add(r * MinimapTracker.COLS + c);
+            float sx = 0, sz = 0; int n = 0;
+            var open = new List<(float x, float z)>();   // block cells with a way in (not the staircase footprint)
+            while (stack.Count > 0)
+            {
+                var (cr, cc) = stack.Pop();
+                if (MinimapTracker.CellToWorld(cr, cc, out float cx, out float cz))
+                {
+                    sx += cx; sz += cz; n++;
+                    if (GridWalk.Connected(cr, cc, 1, 0) || GridWalk.Connected(cr, cc, -1, 0)
+                        || GridWalk.Connected(cr, cc, 0, 1) || GridWalk.Connected(cr, cc, 0, -1))
+                        open.Add((cx, cz));
+                }
+                foreach (var (dr, dc) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                {
+                    int nr = cr + dr, nc = cc + dc, k = nr * MinimapTracker.COLS + nc;
+                    if (seen.Contains(k) || !IsStairCell(nr, nc)) continue;
+                    seen.Add(k); stack.Push((nr, nc));
+                }
+            }
+            if (n == 0) continue;
+            float bx = sx / n, bz = sz / n;          // the prefab's true center (offsets are relative to it)
+            float ox = bx, oz = bz;
+            // The center can be a staircase cell (no openings) → aim at the nearest open cell.
+            if (open.Count > 0 && !open.Exists(p => MathF.Abs(p.x - bx) < 1f && MathF.Abs(p.z - bz) < 1f))
+            {
+                float bd = float.MaxValue; var pick = open[0];
+                foreach (var p in open)
+                {
+                    float d = (p.x - bx) * (p.x - bx) + (p.z - bz) * (p.z - bz);
+                    if (d < bd) { bd = d; pick = p; }
+                }
+                (ox, oz) = pick;
+            }
+            int rot = first.Modifier & 3;
+            // The stairs prompt lights at the center of the prefab's 2×2 ROOM (the four block cells
+            // that are mutually edge-connected): Castle 1F rot 0 room center (9000,13800) → prompt
+            // (9048,13974); rot 1 (9000,4200) → (9167,4144). Aim there when no measured offset.
+            if (TryStairsRoomCenter(r, c, out float rcx, out float rcz)) { ox = rcx; oz = rcz; }
+            float tx = ox, tz = oz; bool known = false;
+            if (n == 9 && (_learnedStairsOffset.TryGetValue(first.Sprite, out var off)
+                           || StairsPromptOffset.TryGetValue(first.Sprite, out off)))
+            {
+                var (dx, dz) = RotateStairs(off.x, off.z, rot);
+                tx = bx + dx; tz = bz + dz; known = true;
+            }
+            outp.Add(new StairsBlock(bx, bz, ox, oz, first.Sprite, rot, tx, tz, known, n == 9));
+        }
+        _stairsCache = outp; _stairsCacheMs = now; _stairsCacheKey = key;
+        return outp;
+    }
+
+    /// <summary>Center of a 2×2 square of stairs cells whose four inner sides are all open
+    /// (the prefab's room — the corridor strip and the staircase footprint never form one).</summary>
+    private static bool TryStairsRoomCenter(int r0, int c0, out float x, out float z)
+    {
+        x = z = 0;
+        for (int r = r0 - 3; r <= r0 + 3; r++)
+        for (int c = c0 - 3; c <= c0 + 3; c++)
+        {
+            if (!IsStairCell(r, c) || !IsStairCell(r + 1, c) || !IsStairCell(r, c + 1) || !IsStairCell(r + 1, c + 1)) continue;
+            if (!GridWalk.Connected(r, c, 0, 1) || !GridWalk.Connected(r, c, 1, 0)
+                || !GridWalk.Connected(r + 1, c, 0, 1) || !GridWalk.Connected(r, c + 1, 1, 0)) continue;
+            if (!MinimapTracker.CellToWorld(r, c, out float ax, out float az)) continue;
+            if (!MinimapTracker.CellToWorld(r + 1, c + 1, out float bx, out float bz)) continue;
+            x = (ax + bx) * 0.5f; z = (az + bz) * 0.5f;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool IsStairCell(int r, int c)
+        => r >= 0 && r < MinimapTracker.ROWS && c >= 0 && c < MinimapTracker.COLS
+           && MinimapTracker.ReadCell(r, c, out var cell) && cell.Flag == 1 && IsStairSprite(cell.Sprite);
 
     /// <summary>Walkability of one cell — exposed for AutoWalker's corridor centering.</summary>
     internal static bool CellWalkable(int r, int c) => Walkable(r, c);

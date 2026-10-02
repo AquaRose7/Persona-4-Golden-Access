@@ -85,8 +85,35 @@ def find_fields(d, tag):
         o += 4
 
 
-def parse(amd):
+TTAG = 0x8048       # node translate (vec3)
+
+
+def bone_translations(amd):
+    """{node name: (tx,ty,tz)} for every node carrying a translate field. The single-piece hit
+    models keep their vertices in LOCAL space under `atari_Bone` (the Shrine 008_009: mesh AABB
+    centred on the origin, bone translate (-373,-147,1429)); multi-piece models have zero bones.
+    Found 2026-09-29 (the grid for 008_009 had 6/7 targets outside it)."""
+    out = {}
+    for o, size in find_fields(amd, TTAG):
+        if size < 12:
+            continue
+        t = struct.unpack_from("<3f", amd, o + 8)
+        # the owning node = the nearest preceding "atari..." ASCIIZ name
+        s = amd.rfind(b"atari", 0, o)
+        name = ""
+        if s >= 0:
+            e = amd.find(bytes([0]), s)
+            if 0 < e - s < 40:
+                name = amd[s:e].decode("latin1")
+        if name:
+            out.setdefault(name, t)
+    return out
+
+
+def parse(amd, apply_bones=False):
     """Return list of meshes: {name, verts:[(x,y,z)...], tris:[(a,b,c)...]}.
+    apply_bones=True adds each piece's bone translation (atari_NN_Bone / atari_Bone) BEFORE the
+    Z flip — see bone_translations().
     Pairs each index buffer (ITAG) with the next vertex array (VTAG) after it,
     in file order — they alternate Mesh-node / Arrays-node per atari piece."""
     # collect index + vertex blocks in file order
@@ -140,6 +167,15 @@ def parse(amd):
             name = amd[s:p + 5].decode("latin1")
         meshes.append({"name": name, "tris": tris,
                        "verts": verts or []})
+    if apply_bones:
+        bones = bone_translations(amd)
+        for m in meshes:
+            nm = m["name"] or ""
+            key = nm.replace("_0_Mesh", "_Bone") if "_0_Mesh" in nm else "atari_Bone"
+            t = bones.get(key) or bones.get("atari_Bone")
+            if t and any(abs(c) > 1e-3 for c in t):
+                # verts already carry the Z flip: world = flip(v_local + T) = (x+tx, y+ty, z_flipped - tz)
+                m["verts"] = [(x + t[0], y + t[1], z - t[2]) for (x, y, z) in m["verts"]]
     return meshes
 
 

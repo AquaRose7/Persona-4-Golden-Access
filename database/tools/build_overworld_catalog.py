@@ -119,6 +119,8 @@ FRIENDLY = {
     # destination is announced by the game's own dialog, so the label stays
     # generic.
     "call_lmap": "Street exit",
+    # 2026-09-30 (nav pt2 item 8): the Shrine's bug-catching spot (checks the three bug nets)
+    "musi_ap_shrine": "Bug-catching spot",
     "parttime_teacher": "Part-time job: tutoring",
     "parttime_hospital": "Part-time job: hospital",
     "parttime_junes": "Part-time job: Junes",
@@ -180,15 +182,69 @@ def bf_proc_names(bf: bytes):
     return names
 
 
+# ── The game's own CHECK-prompt labels (2026-09-29) ──────────────────────────
+# h-row u16 @+0x0E ("a") is the LABEL ID; the text lives in P4G.exe: 9 per-language
+# pointer tables at 0x140910630 (lang id 0 jp · 1 en · … 8 es), each entry a char* to a
+# glyph-encoded C string (English = ASCII). Id 0 = no label (town-map exits, triggers).
+# The mod resolves labelId at RUNTIME in the game's language; "gameLabel" here is the
+# English text for tooling/logs only.
+EXE_PATH = Path(__file__).resolve().parents[3] / "P4G.exe"
+_EXE = None
+
+
+def _exe_label_en(label_id: int):
+    global _EXE
+    if not label_id:
+        return None
+    if _EXE is None:
+        d = EXE_PATH.read_bytes()
+        pe = struct.unpack_from("<I", d, 0x3C)[0]
+        nsec = struct.unpack_from("<H", d, pe + 6)[0]
+        optsz = struct.unpack_from("<H", d, pe + 20)[0]
+        base = struct.unpack_from("<Q", d, pe + 24 + 24)[0]
+        secs, o = [], pe + 24 + optsz
+        for _ in range(nsec):
+            vsz, va, rsz, raw = struct.unpack_from("<IIII", d, o + 8)
+            secs.append((va, vsz, raw, rsz)); o += 40
+        _EXE = (d, base, secs)
+    d, base, secs = _EXE
+
+    def off(v):
+        r = v - base
+        for va, vsz, raw, rsz in secs:
+            if va <= r < va + max(vsz, rsz) and r - va < rsz:
+                return raw + r - va
+        return None
+    tbl = struct.unpack_from("<Q", d, off(0x140910630 + 1 * 8))[0]
+    o = off(tbl + label_id * 8)
+    if o is None:
+        return None
+    p = struct.unpack_from("<Q", d, o)[0]
+    po = off(p)
+    if po is None:
+        return None
+    raw = d[po:d.find(bytes(1), po)]
+    try:
+        t = raw.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    return t if t and all(32 <= ord(c) < 127 for c in t) else None
+
+
 def parse_h_rows(d: bytes):
-    """h*.bin rows: 44 bytes; type u16@12 (0x0201), A u16@14, procIdx u16@16,
-    kind u32@32."""
+    """h*.bin rows: 44 bytes; GATE i32[3]@0, type u16@12 (0x0201), A u16@14, procIdx u16@16,
+    kind u32@32.
+    GATE (2026-09-29): -1,-1,-1 = always live; otherwise gate[0] is a FlowScript BIT id and the trigger
+    is live only while that bit is ON (live-proven on slot 10: Calendar 3240=1 live; Ema/Fortune Hanger
+    3263=0 and fld_debug_menu 3403=0 dead; Velvet Room 3239=1 and Street exit 1 3243=1 live). The
+    3-value rows (Cushion 3254,12,1621) have unknown semantics — the mod treats them as live."""
     rows = []
     for i in range(len(d) // 44):
         r = d[i * 44: (i + 1) * 44]
+        gate = list(struct.unpack_from("<3i", r, 0))
         a, proc = struct.unpack_from("<2H", r, 14)
         kind, = struct.unpack_from("<I", r, 32)
-        rows.append({"a": a, "proc": proc, "kind": kind})
+        rows.append({"a": a, "proc": proc, "kind": kind, "gate": gate})
     return rows
 
 
@@ -206,6 +262,39 @@ def parse_fbn(blob: bytes, fname: str):
         out.append({"file": fname, "id": f"{uid:#06x}",
                     "x": round(x, 2), "y": round(y, 2), "z": round(z, 2)})
     return out
+
+
+def name_town_map_exits(areas):
+    """2026-09-30 (nav pt2 item 8): every call_lmap trigger opens the TOWN MAP ("Leave the shopping
+    district?" -> the map), so "Street exit 1/2/3" told the player nothing. Name each by the end of the
+    area it sits at: the compass direction from the area's interactable centroid, in the OVERWORLD
+    frame (+X = east, +Z = south — OverworldNav.WorldDirection). Duplicates get a number."""
+    for key, area in areas.items():
+        items = area.get("interactables", [])
+        maps = [i for i in items if i.get("proc") == "call_lmap"]
+        if not maps:
+            continue
+        pts = [(i["x"], i["z"]) for i in items if i.get("proc")]
+        cx = sum(p[0] for p in pts) / len(pts)
+        cz = sum(p[1] for p in pts) / len(pts)
+        for i in maps:
+            dx, dz = i["x"] - cx, i["z"] - cz
+            ns = "south" if dz > 0 else "north"
+            ew = "east" if dx > 0 else "west"
+            if abs(dz) > abs(dx) * 2:
+                d = ns
+            elif abs(dx) > abs(dz) * 2:
+                d = ew
+            else:
+                d = ns + ew
+            i["name"] = "Town map" if len(maps) == 1 else f"Town map, {d} end"
+        seen = {}
+        for i in maps:
+            seen.setdefault(i["name"], []).append(i)
+        for nm, lst in seen.items():
+            if len(lst) > 1:
+                for n, i in enumerate(lst, 1):
+                    i["name"] = f"{nm} {n}"
 
 
 def main():
@@ -301,6 +390,9 @@ def main():
                     "proc": proc_name,
                     "name": label,
                     "kind": row["kind"] if row else None,
+                    "labelId": row["a"] if row else 0,
+                    "gameLabel": _exe_label_en(row["a"]) if row else None,
+                    **({"gate": row["gate"]} if row and row["gate"] != [-1, -1, -1] else {}),
                 })
             for box in special:
                 area["interactables"].append({
@@ -339,6 +431,7 @@ def main():
                     "followPoints": [], "placements": [], "warnings": []})
                 area["placements"].extend(parse_fbn(data[s:s + sz], name))
 
+    name_town_map_exits(areas)
     n_int = sum(len(a["interactables"]) for a in areas.values())
     n_named = sum(1 for a in areas.values() for i in a["interactables"] if i["proc"])
     n_pts = sum(len(a["followPoints"]) for a in areas.values())

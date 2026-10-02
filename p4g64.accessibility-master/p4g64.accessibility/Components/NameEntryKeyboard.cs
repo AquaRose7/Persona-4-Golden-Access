@@ -8,7 +8,7 @@ namespace p4g64.accessibility.Components;
 /// <summary>
 /// Hooks the name-entry keyboard render functions to speak whichever key the cursor is on.
 ///
-/// Struct layout (both renderers):
+/// Struct layout (all three renderers):
 ///   1st param (rcx) = outer struct; *(outer + 0x48) = inner struct
 ///   inner + 0x20 = column (int, 0–19)
 ///   inner + 0x24 = row    (int, 0–6)
@@ -20,18 +20,31 @@ namespace p4g64.accessibility.Components;
 /// hard-coded English 20×6 map (screenshot-verified 2026-06-25) stays as the FALLBACK when the
 /// grid can't be read.
 ///
-/// Two renderers share the signature "48 89 5C 24 18 48 89 6C 24 20 56 57 41 56 48 83 EC 50
-/// 48 8B D9": FUN_1403EF020 (4 per-language cursor tables) and FUN_1403FA570 (2 tables). The
-/// sig-scan only ever bound the FIRST, which is what English uses; non-English players got
-/// silence. Both are hooked now (ASLR is off; the addresses are constant) and the log names
+/// The game has THREE name screens, each with its own per-frame cursor function taking the
+/// M_Name_KeyProc task node (work = node+0x48, col +0x20, row +0x24 in all three):
+///   0  FUN_1403EF020  task nameEntry       Japanese / English / Korean / Traditional Chinese
+///   1  FUN_1403FA570  task nameEntry_ck    Simplified Chinese (+ a second layout)
+///   2  FUN_140400F40  task nameEntry_figs  French / German / Italian / Spanish (2026-10-01 —
+///      a different prologue, so the shared signature never matched it: silent in FIGS)
+/// Each is hooked at its constant address (ASLR is off) after a prologue check; the log names
 /// which one fires.
 ///
 /// Space/OK/Delete are bottom BUTTONS (controller-bound), not grid cells.
 /// </summary>
 internal unsafe class NameEntryKeyboard : IDisposable
 {
-    private static readonly nint[] RenderVAs = { unchecked((nint)0x1403EF020L), unchecked((nint)0x1403FA570L) };
-    private const string RenderSig = "48 89 5C 24 18 48 89 6C 24 20 56 57 41 56 48 83 EC 50 48 8B D9";
+    private static readonly (nint Va, string Sig)[] Renderers =
+    {
+        (unchecked((nint)0x1403EF020L), "48 89 5C 24 18 48 89 6C 24 20 56 57 41 56 48 83 EC 50 48 8B D9"),
+        (unchecked((nint)0x1403FA570L), "48 89 5C 24 18 48 89 6C 24 20 56 57 41 56 48 83 EC 50 48 8B D9"),
+        (unchecked((nint)0x140400F40L), "48 89 5C 24 18 55 56 57 48 83 EC 50 48 8B D9"),
+    };
+    private const int FigsRenderer = 2;
+
+    // The European screen's work is only 0x2218 bytes (the +0x3100 field below is outside it); its
+    // name cursor is a static instead: 0..7 = the top line (last name), 8+ = the bottom line (first
+    // name). Live-verified in Spanish 2026-10-01 ("Escribe tu apellido" / "Escribe tu nombre").
+    private const long FigsNameCursorVA = 0x1451D28E0L;
 
     // 7 rows × 20 cols.  null = empty / no key.  (English fallback only.)
     private static readonly string?[,] CharMap =
@@ -99,7 +112,7 @@ internal unsafe class NameEntryKeyboard : IDisposable
         ["ー"] = "long vowel mark", ["々"] = "repeat mark", ["、"] = "comma", ["。"] = "period",
     };
 
-    private readonly List<IHook<RenderDelegate>> _hooks = new();
+    private readonly IHook<RenderDelegate>?[] _hooks = new IHook<RenderDelegate>?[Renderers.Length];
     private int _lastCol = -1;
     private int _lastRow = -1;
     private bool _sourceLogged;
@@ -115,9 +128,10 @@ internal unsafe class NameEntryKeyboard : IDisposable
     {
         [FieldOffset(0x20)]   public int Col;
         [FieldOffset(0x24)]   public int Row;
-        // Active name field: 1 = Last name (top row), 2 = First name (bottom).
+        // Active name field: 2 = Last name (top row), 1 = First name (bottom) — see FieldName.
         // Found via live diagnostic — flips exactly when the name-cell cursor
         // (Q/E) crosses between the two rows; unchanged on within-row moves.
+        // Japanese/English screen only: the European work is smaller (AnnounceField).
         [FieldOffset(0x3100)] public int Field;
     }
 
@@ -125,27 +139,28 @@ internal unsafe class NameEntryKeyboard : IDisposable
 
     internal NameEntryKeyboard(IReloadedHooks hooks)
     {
-        // Sanity: the first bytes of each constant address must still match the signature
+        // Sanity: the first bytes of each constant address must still match its signature
         // (guards against a different game build). Hook every renderer that does.
-        var sigBytes = RenderSig.Split(' ').Select(h => Convert.ToByte(h, 16)).ToArray();
-        byte* probe = stackalloc byte[sigBytes.Length];
-        for (int i = 0; i < RenderVAs.Length; i++)
+        int hooked = 0;
+        byte* probe = stackalloc byte[32];
+        for (int i = 0; i < Renderers.Length; i++)
         {
-            nint va = RenderVAs[i];
+            var (va, sig) = Renderers[i];
+            var sigBytes = sig.Split(' ').Select(h => Convert.ToByte(h, 16)).ToArray();
             if (!TryReadRaw(va, probe, sigBytes.Length)) { Log($"[NameEntry] renderer {i} @0x{va:X} unreadable — skipped"); continue; }
             bool ok = true;
             for (int b = 0; b < sigBytes.Length; b++) if (probe[b] != sigBytes[b]) { ok = false; break; }
             if (!ok) { Log($"[NameEntry] renderer {i} @0x{va:X} does not match the signature — skipped"); continue; }
             int which = i;
-            var h = hooks.CreateHook<RenderDelegate>((o, a, b, c) => OnRender(which, o, a, b, c), va).Activate();
-            _hooks.Add(h);
+            _hooks[i] = hooks.CreateHook<RenderDelegate>((o, a, b, c) => OnRender(which, o, a, b, c), va).Activate();
+            hooked++;
         }
-        Log($"Name entry keyboard render hook active ({_hooks.Count} renderer(s)).");
+        Log($"Name entry keyboard render hook active ({hooked} renderer(s)).");
     }
 
     private void OnRender(int which, KbdOuter* pOuter, nint p2, nint p3, nint p4)
     {
-        _hooks[which].OriginalFunction(pOuter, p2, p3, p4);
+        _hooks[which]!.OriginalFunction(pOuter, p2, p3, p4);
         try { Handle(which, pOuter); } catch (Exception e) { Log($"[NameEntry] {e.Message}"); }
     }
 
@@ -167,7 +182,7 @@ internal unsafe class NameEntryKeyboard : IDisposable
             Speech.Say("Enter your name. Last name first. Press X when finished.", true);
         }
 
-        AnnounceField(inner); // "Last name" / "First name" when the row changes
+        AnnounceField(which, inner); // "Last name" / "First name" when the row changes
 
         if (col == _lastCol && row == _lastRow) return;
         _lastCol = col;
@@ -207,11 +222,22 @@ internal unsafe class NameEntryKeyboard : IDisposable
     private static string FieldName(int f) => f == 2 ? "Last name" : "First name";
 
     // Announce the field name whenever the active field changes (the field at
-    // +0x3100 flips 1<->2 as the cell cursor crosses between the two rows).
-    private void AnnounceField(KbdInner* inner)
+    // +0x3100 flips 1<->2 as the cell cursor crosses between the two rows; the
+    // European screen keeps a 0..15 name cursor in a static instead).
+    private void AnnounceField(int which, KbdInner* inner)
     {
-        if (!IsReadable((long)inner + 0x3100)) return;
-        int f = inner->Field;
+        int f;
+        if (which == FigsRenderer)
+        {
+            int cursor;
+            if (!TryReadRaw((nint)FigsNameCursorVA, &cursor, 4) || cursor < 0 || cursor > 15) return;
+            f = cursor < 8 ? 2 : 1;   // top line = last name
+        }
+        else
+        {
+            if (!IsReadable((long)inner + 0x3100)) return;
+            f = inner->Field;
+        }
         if (f != 1 && f != 2) return;
         if (f == _lastField) return;
         _lastField = f;
@@ -223,6 +249,6 @@ internal unsafe class NameEntryKeyboard : IDisposable
 
     public void Dispose()
     {
-        foreach (var h in _hooks) h.Disable();
+        foreach (var h in _hooks) h?.Disable();
     }
 }

@@ -27,11 +27,9 @@ internal static class StairsPlan
 {
     internal enum Result { Ok, NoStairs, NoRoute }
 
-    private const float DoorSnapUnits = 900f;   // a room-boundary crossing adopts a door within this range
-                                                // (650 missed a door offset along a wide Heaven cell edge —
-                                                // cells are 1200u, so a boundary door can sit ~600 from the
-                                                // crossing midpoint; 2026-07-18 give-up beside the left door)
     private const float DoorStandoff = 220f;    // crossing waypoints sit this far in FRONT of / beyond the gap
+    private const float DoorOnEdgeUnits = 300f;     // a crossing's door lies within this of the shared edge line
+    private const float DoorAlongEdgeUnits = 700f;  // ...and within this along it (edge half-length 600 + slack)
 
     /// <summary>Stairs plan (v1 semantics): route to the nearest stairs, stopping at
     /// the door INTO the stairs' room. Thin wrapper over <see cref="TryPlanTo"/>.</summary>
@@ -43,6 +41,64 @@ internal static class StairsPlan
         if (!GridRouter.FindNearestStairs(px, pz, out stairsX, out stairsZ)) return Result.NoStairs;
         return TryPlanTo(px, pz, stairsX, stairsZ, blocked, stopAtTargetRoomDoor: true,
                          doorTarget: false, out waypoints, out sameRoom);
+    }
+
+    /// <summary>Does the door at (dx,dz) sit ON the boundary between cells A and B? Score (lower =
+    /// better) or MaxValue. Since the 2026-09-29 grid-center fix, cell centers are exact, so a real
+    /// crossing door lies on the shared edge line (≤300u off it) within the edge's span (≤700u
+    /// along it). The old "nearest door within 900u of the midpoint" rule compensated for the
+    /// 333u grid offset and ADOPTED DOORS ON THE WRONG WALL (Marukyu 2F: a (5,1)→(6,1) crossing
+    /// took the east door at (1800,6000) → five NoRoute retreats → "Couldn't get through").</summary>
+    private static float CrossingDoorScore(float dx, float dz, float cax, float caz, float cbx, float cbz)
+    {
+        float mx = (cax + cbx) * 0.5f, mz = (caz + cbz) * 0.5f;
+        bool zCross = MathF.Abs(cbz - caz) > MathF.Abs(cbx - cax);
+        float across = zCross ? MathF.Abs(dz - mz) : MathF.Abs(dx - mx);   // off the edge line
+        float along  = zCross ? MathF.Abs(dx - mx) : MathF.Abs(dz - mz);   // along the edge
+        if (across > DoorOnEdgeUnits || along > DoorAlongEdgeUnits) return float.MaxValue;
+        return across + along;
+    }
+
+    /// <summary>ROOM INTERIOR (2026-09-29, Heaven): path cell i sits INSIDE a multi-cell room when
+    /// both its path neighbours share its roomId — skip its center so the walk crosses the room in a
+    /// straight line from where it enters to where it leaves. Heaven's walkways are DIAGONAL bands
+    /// inside square room footprints: visiting every cell center zig-zagged the player into the
+    /// bridge ledges (Paradise #1: five NoRoute retreats at one center). 1-cell corridor rooms still
+    /// turn at their centers (never interior), and stairs blocks keep every center (their one
+    /// roomId hides internal walls — GridWalk.Connected).</summary>
+    // Per walk thread: the drive turns room smoothing OFF (cell-by-cell for the rest of the walk)
+    // after its first stall on a smoothed plan — a straight line across a room can hit furniture
+    // (Secret Lab B1F consoles: five NoRoute retreats on a diagonal across a 3×3 room).
+    [ThreadStatic] internal static bool NoRoomSmoothing;
+    [ThreadStatic] internal static bool LastPlanSmoothed;
+
+    private static bool IsRoomInterior(List<(int r, int c)> path, int i)
+    {
+        if (NoRoomSmoothing) return false;
+        if (i <= 0 || i >= path.Count - 1) return false;
+        ushort rid = GridWalk.RoomIdOf(path[i].r, path[i].c);
+        if (rid == 0) return false;
+        if (GridWalk.RoomIdOf(path[i - 1].r, path[i - 1].c) != rid || GridWalk.RoomIdOf(path[i + 1].r, path[i + 1].c) != rid) return false;
+        return !(MinimapTracker.ReadCell(path[i].r, path[i].c, out var cell) && GridRouter.IsStairSprite(cell.Sprite));
+    }
+
+    /// <summary>Unwalkable cell → the walkable 8-neighbour whose centre is nearest (x,z).</summary>
+    private static void SnapToWalkable(float x, float z, ref int r, ref int c)
+    {
+        if (GridWalk.IsWalkable(r, c)) return;
+        int br = r, bc = c; float best = float.MaxValue;
+        for (int dr = -1; dr <= 1; dr++)
+            for (int dc = -1; dc <= 1; dc++)
+            {
+                if (dr == 0 && dc == 0) continue;
+                int nr = r + dr, nc = c + dc;
+                if (!GridWalk.IsWalkable(nr, nc)) continue;
+                if (!MinimapTracker.CellToWorld(nr, nc, out float cx, out float cz)) continue;
+                float d = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+                if (d < best) { best = d; br = nr; bc = nc; }
+            }
+        if (br != r || bc != c) Utils.Log($"[StairsPlan] cell ({r},{c}) not walkable — snapped to ({br},{bc})");
+        r = br; c = bc;
     }
 
     /// <summary>General door-woven centerline plan player→(tx,tz) — the v2 drive's
@@ -60,10 +116,29 @@ internal static class StairsPlan
 
         if (!MinimapTracker.WorldToCell(px, pz, out int r0, out int c0)) return Result.NoRoute;
         if (!MinimapTracker.WorldToCell(tx, tz, out int r1, out int c1)) return Result.NoRoute;
+        // A corridor tile can straddle its cell's edge, so the body may stand over the
+        // NEIGHBOURING cell, which reads as boundary → "No route to the stairs." from inside a
+        // real corridor (Bathhouse B1, 2026-09-29). Snap to the nearest walkable neighbour.
+        SnapToWalkable(px, pz, ref r0, ref c0);
+        SnapToWalkable(tx, tz, ref r1, ref c1);
 
         ushort targetRoom = GridWalk.RoomIdOf(r1, c1);
         ushort playerRoom = GridWalk.RoomIdOf(r0, c0);
         sameRoom = targetRoom != 0 && targetRoom == playerRoom;
+
+        // ★ PREFAB COLLISION FIRST (2026-09-30): the fine planner walks the real corridors of the
+        // placed room prefabs; it refuses floors it cannot vouch for → the coarse plan below.
+        LastPlanSmoothed = false;
+        TileGrid.LastPlanFine = false;
+        if (!stopAtTargetRoomDoor && TileGrid.TryPlan(px, pz, tx, tz, blocked, doorTarget, out var fine))
+        {
+            TileGrid.LastPlanFine = true;
+            waypoints = fine;
+            return Result.Ok;
+        }
+        // Reachable ONLY through a locked door: never hand this to the coarse plan (it keeps the direct
+        // route through the lock and grinds the door) — the caller tells the player.
+        if (TileGrid.LastLockedBlock) return Result.NoRoute;
 
         var path = new List<(int r, int c)>();
         if (!GridWalk.TryCellPath(r0, c0, r1, c1, path, blocked)) return Result.NoRoute;
@@ -88,9 +163,8 @@ internal static class StairsPlan
                         if (GridWalk.RoomIdOf(ar, ac) == GridWalk.RoomIdOf(br, bc)) continue;
                         if (!MinimapTracker.CellToWorld(ar, ac, out float cax, out float caz)) continue;
                         if (!MinimapTracker.CellToWorld(br, bc, out float cbx, out float cbz)) continue;
-                        float mx = (cax + cbx) * 0.5f, mz = (caz + cbz) * 0.5f;
                         foreach (var (lx, lz) in lockedDoors)
-                            if ((lx - mx) * (lx - mx) + (lz - mz) * (lz - mz) < DoorSnapUnits * DoorSnapUnits) { bad = i; break; }
+                            if (CrossingDoorScore(lx, lz, cax, caz, cbx, cbz) < float.MaxValue) { bad = i; break; }
                     }
                     if (bad < 0) break;
                     var (fr, fc) = path[bad + 1];
@@ -143,18 +217,19 @@ internal static class StairsPlan
         {
             var (ar, ac) = path[i];
             var (br, bc) = path[i + 1];
-            if (i > 0 && MinimapTracker.CellToWorld(ar, ac, out float awx, out float awz))
+            bool interior = i > 0 && IsRoomInterior(path, i);
+            if (interior) LastPlanSmoothed = true;
+            if (i > 0 && !interior && MinimapTracker.CellToWorld(ar, ac, out float awx, out float awz))
                 waypoints.Add((awx, awz));
 
             if (GridWalk.RoomIdOf(ar, ac) == GridWalk.RoomIdOf(br, bc)) continue;
             if (!MinimapTracker.CellToWorld(ar, ac, out float cax, out float caz)) continue;
             if (!MinimapTracker.CellToWorld(br, bc, out float cbx, out float cbz)) continue;
-            float mx = (cax + cbx) * 0.5f, mz = (caz + cbz) * 0.5f;
-            int di = -1; float bestD2 = DoorSnapUnits * DoorSnapUnits;
+            int di = -1; float bestD = float.MaxValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                float ex = doors[d].x - mx, ez = doors[d].z - mz, d2 = ex * ex + ez * ez;
-                if (d2 < bestD2) { bestD2 = d2; di = d; }
+                float sc = CrossingDoorScore(doors[d].x, doors[d].z, cax, caz, cbx, cbz);
+                if (sc < bestD) { bestD = sc; di = d; }
             }
             if (di < 0) continue;                       // doorless archway — plain leg is fine
             var (dx, dz) = doors[di];

@@ -56,6 +56,8 @@ internal class AutoWalker
     private const int DoorPushMs = 2500;           // straight-into-the-door push budget
     private const int DoorThroughMs = 3000;        // max time ignoring the frame while passing through
     private const float StallArriveUnits = 480f;   // blocked this close = at the target
+    private const float GridlessArriveUnits = 220f;      // lobby/hub: a lit prompt this close to the TARGET = arrived
+    private const float GridlessStallArriveUnits = 420f; // lobby/hub: stalled this close = at it (door triggers sit inside the frame)
 
     private const float TurnSpeechDeg = 30f;
     private const int NoProgressMs = 2000;
@@ -83,17 +85,38 @@ internal class AutoWalker
     private const int SwingIntervalMs = 450;
 
     private static volatile bool _active;
-    private static volatile bool _cancelRequested;
+    private static volatile bool _cancelFlag;
+    // A walk thread's own generation; an ABANDONED thread (older generation) always reads
+    // "cancelled", so if it ever wakes it stops instead of steering alongside the new walk.
+    [ThreadStatic] private static int _threadGen;
+    private static bool _cancelRequested
+    {
+        get => _cancelFlag || (_threadGen != 0 && _threadGen != _gen);
+        set => _cancelFlag = value;
+    }
     private static long _startTick;
 
     // Camera-forward sign, measured by CalibrateSign at each walk start.
     private static float _camSign = 1f;
 
-    internal static bool IsActive => _active;
+    // STUCK-WALK SAFETY NET (2026-09-29 playtest): once, every Backspace was silently eaten for a
+    // whole session — a walk thread never finished, so IsActive stayed true and each press only
+    // "cancelled" it. A walk that has not ended 3 s after a cancel is now ABANDONED: IsActive
+    // turns false, the next Launch starts fresh, and the abandoned thread's cleanup is ignored
+    // (generation check) so it can never clear the new walk's state.
+    private static long _cancelTick;
+    private static volatile int _gen;
+    private const long AbandonAfterCancelMs = 3000;
+    private static bool Abandoned => _cancelFlag && Environment.TickCount64 - _cancelTick > AbandonAfterCancelMs;
+    internal static bool IsActive => _active && !Abandoned;
     internal static long AgeMs => Environment.TickCount64 - _startTick;
 
     /// <summary>Request a stop from outside (DungeonNav's Backspace-while-walking).</summary>
-    internal static void Cancel() => _cancelRequested = true;
+    internal static void Cancel()
+    {
+        if (!_cancelFlag) _cancelTick = Environment.TickCount64;
+        _cancelFlag = true;
+    }
 
     /// <summary>Start walking to a world target. One walk at a time.</summary>
     internal static void Start(string label, float tx, float tz, (float x, float z)? approach = null)
@@ -191,9 +214,44 @@ internal class AutoWalker
     // genuine manual override.
     private static readonly bool[] _cancelArmed = new bool[5];
 
-    private static void Launch(Action body, bool stairsTarget = false)
+    // BATTLE RESUME OFFER (2026-09-30, nav pt2 item 3): a walk stopped by a battle leaves its target
+    // here; DungeonNav speaks "Backspace continues to X" once the floor is back (same floor, quiet).
+    private static string? _resumeLabel;
+    private static int _launchFloor;
+    private static string? _pendingResume;
+    private static int _pendingFloor;
+    private static long _pendingMs;
+
+    /// <summary>One-shot: true once per battle-interrupted walk when the player is back on the same
+    /// floor, the area has settled (&gt;2.5 s) and no dialogue drew for 1.5 s. Stale offers (another
+    /// floor, &gt;5 min) are dropped silently.</summary>
+    internal static bool TryTakeResumeOffer(out string label)
     {
-        if (_active) return;
+        label = "";
+        var p = _pendingResume;
+        if (p == null) return false;
+        int major = FieldTracker.CurrentMajor, floor = major * 1000 + FieldTracker.CurrentMinor;
+        if (FieldTracker.IsBattleMajor(major)) return false;
+        long now = Environment.TickCount64;
+        if (floor != _pendingFloor || now - _pendingMs > 300_000) { _pendingResume = null; return false; }
+        if (now - FieldTracker.LastAreaChangeMs < 2500 || now - Dialogue.LastDialogTick < 1500 || _active) return false;
+        _pendingResume = null;
+        label = p;
+        return true;
+    }
+
+    private static void Launch(Action body, bool stairsTarget = false, string? resumeLabel = null)
+    {
+        _resumeLabel = resumeLabel;
+        _pendingResume = null;
+        _launchFloor = FieldTracker.CurrentMajor * 1000 + FieldTracker.CurrentMinor;
+        if (_active)
+        {
+            if (!Abandoned) return;
+            Log("[AutoWalker] previous walk did not stop after cancel — abandoning it");
+            ReleaseAll();
+        }
+        int myGen = ++_gen;
         _active = true;
         _cancelRequested = false;
         // STAIRS FOOTPRINT MASK exemption: only a stairs walk may route into a
@@ -208,13 +266,19 @@ internal class AutoWalker
         _startTick = Environment.TickCount64;
         new Thread(() =>
         {
+            _threadGen = myGen;
+            TileGrid.ResetWalk();
             try { body(); }
             catch (Exception ex)
             {
                 Log($"[AutoWalker] error: {ex.GetType().Name}: {ex.Message}");
                 Speech.Say("Auto-walk failed.", true);
             }
-            finally { ReleaseAll(); DungeonGrid.StairsAreTarget = false; _active = false; }
+            finally
+            {
+                if (myGen == _gen) { ReleaseAll(); DungeonGrid.StairsAreTarget = false; _active = false; }
+                else Log("[AutoWalker] an abandoned walk thread finally ended");
+            }
         }) { IsBackground = true, Name = "AutoWalker" }.Start();
     }
 
@@ -309,7 +373,7 @@ internal class AutoWalker
     private const float WalkVeerK = 1.0f;             // veer strength when a wall is close ahead
 
     /// <summary>Backspace on the Exits/Stairs selection: walk to the stairs' room door.</summary>
-    internal static void WalkToStairs() => Launch(StairsBody, stairsTarget: true);
+    internal static void WalkToStairs() => Launch(StairsBody, stairsTarget: true, resumeLabel: "the stairs");
 
     /// <summary>Target kinds for the v2 walk — the drive is identical; only the
     /// final approach and arrival announcement differ.</summary>
@@ -320,7 +384,7 @@ internal class AutoWalker
     /// per-kind final approach the old walkers had (chest = ease onto CHECK; door
     /// = stop centered in front; spot = arrive + prompt note).</summary>
     internal static void WalkTarget(string label, float tx, float tz, TargetKind kind)
-        => Launch(() => TargetBody(label, tx, tz, kind));
+        => Launch(() => TargetBody(label, tx, tz, kind), resumeLabel: SpokenTarget(label));
 
     /// <summary>v2 shadow walk: drive near the shadow (re-acquired on every
     /// replan — they move), then hand off to the proven back-strike Hunt.</summary>
@@ -333,28 +397,203 @@ internal class AutoWalker
 
     private static void StairsBody()
     {
+        // ALL THE WAY TO THE STAIRCASE (2026-09-29 playtest): the v1 walk stopped at the
+        // stairs area's mouth and said "Check nearest door" — on Marukyu 1F that left the
+        // player 9 steps short with NO door there. The target is now the staircase itself
+        // (GridRouter.FindNearestStairs = the stairs block snapped to its lone scene object);
+        // doors on the way open through the drive's normal door ladder, and the walk eases
+        // onto the game's CHECK prompt like a chest. The walker never presses at the stairs
+        // (StairsPromptRisk keeps the stall press off it) — the player takes the stairs.
         var blocked = new HashSet<int>();
-        float sx = 0, sz = 0;
+        float px0 = FieldTracker.LivePlayerX, pz0 = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px0) || !GridRouter.FindNearestStairsBlock(px0, pz0, out var blk))
+        { Speech.Say("Stairs not found. Explore more.", true); return; }
+        float sx = blk.TX, sz = blk.TZ;
         StairsPlan.Result Planner(float ppx, float ppz, HashSet<int> blk,
             out List<(float x, float z)> w, out bool same)
-            => StairsPlan.TryPlan(ppx, ppz, blk, out w, out same, out sx, out sz);
+            => StairsPlan.TryPlanTo(ppx, ppz, sx, sz, blk, stopAtTargetRoomDoor: false,
+                                    doorTarget: false, out w, out same);
 
-        var res = Planner(FieldTracker.LivePlayerX, FieldTracker.LivePlayerZ, blocked,
-                          out var wps, out bool sameRoom);
-        if (res == StairsPlan.Result.NoStairs) { Speech.Say("Stairs not found. Explore more.", true); return; }
-        if (res == StairsPlan.Result.NoRoute || wps.Count == 0) { Speech.Say("No route to the stairs.", true); return; }
+        var res = Planner(px0, pz0, blocked, out var wps, out bool sameRoom);
+        if (res != StairsPlan.Result.Ok || wps.Count == 0)
+        {
+            Speech.Say(TileGrid.LastLockedBlock ? "The stairs are behind a locked door. Find its key first." : "No route to the stairs.", true);
+            Log($"[AutoWalker] stairs walk: no route (lockedBlock={TileGrid.LastLockedBlock})");
+            return;
+        }
         Speech.Say("Walking to the stairs.", true);
-        Log($"[AutoWalker] stairs walk: {wps.Count} cells, sameRoom={sameRoom}, stairs=({sx:F0},{sz:F0})");
+        Log($"[AutoWalker] stairs walk: {wps.Count} waypoints, sameRoom={sameRoom}, stairs=({sx:F0},{sz:F0}) "
+            + $"known={blk.Known} sprite=0x{blk.Sprite:X2} rot={blk.Rot} center=({blk.BX:F0},{blk.BZ:F0})");
         CalibrateSign();
         FieldTracker.SetWalkProbe(true);   // live wall sensing on the game thread
         try
         {
-            if (!DriveRoute(Planner, ref wps, ref sameRoom, blocked,
-                            StairsNearUnits, StairsFinalDoorUnits, "stairs")) return;
-            Speech.Say(sameRoom ? "Arrived. The stairs are near." : "Arrived. Check nearest door.", true);
-            Log("[AutoWalker] stairs walk: arrived");
+            float arrive = blk.Known ? FinalTolUnits : StairsNearUnits;
+            _quietGiveUp = true; _gaveUp = null;
+            bool drove;
+            try { drove = DriveRoute(Planner, ref wps, ref sameRoom, blocked, arrive, arrive, "stairs", lastStallArrive: 800f); }
+            finally { _quietGiveUp = false; }
+            if (!drove)
+            {
+                if (_gaveUp == null) return;   // cancel / battle / area change — already announced
+                float gx = FieldTracker.LivePlayerX, gz = FieldTracker.LivePlayerZ;
+                bool nearStairs = !float.IsNaN(gx) && (gx - sx) * (gx - sx) + (gz - sz) * (gz - sz) < 1800f * 1800f;
+                if (!nearStairs) { Announce(_gaveUp); return; }
+                // Stuck RIGHT BESIDE the staircase (Bathhouse Bath #1: its steps only climb from
+                // one side) — that's not "couldn't get through"; try for the prompt, then say so.
+                Log($"[AutoWalker] stairs walk: stuck beside the stairs ({_gaveUp}) — searching for the prompt");
+                bool near = TurnInPlaceForPrompt() || SearchStairsPrompt(blk);
+                Speech.Say(near ? "At the stairs. Press to go to the next floor."
+                                : "The stairs are right here, but I can't find the way onto them. Try walking around them.", true);
+                Log($"[AutoWalker] stairs walk: ended beside the stairs (prompt={near})");
+                return;
+            }
+            bool chk = EaseOntoPrompt(sx, sz, stopDist: 40f, pushPast: 200f) && !DoorNearPlayer(400f);
+            if (!chk) chk = TurnInPlaceForPrompt();
+            if (!chk) chk = SearchStairsPrompt(blk);
+            Speech.Say(chk ? "At the stairs. Press to go to the next floor." : "In the stairs room. The stairs are close.", true);
+            Log($"[AutoWalker] stairs walk: arrived (prompt={chk})");
         }
         finally { FieldTracker.SetWalkProbe(false); }
+    }
+
+    /// <summary>Generic kind labels read as "the door" / "the open door" / "the marker"; a NAME
+    /// keeps its capitals (NVDA read "Walking to yukiko" and "Walking to Open door", 2026-09-29).</summary>
+    private static string SpokenTarget(string label) => label switch
+    {
+        "Door" or "Open door" or "Locked door" or "Stairs" or "Chest" or "Marker" or "Unmapped marker"
+            => "the " + label.ToLowerInvariant(),
+        _ => label,
+    };
+
+    // STAIRS SEARCH (2026-09-29): the stairs block's center is the stairs ROOM's center, not
+    // the staircase — Castle 1F's staircase foot lit the CHECK prompt at (+650,−430) from it,
+    // and the room's door sat on a different side in each layout. So from the center, probe
+    // outward (diagonals first — a staircase sits toward a corner) until the prompt lights;
+    // a prompt with a door close by is the DOOR's, never taken for the stairs. The direction
+    // that worked is tried first next time (per stairs sprite = per dungeon).
+    private static readonly Dictionary<byte, int> _stairsDirHint = new();
+    // 12 directions (30° apart): the Castle staircase sits ~33° off a diagonal, and an
+    // 8-way probe passed ~200u beside it twice without lighting the prompt.
+    private static readonly (float x, float z)[] StairsProbeDirs = BuildProbeDirs(12);
+    private static (float x, float z)[] BuildProbeDirs(int n)
+    {
+        var d = new (float x, float z)[n];
+        for (int i = 0; i < n; i++) { float a = MathF.PI / 4f + i * 2f * MathF.PI / n; d[i] = (MathF.Cos(a), MathF.Sin(a)); }
+        return d;
+    }
+    private const float StairsProbeUnits = 900f;
+
+    private static bool SearchStairsPrompt(GridRouter.StairsBlock blk)
+    {
+        float cx = blk.CX, cz = blk.CZ;
+        byte sprite = blk.Sprite;
+        int start = _stairsDirHint.TryGetValue(sprite, out int h) ? h : 0;
+        long deadline = Environment.TickCount64 + 20000;   // never more than ~20 s of searching
+        for (int k = 0; k < StairsProbeDirs.Length && Environment.TickCount64 < deadline; k++)
+        {
+            int i = (start + k) % StairsProbeDirs.Length;
+            var (ux, uz) = StairsProbeDirs[i];
+            if (ProbeForPrompt(cx + ux * StairsProbeUnits, cz + uz * StairsProbeUnits, 1600))
+            {
+                _stairsDirHint[sprite] = i;
+                Log($"[AutoWalker] stairs search: prompt toward dir {i} ({ux:F2},{uz:F2}) sprite=0x{sprite:X2}");
+                float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+                if (blk.Full && !float.IsNaN(px)) GridRouter.LearnStairsOffset(sprite, blk.Rot, px - blk.BX, pz - blk.BZ);
+                return true;
+            }
+            if (_cancelRequested || !Utils.GameHasFocus()) return false;
+            DriveToward(cx, cz, 150f, 1400);   // back to the room center before the next try
+        }
+        Log("[AutoWalker] stairs search: no prompt in any direction");
+        return false;
+    }
+
+    /// <summary>The stairs prompt lights only while FACING the staircase from its front (Bathhouse:
+    /// lit the moment the body turned west, 60u from where the walk had stopped facing north).
+    /// Nudge ~300u toward each of 8 directions and come back, stopping on a non-door prompt.</summary>
+    private static bool TurnInPlaceForPrompt()
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px)) return false;
+        for (int k = 0; k < 8; k++)
+        {
+            float a = k * MathF.PI / 4f;
+            if (ProbeForPrompt(px + MathF.Cos(a) * 300f, pz + MathF.Sin(a) * 300f, 450))
+            {
+                Log($"[AutoWalker] stairs: prompt after turning toward {k * 45}°");
+                return true;
+            }
+            if (_cancelRequested || !Utils.GameHasFocus()) return false;
+            DriveToward(px, pz, 80f, 500);
+        }
+        return false;
+    }
+
+    /// <summary>Drive toward (tx,tz) for up to maxMs; true the moment a NON-door CHECK prompt lights.</summary>
+    private static bool ProbeForPrompt(float tx, float tz, int maxMs)
+    {
+        int maj0 = FieldTracker.CurrentMajor, min0 = FieldTracker.CurrentMinor;
+        var s = new Steerer();
+        long until = Environment.TickCount64 + maxMs;
+        while (Environment.TickCount64 < until)
+        {
+            Thread.Sleep(PollMs);
+            if (_cancelRequested || !Utils.GameHasFocus() || FieldInterrupted(maj0, min0)) break;
+            if (FieldTracker.CheckPromptActive && !DoorNearPlayer(400f)) { s.Release(); return true; }
+            float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+            if (float.IsNaN(px) || float.IsNaN(pz)) continue;
+            float dx = tx - px, dz = tz - pz;
+            if (dx * dx + dz * dz <= 120f * 120f) break;
+            if (s.Tick(px, pz, dx, dz) == Steerer.Ev.CamLost) break;
+        }
+        s.Release();
+        return FieldTracker.CheckPromptActive && !DoorNearPlayer(400f);
+    }
+
+    private static bool DoorNearPlayer(float range)
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px)) return false;
+        try
+        {
+            foreach (var (x, z) in DungeonNav.Doors())
+                if ((x - px) * (x - px) + (z - pz) * (z - pz) < range * range) return true;
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>Final approach shared by chests and stairs: creep toward (tx,tz) until the
+    /// game's CHECK prompt lights (≤2.5 s, never presses). True when the prompt is up.</summary>
+    private static bool EaseOntoPrompt(float tx, float tz, float stopDist = -1f, float pushPast = 0f)
+    {
+        float pitch = GridRouter.CellPitch(); if (pitch <= 0) pitch = WorldPerStep * 5f;
+        float stop = stopDist >= 0f ? stopDist : pitch * 0.18f;
+        int maj0 = FieldTracker.CurrentMajor, min0 = FieldTracker.CurrentMinor;
+        // pushPast: aim a little BEYOND the point along the approach — the stairs prompt only
+        // lights once the player has stepped UP onto the stair platform, which the old 216u
+        // "close enough" stopped short of (Castle 1F: prompt 48u from the predicted point, yet
+        // the walk stood still 160u away, 2026-09-29).
+        float ax = tx, az = tz;
+        {
+            float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+            float dx = tx - px, dz = tz - pz, l = MathF.Sqrt(dx * dx + dz * dz);
+            if (pushPast > 0f && !float.IsNaN(px) && l > 1f) { ax = tx + dx / l * pushPast; az = tz + dz / l * pushPast; }
+        }
+        long til = Environment.TickCount64 + 2500;
+        bool chk = FieldTracker.CheckPromptActive;
+        while (!chk && Environment.TickCount64 < til && !_cancelRequested && Utils.GameHasFocus()
+               && !FieldInterrupted(maj0, min0))
+        {
+            float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+            if (float.IsNaN(px)) break;
+            if ((ax - px) * (ax - px) + (az - pz) * (az - pz) <= stop * stop) break;
+            DriveToward(ax, az, MathF.Min(stop, pitch * 0.12f), 300);
+            chk = FieldTracker.CheckPromptActive;
+        }
+        ReleaseAll();
+        return chk;
     }
 
     private static void TargetBody(string label, float tx, float tz, TargetKind kind)
@@ -364,7 +603,7 @@ internal class AutoWalker
         // straight-line walker, the lobby behavior since 2026-06-17
         // (memory/dungeon_lobby_places.md). Lobbies are open floors with
         // walk-up interactables; the straight-liner is the right tool there.
-        if (!GridRouter.HasGrid()) { Walk(label, tx, tz, null); return; }
+        if (!GridRouter.HasGrid() || DungeonNav.IsLobby) { Walk(label, tx, tz, null); return; }
 
         var blocked = new HashSet<int>();
         StairsPlan.Result Planner(float ppx, float ppz, HashSet<int> blk,
@@ -374,8 +613,13 @@ internal class AutoWalker
 
         var res = Planner(FieldTracker.LivePlayerX, FieldTracker.LivePlayerZ, blocked,
                           out var wps, out bool sameRoom);
-        if (res != StairsPlan.Result.Ok || wps.Count == 0) { Speech.Say($"No route to {label}.", true); return; }
-        Speech.Say($"Walking to {label}.", true);
+        if (res != StairsPlan.Result.Ok || wps.Count == 0)
+        {
+            Speech.Say(TileGrid.LastLockedBlock ? $"{char.ToUpper(SpokenTarget(label)[0])}{SpokenTarget(label)[1..]} is behind a locked door." : $"No route to {SpokenTarget(label)}.", true);
+            Log($"[AutoWalker] target walk: no route to {label} (lockedBlock={TileGrid.LastLockedBlock})");
+            return;
+        }
+        Speech.Say($"Walking to {SpokenTarget(label)}.", true);
         Log($"[AutoWalker] target walk ({kind}) {label} ({tx:F0},{tz:F0}): {wps.Count} waypoints");
         CalibrateSign();
         FieldTracker.SetWalkProbe(true);
@@ -389,27 +633,14 @@ internal class AutoWalker
             {
                 // Ease onto the openable spot until the game's CHECK prompt shows
                 // (the proven TravelToChest tail — the player presses to open).
-                float pitch = GridRouter.CellPitch(); if (pitch <= 0) pitch = WorldPerStep * 5f;
-                int maj0 = FieldTracker.CurrentMajor, min0 = FieldTracker.CurrentMinor;
-                long til = Environment.TickCount64 + 2500;
-                bool chk = FieldTracker.CheckPromptActive;
-                while (!chk && Environment.TickCount64 < til && !_cancelRequested && Utils.GameHasFocus()
-                       && !FieldInterrupted(maj0, min0))
-                {
-                    float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
-                    if (float.IsNaN(px)) break;
-                    if ((tx - px) * (tx - px) + (tz - pz) * (tz - pz) <= (pitch * 0.18f) * (pitch * 0.18f)) break;
-                    DriveToward(tx, tz, pitch * 0.12f, 300);
-                    chk = FieldTracker.CheckPromptActive;
-                }
-                ReleaseAll();
+                bool chk = EaseOntoPrompt(tx, tz);
                 Speech.Say(chk ? "At the chest. Press to open." : "At the chest.", true);
             }
             else if (kind == TargetKind.Door)
                 Speech.Say(FieldTracker.CheckPromptActive ? "At the door. Press to open." : "At the door.", true);
             else
-                Speech.Say(FieldTracker.CheckPromptActive ? $"Reached {label}. Press to interact."
-                                                          : $"Reached {label}.", true);
+                Speech.Say(FieldTracker.CheckPromptActive ? $"Reached {SpokenTarget(label)}. Press to interact."
+                                                          : $"Reached {SpokenTarget(label)}.", true);
             Log($"[AutoWalker] target walk arrived: {label}");
         }
         finally { FieldTracker.SetWalkProbe(false); }
@@ -450,6 +681,16 @@ internal class AutoWalker
         if (arrived) Hunt(cx, cz);   // the proven back-strike hunt takes it from here
     }
 
+    /// <summary>DEBUG-only: the whole waypoint list, so a slow/failed walk can be read off the log
+    /// (2026-09-29 — the playtest could not tell WHERE a 4-reroute walk was stuck).</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void LogPlan(string what, List<(float x, float z)> w)
+    {
+        var sb = new System.Text.StringBuilder($"[WalkPlanDiag] {what}:");
+        foreach (var (x, z) in w) sb.Append($" ({x:F0},{z:F0})");
+        Log(sb.ToString());
+    }
+
     /// <summary>The SHARED v2 waypoint drive — every dungeon auto-walk runs on
     /// this one loop: turn-tight consumption, slide detection, and the stall
     /// ladder (prompt press → consume-if-close → door open + centered crossing →
@@ -457,14 +698,14 @@ internal class AutoWalker
     /// consumed; FALSE when stopped (cancel/battle/give-up — already announced).
     /// The caller owns start/arrival speech, the walk probe, and any final tail.</summary>
     private static bool DriveRoute(PlanFn replan, ref List<(float x, float z)> wps, ref bool sameRoom,
-        HashSet<int> blocked, float finalArriveSame, float finalArriveCross, string tag)
+        HashSet<int> blocked, float finalArriveSame, float finalArriveCross, string tag, float lastStallArrive = 0f)
     {
         int maj0 = FieldTracker.CurrentMajor, min0 = FieldTracker.CurrentMinor;
         // ONE continuous Steerer over the fine centerline waypoints — keys stay
         // pressed across cell boundaries (smooth), we only switch the target bearing.
         var steer = new Steerer();
         int wi = 0, reroutes = 0, slides = 0, slideRun = 0, noRouteCycles = 0;
-        int stallWi = -1, stallCount = 0, doorWi = -1, doorTries = 0;
+        int stallWi = -1, stallCount = 0, doorWi = -1, doorTries = 0, laneWi = -1;
         float best = float.MaxValue;
         long lastProgress = Environment.TickCount64;
         float lastPx = float.NaN, lastPz = float.NaN;
@@ -474,6 +715,7 @@ internal class AutoWalker
         // cut the corner into the corridor wall and the game's collision slid the
         // player 2400u off-route (B6F junction, 2026-07-17 log).
         bool[] bend = BendFlags(wps);
+        LogPlan($"{tag} plan", wps);
 
         while (wi < wps.Count)
         {
@@ -509,7 +751,7 @@ internal class AutoWalker
                 steer.Release();
                 var (wa, wl, wr) = FieldTracker.WalkProbe();
                 Log($"[AutoWalker] wall slide #{slides} at ({px:F0},{pz:F0}) wp{wi}=({wx:F0},{wz:F0}) probe a={wa:F0} l={wl:F0} r={wr:F0}");
-                if (slides > StairsMaxSlides) { Announce("Stopped. Kept sliding off the route."); return false; }
+                if (slides > StairsMaxSlides) { GiveUp("Stopped. Kept sliding off the route."); return false; }
                 Thread.Sleep(180);
                 // Re-target the NEAREST waypoint in a one-step window — the slide
                 // may have carried us past the turn or back down the corridor.
@@ -528,9 +770,22 @@ internal class AutoWalker
             if (dist < best - 20f) { best = dist; lastProgress = Environment.TickCount64; }
             else if (Environment.TickCount64 - lastProgress > StairsStallMs)
             {
-                // Stalled. A closed door ahead → open it and carry on.
+                // Stalled. A closed door ahead → open it and carry on. ⚠ ONLY when the lit
+                // prompt is (almost certainly) a real closed door's: the CHECK flag is GLOBAL,
+                // and a blind press here took the floor's EXIT back to the lobby 3/3 times
+                // (Bathhouse B1 start, 2026-09-29 playtest) — it would equally open a chest,
+                // talk to the Fox or open the save menu.
                 steer.Release();
-                if (FieldTracker.CheckPromptActive) { PressConfirm(); best = float.MaxValue; lastProgress = Environment.TickCount64; continue; }
+                // Stalled close to the FINAL point of a walk that allows it (the stairs: the Bathhouse
+                // staircase's steps stop the body ~700u short of the prompt spot) = arrived; the
+                // caller's tail finds the prompt from here.
+                if (last && lastStallArrive > 0f && dist <= lastStallArrive)
+                {
+                    Log($"[AutoWalker] {tag}: stalled {dist:F0}u from the final point — counting as arrived");
+                    return true;
+                }
+                if (FieldTracker.CheckPromptActive && StallPromptIsDoor(px, pz))
+                { PressConfirm(); best = float.MaxValue; lastProgress = Environment.TickCount64; continue; }
 
                 // Stalled ESSENTIALLY AT the waypoint (wedged on a prop/frame lip
                 // for the last few units) — that's arrival, not an obstacle.
@@ -576,8 +831,29 @@ internal class AutoWalker
                         stallWi = -1; stallCount = 0; slideRun = 0;
                         continue;
                     }
-                    Announce("Stopped. A door would not open.");
+                    GiveUp("Stopped. A door would not open.");
                     return false;
+                }
+
+                // LANE SEARCH (2026-09-29): the waypoint sits in the NEIGHBOUR cell and the grid
+                // says the two connect — a passage exists, just not on the cell centre-line
+                // (corridor tiles hug one side of their cell: Bathhouse B1, twice, ~350u off).
+                // Slide along the wall and push through at a few offsets, once per waypoint.
+                if (laneWi != wi)
+                {
+                    laneWi = wi;
+                    if (LaneSearch(px, pz, wx, wz, out float lnx, out float lnz))
+                    {
+                        wps.Insert(wi, (lnx, lnz));
+                        bend = BendFlags(wps);
+                        steer = new Steerer();
+                        laneWi = wi + 1;   // the real waypoint shifted one on — never search it twice
+                        best = float.MaxValue; lastProgress = Environment.TickCount64;
+                        stallWi = -1; stallCount = 0; slideRun = 0;
+                        continue;
+                    }
+                    if (CheckStop(maj0, min0, out string? why2)) { steer.Release(); Announce(why2 ?? "Auto-walk stopped."); return false; }
+                    best = float.MaxValue; lastProgress = Environment.TickCount64;
                 }
 
                 // The FIRST waypoint is a positioning aid (the re-center point or
@@ -586,12 +862,29 @@ internal class AutoWalker
                 // walker ground at wp0 dist=463 through five identical reroutes,
                 // because blocking the START cell never changes the plan). Skip
                 // it; the real route ahead has the full recovery ladder.
-                if (wi == 0 && !last)
+                if (wi == 0 && !last && !TileGrid.LastPlanFine)   // a fine plan's wp0 is a real route point
                 {
                     Log($"[AutoWalker] stall at start wp0 dist={dist:F0} — skipping the positioning point");
                     wi++; best = float.MaxValue; lastProgress = Environment.TickCount64; slideRun = 0;
                     stallWi = -1; stallCount = 0;
                     continue;
+                }
+
+                // ROOM SMOOTHING OFF on the first real stall of a smoothed plan (2026-09-29): the
+                // straight line across a multi-cell room met furniture — replan cell-by-cell once.
+                if (StairsPlan.LastPlanSmoothed && !StairsPlan.NoRoomSmoothing)
+                {
+                    StairsPlan.NoRoomSmoothing = true;
+                    var rs = replan(px, pz, blocked, out var freshS, out sameRoom);
+                    if (rs == StairsPlan.Result.Ok && freshS.Count > 0)
+                    {
+                        Log($"[AutoWalker] stall at wp{wi} on a room shortcut — replanning cell by cell ({freshS.Count} waypoints)");
+                        wps = freshS; wi = 0; bend = BendFlags(wps); steer = new Steerer();
+                        LogPlan($"{tag} cell-by-cell", wps);
+                        stallWi = -1; stallCount = 0; slideRun = 0;
+                        best = float.MaxValue; lastProgress = Environment.TickCount64;
+                        continue;
+                    }
                 }
 
                 if (stallWi != wi) { stallWi = wi; stallCount = 0; }
@@ -601,8 +894,28 @@ internal class AutoWalker
                     // First stall on this waypoint: usually WE slid or orbited —
                     // the map is innocent. Back off and re-approach before blaming
                     // a cell (blocking an unblocked cell severed real routes).
-                    Log($"[AutoWalker] stall #1 at wp{wi} ({px:F0},{pz:F0}) dist={dist:F0} — re-approaching");
+                    Log($"[AutoWalker] stall #1 at wp{wi}=({wx:F0},{wz:F0}) player ({px:F0},{pz:F0}) dist={dist:F0} — re-approaching");
                     KeyDown(SC_S); Thread.Sleep(250); KeyUp(SC_S);
+                    best = float.MaxValue; lastProgress = Environment.TickCount64;
+                    continue;
+                }
+                // Second stall on a FINE (prefab) plan: the obstacle is not in the prefab data (a party
+                // member, the Fox, a closed-door lip) and sits right in front of the body — stamp it as a
+                // small disk for this walk and replan the fine route around it, instead of blocking a
+                // whole 1200u minimap cell (which can sever the only corridor).
+                if (TileGrid.LastPlanFine && reroutes < StairsMaxReroutes)
+                {
+                    reroutes++;
+                    TileGrid.AddStamp(px + dx / dist * 130f, pz + dz / dist * 130f);
+                    KeyDown(SC_S); Thread.Sleep(250); KeyUp(SC_S);
+                    var rf = replan(FieldTracker.LivePlayerX, FieldTracker.LivePlayerZ, blocked, out var freshF, out sameRoom);
+                    if (rf == StairsPlan.Result.Ok && freshF.Count > 0)
+                    {
+                        wps = freshF; wi = 0; bend = BendFlags(wps); steer = new Steerer();
+                        Log($"[AutoWalker] {tag} fine reroute #{reroutes}: {freshF.Count} waypoints");
+                        LogPlan($"{tag} fine reroute #{reroutes}", wps);
+                    }
+                    stallWi = -1; stallCount = 0; slideRun = 0;
                     best = float.MaxValue; lastProgress = Environment.TickCount64;
                     continue;
                 }
@@ -622,6 +935,7 @@ internal class AutoWalker
                         bend = BendFlags(wps);
                         steer = new Steerer();
                         Log($"[AutoWalker] {tag} reroute #{reroutes} around ({br},{bc}): {fresh.Count} cells");
+                        LogPlan($"{tag} reroute #{reroutes}", wps);
                         continue;
                     }
                     // NoRoute after blocking ONE cell = the block itself was wrong:
@@ -644,13 +958,14 @@ internal class AutoWalker
                     {
                         wps = fresh2; wi = 0; bend = BendFlags(wps); steer = new Steerer();
                         Log($"[AutoWalker] replanned after retreat: {fresh2.Count} cells");
+                        LogPlan($"{tag} after retreat", wps);
                     }
                     stallWi = -1; stallCount = 0; slideRun = 0;
                     best = float.MaxValue; lastProgress = Environment.TickCount64;
                     continue;
                 }
                 Log($"[AutoWalker] give-up at wp{wi}: reroutes={reroutes}/{StairsMaxReroutes}");
-                Announce("Stopped. Couldn't get through.");
+                GiveUp("Stopped. Couldn't get through.");
                 return false;
             }
 
@@ -662,6 +977,62 @@ internal class AutoWalker
 
         steer.Release();
         return true;
+    }
+
+    /// <summary>★ LANE SEARCH (2026-09-29 playtest). The planner aims at minimap CELL CENTRES, but a
+    /// corridor tile can hug one side of its cell — Bathhouse B1: two north-south corridors sat
+    /// ~350u to one side, so the centre-line waypoint lay INSIDE the wall; the walker stalled at the
+    /// cell edge, rerouted, found nothing and gave up ("Couldn't get through"), and once backed onto
+    /// the entry stairs. A sighted player slides along the wall until the gap opens: do that.
+    /// Only for a waypoint in an ADJACENT cell that the grid says is connected (so a passage exists).
+    /// Tries lateral offsets from the cell centre-line (+350, −350, +600, −600, 0): back off the wall,
+    /// move sideways, push across the cell edge. True = through; (nx,nz) = a waypoint along the found
+    /// lane just past the edge. Bounded (~12 s worst case); cancel/battle abort it.</summary>
+    private static bool LaneSearch(float px, float pz, float wx, float wz, out float nx, out float nz)
+    {
+        nx = nz = 0;
+        if (!MinimapTracker.WorldToCell(px, pz, out int r0, out int c0)) return false;
+        if (!MinimapTracker.WorldToCell(wx, wz, out int r1, out int c1)) return false;
+        int dr = r1 - r0, dc = c1 - c0;
+        if (Math.Abs(dr) + Math.Abs(dc) != 1) return false;
+        if (!GridWalk.Connected(r0, c0, dr, dc) && !GridWalk.Connected(r1, c1, -dr, -dc)) return false;
+        // Only a crossing between DIFFERENT rooms (corridor/doorway = a narrow lane). Inside ONE room
+        // the blocker is furniture (a tub, a pillar) — sliding along it found nothing 3/3 times
+        // (13 s each, 2026-09-29); the reroute ladder handles those.
+        ushort ra = GridWalk.RoomIdOf(r0, c0), rb = GridWalk.RoomIdOf(r1, c1);
+        if (ra != 0 && ra == rb) return false;
+        if (!MinimapTracker.CellToWorld(r0, c0, out float ax0, out float az0)) return false;
+        if (!MinimapTracker.CellToWorld(r1, c1, out float ax1, out float az1)) return false;
+        // Crossing axis = centre→centre (world); lateral = its perpendicular.
+        float ux = ax1 - ax0, uz = az1 - az0, ul = MathF.Sqrt(ux * ux + uz * uz);
+        if (ul < 1f) return false;
+        ux /= ul; uz /= ul;
+        float lx = -uz, lz = ux;
+        float edgeAlong = ((ax0 + ax1) * 0.5f) * ux + ((az0 + az1) * 0.5f) * uz;
+        float centreLat = ((ax0 + ax1) * 0.5f) * lx + ((az0 + az1) * 0.5f) * lz;
+        float backAlong = MathF.Min(px * ux + pz * uz, edgeAlong - 150f) - 120f;
+        Log($"[AutoWalker] lane search: cell ({r0},{c0})→({r1},{c1}) — sliding along the wall for the gap");
+        foreach (float off in new[] { 350f, -350f, 600f, -600f })
+        {
+            float lat = centreLat + off;
+            float bx = backAlong * ux + lat * lx, bz = backAlong * uz + lat * lz;
+            if (!DriveToward(bx, bz, 70f, 1100) && (_cancelRequested || !Utils.GameHasFocus())) return false;
+            float fx = (edgeAlong + 450f) * ux + lat * lx, fz = (edgeAlong + 450f) * uz + lat * lz;
+            DriveToward(fx, fz, 90f, 1000);
+            if (_cancelRequested || !Utils.GameHasFocus()) return false;
+            float qx = FieldTracker.LivePlayerX, qz = FieldTracker.LivePlayerZ;
+            if (float.IsNaN(qx) || float.IsNaN(qz)) continue;
+            float gained = qx * ux + qz * uz - edgeAlong;
+            if (gained > 120f)
+            {
+                float qlat = qx * lx + qz * lz;
+                nx = (edgeAlong + 350f) * ux + qlat * lx; nz = (edgeAlong + 350f) * uz + qlat * lz;
+                Log($"[AutoWalker] lane search: through at lateral offset {qlat - centreLat:F0}u — continuing");
+                return true;
+            }
+        }
+        Log("[AutoWalker] lane search: no gap found at the cell edge");
+        return false;
     }
 
     /// <summary>Open (only) the door at (doorX,doorZ): creep at it until the
@@ -1101,6 +1472,11 @@ internal class AutoWalker
     {
         int startMajor = FieldTracker.CurrentMajor, startMinor = FieldTracker.CurrentMinor;
         float pitch = GridRouter.CellPitch();
+        // GRIDLESS (the TV hub, dungeon lobbies): no cell pitch → the old 1250u fallback made the
+        // "a prompt is lit near the target" arrival fire within 875u — ANY prompt. The hub said
+        // "Arrived. Yukiko." while Kanji's talk prompt was lit (2026-09-29 playtest: A talked to
+        // Kanji → the wrong dungeon). Gridless walks must reach the TARGET itself.
+        bool gridless = pitch <= 0 || DungeonNav.IsLobby || !GridRouter.HasGrid();
         if (pitch <= 0) pitch = WorldPerStep * 5f;
         float advTol = 120f;   // consume a waypoint only when REACHED (movement rebuild)
         // Stairs behave like doors for the final approach: walk STRAIGHT in and
@@ -1116,7 +1492,9 @@ internal class AutoWalker
         int totalSteps = RouteSpeech.StepsFromUnits(
             MathF.Sqrt((tx - px) * (tx - px) + (tz - pz) * (tz - pz)));
         Log($"[AutoWalker] start {label} target=({tx:F0},{tz:F0}) pts={pts.Count} pitch={pitch:F0}");
-        if (!_travelMode) Speech.Say($"Walking to {label.ToLowerInvariant()}, {totalSteps} step{(totalSteps == 1 ? "" : "s")}.", true);
+        // Lower-case only the GENERIC kind words ("door", "stairs"); a name keeps its capitals
+        // (NVDA read "Walking to yukiko" — 2026-09-29).
+        if (!_travelMode) Speech.Say($"Walking to {SpokenTarget(label)}, {totalSteps} step{(totalSteps == 1 ? "" : "s")}.", true);
 
         CalibrateSign();
 
@@ -1147,7 +1525,10 @@ internal class AutoWalker
         {
             steer.Release();
             float adx = tx - px, adz = tz - pz;
-            if (MathF.Sqrt(adx * adx + adz * adz) <= MathF.Max(StallArriveUnits, finalTol))
+            // Gridless: a stall counts as arrival only CLOSE to the target (a person's body stops
+            // us ~100-140u from their centre; a lobby door's trigger centre sits ~370u inside it).
+            float stallArrive = gridless ? GridlessStallArriveUnits : MathF.Max(StallArriveUnits, finalTol);
+            if (MathF.Sqrt(adx * adx + adz * adz) <= stallArrive)
             {
                 // Stalling NEXT TO the goal is "arrival" only for a REAL target
                 // (a chest/door one-shot: "it's right there"). For a TRAVEL leg
@@ -1223,7 +1604,7 @@ internal class AutoWalker
                 // they're interactable.
                 float ftx = tx - px, ftz = tz - pz;
                 float fdist = MathF.Sqrt(ftx * ftx + ftz * ftz);
-                float checkRadius = doorLike ? finalTol * 1.2f : pitch * 0.7f;
+                float checkRadius = doorLike ? finalTol * 1.2f : gridless ? GridlessArriveUnits : pitch * 0.7f;
                 if (fdist <= checkRadius && FieldTracker.CheckPromptActive) break;
 
                 // DOOR FINAL APPROACH. The door's XZ is EXACT (the co-located
@@ -1863,6 +2244,14 @@ internal class AutoWalker
 
         var (rx, rz) = approach ?? (tx, tz);
 
+        // LOBBY / HUB: always the straight line — no floor grid exists there, and the
+        // minimap memory can still hold the previous FLOOR's grid (2026-09-29).
+        if (DungeonNav.IsLobby)
+        {
+            Log($"[AutoWalker] lobby — straight-line to ({tx:F0},{tz:F0})");
+            return new List<(float, float)> { (tx, tz) };
+        }
+
         // Door cells are tracked for the NearDoorCell frame-suppression, but
         // NOT made walkable in A* — coarse-cell routing through doors produced
         // backwards routes (live 2026-06-11). Route normally; if the target is
@@ -2186,9 +2575,22 @@ internal class AutoWalker
         return false;
     }
 
+    // A caller that can do better than the drive's give-up line (the stairs walk stuck right
+    // beside its staircase) sets _quietGiveUp around DriveRoute and reads _gaveUp afterwards.
+    [ThreadStatic] private static bool _quietGiveUp;
+    [ThreadStatic] private static string? _gaveUp;
+    private static void GiveUp(string why)
+    {
+        _gaveUp = why;
+        if (_quietGiveUp) { ReleaseAll(); Log($"[AutoWalker] give-up (caller decides): {why}"); return; }
+        Announce(why);
+    }
+
     private static void Announce(string why)
     {
         ReleaseAll();
+        if (why == "Battle." && _resumeLabel != null)
+        { _pendingResume = _resumeLabel; _pendingFloor = _launchFloor; _pendingMs = Environment.TickCount64; }
         Speech.Say(why, true);
         Log($"[AutoWalker] stop: {why}");
     }
@@ -2370,6 +2772,37 @@ internal class AutoWalker
     /// legitimate closed door that merely stands near the staircase, and the
     /// whole floor became unopenable — 07-14 evening log.) Exempt when the
     /// stairs ARE the walk target.</summary>
+    /// <summary>A stall-time confirm press is allowed ONLY when a real, not-yet-opened door
+    /// actor sits right beside the player (≤350u) and the next-floor stairs don't own the
+    /// prompt. Anything else lit (the floor-entry stairs = EXIT, a chest, the Fox, a party
+    /// member, the save point) must never be pressed by the walker.</summary>
+    private static bool StallPromptIsDoor(float px, float pz)
+    {
+        try
+        {
+            float other = DungeonNav.NearestNonDoorInteractable(px, pz);
+            foreach (var (dx, dz) in DungeonNav.Doors())
+            {
+                float d2 = (dx - px) * (dx - px) + (dz - pz) * (dz - pz);
+                if (d2 > 350f * 350f) continue;
+                if (DungeonNav.IsDoorOpenMarked(dx, dz)) continue;
+                if (StairsPromptRisk(dx, dz)) continue;
+                // A chest / the Fox / a party member at least as close as the door may own the
+                // prompt (a stall press said "Hey there!" beside the Fox, 2026-09-29).
+                if (other <= MathF.Sqrt(d2) + 100f)
+                {
+                    Log($"[AutoWalker] stall: door {MathF.Sqrt(d2):F0}u but another interactable {other:F0}u — not pressing");
+                    return false;
+                }
+                Log($"[AutoWalker] stall: closed door {MathF.Sqrt(d2):F0}u owns the prompt — pressing");
+                return true;
+            }
+        }
+        catch { }
+        Log("[AutoWalker] stall: a prompt is lit but no closed door is beside us — not pressing");
+        return false;
+    }
+
     private static bool StairsPromptRisk(float doorX, float doorZ)
     {
         if (DungeonGrid.StairsAreTarget) return false;

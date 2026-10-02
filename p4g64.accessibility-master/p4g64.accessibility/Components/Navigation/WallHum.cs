@@ -32,6 +32,19 @@ internal sealed class WallHum
     private const float DoorRange = 1400f;  // a door is sounded within this range (700 → 1400 on player feedback 2026-08-22)
     private const float OpenDoorRate = 1.3f; // a door you have PASSED (= open) plays higher-pitched
     private const float DoorMax = 0.55f;
+    private const float SeamFadeSec = 0.25f;  // loop-seam crossfade (2026-09-29 stutter fix)
+    // Door/wall hand-off HYSTERESIS (2026-09-29): a door ENTERS a direction at alignment 0.80
+    // but only LEAVES below 0.62 (or past DoorRange + 200u) — the old single 0.80 threshold
+    // flipped wall↔door every 100 ms tick while the camera swayed around the cone edge.
+    private const float DoorEnterDot = 0.80f, DoorKeepDot = 0.62f, DoorKeepExtra = 200f;
+    private readonly (float x, float z)?[] _heldDoor = new (float x, float z)?[4];
+#if DEBUG
+    private readonly int[] _swaps = new int[4];
+    private readonly bool[] _wasDoor = new bool[4];
+    private readonly int[] _drops = new int[4];
+    private readonly float[] _lastWall = { float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity };
+    private long _diagNextMs;
+#endif
     private const int VK_N = 0x4E;
     private const int VK_SHIFT = 0x10;
 
@@ -81,6 +94,10 @@ internal sealed class WallHum
             & BeaconVoice.TryLoadMono("wallEast.wav", out var eMono)
             && nMono.Length > 0 && sMono.Length > 0 && wMono.Length > 0 && eMono.Length > 0)
         {
+            // Seamless loops (2026-09-29): the raw 2.2 s WAVs clicked + dipped at every loop seam.
+            int fade = (int)(fmt.SampleRate * SeamFadeSec);
+            nMono = BeaconVoice.MakeSeamless(nMono, fade); sMono = BeaconVoice.MakeSeamless(sMono, fade);
+            wMono = BeaconVoice.MakeSeamless(wMono, fade); eMono = BeaconVoice.MakeSeamless(eMono, fade);
             _vAhead = new BeaconVoice(fmt, nMono);   // wallNorth
             _vBehind = new BeaconVoice(fmt, sMono);  // wallSouth
             _vLeft = new BeaconVoice(fmt, wMono);    // wallWest
@@ -96,6 +113,7 @@ internal sealed class WallHum
         // direction (panned like the walls). Optional — off if wallDoor.wav is absent.
         if (_loaded && BeaconVoice.TryLoadMono("wallDoor.wav", out var dMono) && dMono.Length > 0)
         {
+            dMono = BeaconVoice.MakeSeamless(dMono, (int)(fmt.SampleRate * SeamFadeSec));
             _vDAhead = new BeaconVoice(fmt, dMono); _vDBehind = new BeaconVoice(fmt, dMono);
             _vDLeft = new BeaconVoice(fmt, dMono); _vDRight = new BeaconVoice(fmt, dMono);
             DungeonAudio.AddInput(_vDAhead); DungeonAudio.AddInput(_vDBehind);
@@ -176,21 +194,37 @@ internal sealed class WallHum
         var (cfx, cfz) = FieldTracker.CameraForward3D();
         float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
         var doors = DungeonNav.DoorSnapshot();
-        (float dist, bool open) DoorDir(float ux, float uz)
+        (float dist, bool open) DoorDir(int slot, float ux, float uz)
         {
             if (!_doorLoaded || doors.Length == 0 || float.IsNaN(px) || float.IsNaN(pz) || (cfx == 0 && cfz == 0))
-                return (float.PositiveInfinity, false);
+            { _heldDoor[slot] = null; return (float.PositiveInfinity, false); }
+            // Keep the door this direction already plays while it stays roughly this way.
+            if (_heldDoor[slot] is (float hx, float hz))
+            {
+                foreach (var (xx, zz) in doors)
+                {
+                    if (MathF.Abs(xx - hx) > 1f || MathF.Abs(zz - hz) > 1f) continue;
+                    float vx = xx - px, vz = zz - pz;
+                    float dist = MathF.Sqrt(vx * vx + vz * vz);
+                    if (dist >= 30f && dist <= DoorRange + DoorKeepExtra && (vx * ux + vz * uz) / dist > DoorKeepDot)
+                        return (dist, DungeonNav.IsDoorOpenMarked(xx, zz));
+                    break;
+                }
+                _heldDoor[slot] = null;
+            }
             float best = float.PositiveInfinity; float bx = 0, bz = 0;
             foreach (var (xx, zz) in doors)
             {
                 float vx = xx - px, vz = zz - pz;
                 float dist = MathF.Sqrt(vx * vx + vz * vz);
                 if (dist < 30f || dist > DoorRange) continue;
-                if ((vx * ux + vz * uz) / dist > 0.80f && dist < best) { best = dist; bx = xx; bz = zz; }   // aligned this way
+                if ((vx * ux + vz * uz) / dist > DoorEnterDot && dist < best) { best = dist; bx = xx; bz = zz; }   // aligned this way
             }
-            return (best, float.IsFinite(best) && DungeonNav.IsDoorOpenMarked(bx, bz));
+            if (!float.IsFinite(best)) return (best, false);
+            _heldDoor[slot] = (bx, bz);
+            return (best, DungeonNav.IsDoorOpenMarked(bx, bz));
         }
-        var doorA = DoorDir(cfx, cfz); var doorB = DoorDir(-cfx, -cfz); var doorL = DoorDir(cfz, -cfx); var doorR = DoorDir(-cfz, cfx);
+        var doorA = DoorDir(0, cfx, cfz); var doorB = DoorDir(1, -cfx, -cfz); var doorL = DoorDir(2, cfz, -cfx); var doorR = DoorDir(3, -cfz, cfx);
 
         _vAhead!.Playing = _vBehind!.Playing = _vLeft!.Playing = _vRight!.Playing = true;
         if (_doorLoaded) _vDAhead!.Playing = _vDBehind!.Playing = _vDLeft!.Playing = _vDRight!.Playing = true;
@@ -198,6 +232,27 @@ internal sealed class WallHum
         SetDir(_vBehind, _vDBehind, MathF.Max(Gain(dB), GridGain(gB)) * BehindMax * SoundSettings.WallHumVol, doorB.dist, doorB.open, 0f);
         SetDir(_vLeft, _vDLeft, MathF.Max(Gain(dL), GridGain(gL)) * SideMax * SoundSettings.WallHumVol, doorL.dist, doorL.open, -0.9f);
         SetDir(_vRight, _vDRight, MathF.Max(Gain(dR), GridGain(gR)) * SideMax * SoundSettings.WallHumVol, doorR.dist, doorR.open, +0.9f);
+#if DEBUG
+        // [WallHumDiag] (TEMP, 2026-09-29 stutter hunt): per direction, wall↔door swaps and
+        // "sensor dropouts" (a close wall reading → no wall → back) per 5 s. Remove after sign-off.
+        bool[] isDoor = { float.IsFinite(doorA.dist), float.IsFinite(doorB.dist), float.IsFinite(doorL.dist), float.IsFinite(doorR.dist) };
+        float[] wall = { dF, dB, dL, dR };
+        for (int i = 0; i < 4; i++)
+        {
+            if (isDoor[i] != _wasDoor[i]) _swaps[i]++;
+            _wasDoor[i] = isDoor[i];
+            if (float.IsFinite(_lastWall[i]) && _lastWall[i] < RangeU && !(wall[i] < RangeU)) _drops[i]++;
+            _lastWall[i] = wall[i];
+        }
+        long nowMs = Environment.TickCount64;
+        if (nowMs >= _diagNextMs)
+        {
+            if (_diagNextMs != 0 && (_swaps[0] + _swaps[1] + _swaps[2] + _swaps[3] + _drops[0] + _drops[1] + _drops[2] + _drops[3]) > 0)
+                Log($"[WallHumDiag] 5s: door<->wall swaps A{_swaps[0]} B{_swaps[1]} L{_swaps[2]} R{_swaps[3]} | wall dropouts A{_drops[0]} B{_drops[1]} L{_drops[2]} R{_drops[3]}");
+            Array.Clear(_swaps); Array.Clear(_drops);
+            _diagNextMs = nowMs + 5000;
+        }
+#endif
     }
 
     /// <summary>Drive one direction: if a door is there, play the door voice (volume

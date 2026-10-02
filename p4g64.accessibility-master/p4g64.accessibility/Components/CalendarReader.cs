@@ -175,17 +175,17 @@ internal unsafe class CalendarReader : IDisposable
         catch (Exception e) { Log($"[Calendar] weather schedule load failed: {e.Message}"); }
     }
 
-    // Read a short null-terminated ASCII string (the calendar resolves event names to plain ASCII).
+    // Read a day's event name. 2026-10-02: decoded through the game's glyph table — the old
+    // printable-ASCII loop dropped accents (FR/DE/IT/ES) and silenced Japanese/Chinese/Korean names
+    // (English is byte-for-byte the same). Line breaks become spaces.
     private static string ReadAscii(nint p)
     {
-        if (!IsReadable(p)) return "";
-        var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < 64; i++)
+        string s = Utils.ReadAtlusStringRpm(p, 64);
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (char c in s)
         {
-            byte b = *(byte*)(p + i);
-            if (b == 0) break;
-            if (b >= 32 && b < 127) sb.Append((char)b);
-            else if (b == '\n' || b == '\r') sb.Append(' ');
+            if (c == '\n' || c == '\r') sb.Append(' ');
+            else if (c >= 0x20) sb.Append(c);
         }
         return sb.ToString().Trim();
     }

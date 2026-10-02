@@ -101,28 +101,6 @@ internal sealed unsafe class PersonaReleaseMenu
                     if (_menu != 0)
                     {
                         _lastCursor = -1;
-                        // TEMP DIAGNOSTIC: dump the header ints + every list entry's id,
-                        // to fix the off-by-one and locate the new-persona slot.
-                        int cnt = RdI(_menu + CountOff);
-                        var sb = new System.Text.StringBuilder($"[PersonaRelease] menu @ 0x{_menu:X} cur={RdI(_menu)} count={cnt} | ints:");
-                        for (int o = 0; o < 0x54; o += 4) sb.Append($" +{o:X2}={RdI(_menu + o)}");
-                        sb.Append(" | list:");
-                        for (int i = 0; i < cnt + 1; i++)
-                        {
-                            nint pp = RdP(_menu + ListOff + i * 8);
-                            int id = (pp != 0 && (ulong)pp >= PersonaLo && (ulong)pp < PersonaHi) ? RdU16(pp + RecId) : -1;
-                            sb.Append($" [{i}]0x{pp:X}=id{id}");
-                        }
-                        Log(sb.ToString());
-                        // TEMP: does THIS menu run as a NAMED TASK? If yes we can
-                        // replace the whole heap scan with a free registry walk
-                        // (the TvListings/SkillRegain pattern). One dump per latch.
-                        DumpTaskNames();
-                        // TEMP ANCHOR HUNT: is the menu reachable FROM a
-                        // battle_shuffle* task's work struct? A hit here deletes
-                        // the heap scan permanently (the scan's VirtualQuery walk
-                        // contends the game's allocation lock = the reward lag).
-                        DumpShuffleAnchors(_menu);
                     }
                     continue;
                 }

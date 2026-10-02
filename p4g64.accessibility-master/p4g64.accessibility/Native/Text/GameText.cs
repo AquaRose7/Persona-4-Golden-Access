@@ -212,6 +212,36 @@ internal static unsafe class GameText
         return names;
     }
 
+    // ── Field CHECK-prompt labels (2026-09-29) ────────────────────────────────
+    /// <summary>
+    /// The label the game draws on a field CHECK prompt ("Calendar", "Crane Game", "Fridge"),
+    /// per language: <c>*(0x140910630 + lang*8)</c> → char*[] indexed by the trigger's label id
+    /// (h-row u16 @+0x0E; baked into overworld_catalog.json as "labelId"). Id 0 = no label.
+    /// The same table holds the location-banner names. Cached per (language, id).
+    /// </summary>
+    private const long FieldLabelTablesVA = 0x140910630L;
+    private static int _lblLang = int.MinValue;
+    private static readonly Dictionary<int, string> _lblCache = new();
+
+    internal static string? FieldLabel(int id)
+    {
+        if (id <= 0 || id > 0x400) return null;
+        int lang = LanguageId;
+        if (lang < 0) return null;
+        lock (_lblCache)
+        {
+            if (lang != _lblLang) { _lblCache.Clear(); _lblLang = lang; }
+            if (_lblCache.TryGetValue(id, out var hit)) return hit.Length > 0 ? hit : null;
+            string s = "";
+            nint tbl, p;
+            if (TryReadRaw((nint)(FieldLabelTablesVA + lang * 8), &tbl, 8) && tbl != 0
+                && TryReadRaw(tbl + id * 8, &p, 8) && p != 0)
+                s = NormalizeFullwidth(ReadAtlusStringRpm(p, 64)).Trim();
+            _lblCache[id] = s;
+            return s.Length > 0 ? s : null;
+        }
+    }
+
     /// <summary>Index of a drawn bubble/command string in the localized table, or -1.</summary>
     internal static int BattleCommandIndex(string text)
     {
@@ -403,16 +433,22 @@ internal static unsafe class GameText
 
     private const long NEntryArcVA = 0x1451D2280L;
     private const long KeyRowsEnVA = 0x1451D2330L;     // 6 row pointers (english)
-    private const long KeyRowsOtherVA = 0x1451D22D0L;  // 7 row pointers (every other language)
+    private const long KeyRowsOtherVA = 0x1451D22D0L;  // 7 row pointers (Japanese / Chinese / Korean)
+    // French / German / Italian / Spanish run their own screen (task nameEntry_figs) that loads the grid
+    // elsewhere: 6 row pointers here, while the two tables above and the nEntry arc stay NULL
+    // (live-read in Spanish 2026-10-01).
+    private const long KeyRowsFigsVA = 0x1451D2910L;
     private static nint _keyArcSeen, _keyGrid;
+
+    private static bool IsFigs(int lang) => lang >= 5 && lang <= 8;
 
     /// <summary>Address of keyboard row <paramref name="row"/>, or 0 when the grid isn't loaded.</summary>
     private static nint KeyboardRow(int row)
     {
         nint rowPtr = 0;
         int lang = LanguageId;
-        long rowsVA = lang == 1 ? KeyRowsEnVA : KeyRowsOtherVA;
-        int maxRows = lang == 1 ? 6 : 7;
+        long rowsVA = lang == 1 ? KeyRowsEnVA : IsFigs(lang) ? KeyRowsFigsVA : KeyRowsOtherVA;
+        int maxRows = lang == 1 || IsFigs(lang) ? 6 : 7;
         if (row < maxRows) TryReadRaw((nint)(rowsVA + row * 8), &rowPtr, 8);
         if (rowPtr != 0 && ProbeReadable(rowPtr, 0x28)) return rowPtr;
 

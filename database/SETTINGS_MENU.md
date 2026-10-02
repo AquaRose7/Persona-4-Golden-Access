@@ -30,10 +30,13 @@ instantly to `mod_settings.json`; volume/pitch rows preview their sound on chang
 
 Top: **Sound volumes · Cursor · Readers · Help · Restore defaults**.
 
-- **Sound volumes** (12 rows): wall hum, door cue, stairs beacon, chest beacon, navigation
-  beacon (one knob for dungeon `NavBeacon` + `OverworldNav`), shadow radar, choice sound,
-  cursor beeps, arrival chime, wall bump — percent 0–200 step 10 — plus the two pitch rows
-  **Shadow pitch facing you / facing away** (hertz, 60–600 step 10).
+- **Sound volumes**: wall hum, door cue, stairs beacon, chest beacon, navigation
+  beacon (one knob for dungeon `NavBeacon` + `OverworldNav`), shadow radar, golden hand, **sneak ticks, turning
+  warning, swing chime** (AmbushCue, 2026-10-02), choice sound, Check sound (+ on/off), cursor beeps, arrival
+  chime, wall bump, **fish bite, fishing reel, bug catching chime** (2026-10-02 — they borrowed the arrival chime's
+  / the P beacon's volume before) — percent 0–200 step 10, previews play the real cue (`ToneCue.PlayCue`, the WAV
+  file or its fallback tones). (The old **Shadow pitch facing you / facing away** rows were removed with sound map
+  v1, 2026-08-27.)
 - **Cursor**: default mode Walk/Look (applied every H activation), default directions
   Compass/Camera (applied at session start; Shift+N stays session-sticky, doesn't write).
 - **Readers**: dialogue / subtitles / descriptions — same keys the shortcuts write, both stay

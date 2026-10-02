@@ -69,8 +69,19 @@ internal class DungeonNav
     // Lobby areas: the TV-world hub/entrances (major 20) + the Hollow Forest lobby
     // "Grave of Hollow Memories" (31/1, 2026-07-27 — its own field, entered from a
     // different TV; has the save point / party / portal / exit like the hub).
+    // 2026-09-29 (Claude's playtest): the PER-DUNGEON entrance areas are lobbies too — the
+    // Bathhouse Changing Area (24/1) was treated as a floor, so Places filtered to cat=9 and
+    // every category said "none" while the game held 7 party members there. The set = the
+    // world helper's authored lobby keys (overworld_zones.json).
+    private static readonly HashSet<(int, int)> DungeonLobbies = new()
+    {
+        (21, 1), (22, 1), (22, 2), (23, 1), (24, 1), (25, 1), (26, 1), (27, 1), (28, 1), (30, 2), (31, 1),
+    };
     private static bool InLobby() => FieldTracker.CurrentMajor == 20
-        || (FieldTracker.CurrentMajor == 31 && FieldTracker.CurrentMinor == 1);
+        || DungeonLobbies.Contains((FieldTracker.CurrentMajor, FieldTracker.CurrentMinor));
+    /// <summary>The TV hub or a dungeon lobby (no generated floor grid; the minimap memory may
+    /// still hold the LAST floor's grid there — never plan on it).</summary>
+    internal static bool IsLobby => InLobby();
     // Location-aware: every call site uses Categories.Length / Categories[i].
     // "Events" is appended ONLY when the current floor has recorded marks — that
     // presence check IS the "scripted floor" gate, so procedural floors are
@@ -88,7 +99,7 @@ internal class DungeonNav
     private static string CatName(Cat c) => c switch
     {
         Cat.Doors => "Doors", Cat.AllDoors => "All doors", Cat.Chests => "Chests",
-        Cat.Shadows => "Shadows", Cat.Exits => "Stairs",
+        Cat.Shadows => "Shadows", Cat.Exits => InLobby() ? "Exits" : "Stairs",
         Cat.Places => "Interactables", Cat.Events => "Events", _ => c.ToString()
     };
 
@@ -402,6 +413,10 @@ internal class DungeonNav
         if (!Utils.GameHasFocus()) { _keysLiveWas = false; return; }   // don't process hotkeys while alt-tabbed
         if (SettingsMenu.IsOpen) { _keysLiveWas = false; return; }     // settings menu owns input
         if (CommandMenus.PlayerMenu.IsMenuOpen) { _keysLiveWas = false; return; }   // don't fire nav keys behind the camp menu
+        // A BATTLE is not leaving the dungeon (2026-09-30, nav pt2 item 3): the old reset below wiped
+        // the category + selection at every battle, so Backspace afterwards said "Pick a category
+        // first" and the interrupted walk was lost. Keep everything through the fight.
+        if (FieldTracker.IsBattleMajor(FieldTracker.CurrentMajor)) { _keysLiveWas = false; return; }
         bool inDungeon = InDungeon();
         if (inDungeon != _inDungeonLast)
         {
@@ -417,6 +432,12 @@ internal class DungeonNav
         // stale out-of-range index.
         bool lobby = InLobby();
         if (lobby != _inLobbyLast) { _catIndex = -1; _entries = new(); _cursor = 0; _inLobbyLast = lobby; }
+
+        if (!lobby && AutoWalk.AutoWalker.TryTakeResumeOffer(out string resume))
+        {
+            Speech.Say($"Walk paused for the battle. Backspace continues to {resume}.", false);
+            Log($"[DungeonNav] resume offer after battle: {resume}");
+        }
 
         DetectDoorPassThrough();   // SPIKE A: announce when the player crosses a door
 
@@ -472,6 +493,12 @@ internal class DungeonNav
         // the cursor cell (mark & walk — lets the player go anywhere they've
         // mapped, not just a door/chest); else auto-walk the browser selection.
         bool bk = IsKeyDown(VK_BACK);
+#if DEBUG
+        // TEST HARNESS ONLY (2026-09-29): plain F8 = Backspace. An NVDA add-on on the dev machine
+        // intermittently swallows every (injected) Backspace system-wide; F8 lets the scripted
+        // playtest keep walking. Compiled out of Release.
+        bk |= IsKeyDown(0x77) && !IsKeyDown(0x11);
+#endif
         if (bk && !_bkWas)
         {
             if (AutoWalk.AutoWalker.IsActive) AutoWalk.AutoWalker.Cancel();
@@ -530,10 +557,19 @@ internal class DungeonNav
     private void CycleCategory(int dir)
     {
         int n = Categories.Length;
-        _catIndex = _catIndex < 0 ? (dir > 0 ? 0 : n - 1) : (_catIndex + dir + n) % n;
-        _cursor = 0;
-        Cat cat = Categories[_catIndex];
-        _entries = BuildCategory(cat);
+        // LOBBIES skip EMPTY categories (2026-09-29, the P5R rule: the TV hub read four
+        // "none" categories — Doors/Chests/Shadows/Stairs — before its people). Dungeon
+        // FLOORS keep them: "Stairs: none found" is real information there.
+        bool skipEmpty = InLobby();
+        Cat cat = Cat.Doors;
+        for (int tries = 0; tries < n; tries++)
+        {
+            _catIndex = _catIndex < 0 ? (dir > 0 ? 0 : n - 1) : (_catIndex + dir + n) % n;
+            _cursor = 0;
+            cat = Categories[_catIndex];
+            _entries = BuildCategory(cat);
+            if (!skipEmpty || _entries.Count > 0) break;
+        }
         Log($"[DungeonNav] category → {cat} entries={_entries.Count}");
         if (cat == Cat.Chests) LogChestArray();
         // (LogMasterTable() diagnostic call removed in the v1.3.5 cleanup — the method
@@ -553,7 +589,7 @@ internal class DungeonNav
                 Cat.AllDoors => "All doors: none on this floor.",
                 Cat.Chests => "Chests: none nearby.",
                 Cat.Shadows => "Shadows: none nearby.",
-                Cat.Exits => "Stairs: none found on this floor.",
+                Cat.Exits => InLobby() ? "Exits: none." : "Stairs: none found on this floor.",
                 Cat.Places => "Interactables: none nearby.",
                 Cat.Events => "Events: none on this floor.",
                 _ => $"{name}: none."
@@ -642,10 +678,9 @@ internal class DungeonNav
         RememberStick();
 
         UpdateSelectionTarget();
-        // Interactables: NAME first (better readability, user 2026-07-02); other categories keep "N of M: …".
-        Speech.Say(cat == Cat.Places
-            ? $"{_entries[_cursor].Say}. {_cursor + 1} of {_entries.Count}."
-            : $"{_cursor + 1} of {_entries.Count}: {_entries[_cursor].Say}.", true);
+        // NAME first in EVERY category (user 2026-07-02 asked it for Interactables; 2026-09-29 one
+        // format everywhere — the playtest heard three different orders). Town browser matches.
+        Speech.Say($"{_entries[_cursor].Say}. {_cursor + 1} of {_entries.Count}.", true);
         WinBeep(1000, 25);
     }
 
@@ -668,6 +703,15 @@ internal class DungeonNav
 
     private void StartWalk()
     {
+        // DIALOGUE GUARD (2026-09-30, nav pt2 item 11): a walk started while a message window is up
+        // pushed the stick into the conversation for ~13 s ("grinds in place"). The DrawDialog hook
+        // stamps LastDialogTick every frame a window with text/choices is visible.
+        if (Environment.TickCount64 - Dialogue.LastDialogTick < 600)
+        {
+            Speech.Say("Finish the conversation first.", true);
+            Log("[Nav] walk refused: a dialogue is on screen");
+            return;
+        }
         if (_catIndex < 0) { Speech.Say("Pick a category first.", true); return; }
         Cat cat = Categories[_catIndex];
         _entries = BuildCategory(cat);
@@ -686,6 +730,12 @@ internal class DungeonNav
             // coarse-minimap travel hugging walls — superseded by the room graph.)
             if (!e.HasPos) { Speech.Say("No shadow position.", true); return; }
             AutoWalk.AutoWalker.WalkToShadowV2(e.TX, e.TZ);
+            return;
+        }
+        if (cat == Cat.Exits && InLobby())   // lobby exits (entrance / back / Junes) are fixed spots
+        {
+            if (!e.HasPos) { Speech.Say("No position to walk to.", true); return; }
+            AutoWalk.AutoWalker.WalkTarget(e.Label, e.TX, e.TZ, AutoWalk.AutoWalker.TargetKind.Spot);
             return;
         }
         if (cat == Cat.Exits)   // Stairs: room-graph walk to the stairs' room door (v1, 2026-07-16)
@@ -891,11 +941,43 @@ internal class DungeonNav
             Cat.Events => BuildEventEntries(),
             _ => new()
         };
+        // ROUTE DISTANCES (2026-09-30, nav pt2 item 2): on a maze floor the step count is the WALKING
+        // distance along the prefab corridors (TileGrid), not the straight line — "Chest, 10 steps"
+        // used to be a 44-waypoint walk. Nearest-first then means nearest to WALK to. Entries with no
+        // known route (unexplored, planner off) keep the straight-line figure.
+        if (!InLobby()) ApplyRouteDistances(list);
         // Alphabetical sorting applies in LOBBIES only (user call 2026-08-31): dungeon
         // floors stay nearest-first, lobbies are browsy places with named people.
         if (InLobby() && ModSettings.GetInt("nav_sort", Defaults.NavSort) == 1)
             list.Sort((a, b) => NaturalCompare(a.Label ?? a.Say, b.Label ?? b.Say));
         return list;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex StepsRx = new(@"\b(\d+) steps?\b");
+
+    private static void ApplyRouteDistances(List<Entry> list)
+    {
+        float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
+        if (float.IsNaN(px) || float.IsNaN(pz) || list.Count == 0) return;
+        var idx = new List<int>();
+        var pts = new List<(float x, float z)>();
+        for (int i = 0; i < list.Count; i++)
+            if (list[i].HasPos && list[i].FloorDir == 0) { idx.Add(i); pts.Add((list[i].TX, list[i].TZ)); }
+        if (pts.Count == 0) return;
+        float[] len;
+        try { len = AutoWalk.TileGrid.RouteLengths(px, pz, pts); } catch { return; }
+        bool any = false;
+        for (int k = 0; k < idx.Count; k++)
+        {
+            if (float.IsNaN(len[k])) continue;
+            var e = list[idx[k]];
+            int steps = Math.Max(1, (int)MathF.Round(len[k] / WorldPerStep));
+            e.Say = StepsRx.Replace(e.Say, $"{steps} step{(steps == 1 ? "" : "s")}", 1);
+            e.Dist = len[k];
+            list[idx[k]] = e;
+            any = true;
+        }
+        if (any) list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
     }
 
     // Event marks for the CURRENT floor, nearest-first, as routable entries. The
@@ -1011,6 +1093,29 @@ internal class DungeonNav
             return list;
         }
 
+        // Every other LOBBY (2026-09-29): the exits come from the area's own catalog trigger
+        // boxes — enter_* = the dungeon entrance, return_* = back to the Entrance hub, the hub's
+        // return_point = out to Junes. Before this the lobbies listed nothing to walk to.
+        if (InLobby())
+        {
+            foreach (var (proc, x, z) in OverworldNav.CatalogTriggers(FieldTracker.CurrentMajor, FieldTracker.CurrentMinor))
+            {
+                string? lbl = LobbyExitLabel(proc);
+                if (lbl == null) continue;
+                bool dup = false;
+                foreach (var e in list)
+                    if (e.Label == lbl && (e.TX - x) * (e.TX - x) + (e.TZ - z) * (e.TZ - z) < 600f * 600f) { dup = true; break; }
+                if (dup) continue;
+                float dist = havePos ? MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz)) : 0;
+                int steps = AutoWalk.RouteSpeech.StepsFromUnits(dist);
+                string dir = havePos ? " " + WorldDirection(x - px, z - pz) : "";
+                list.Add(new Entry { Say = $"{lbl}{dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist, FloorDir = 0,
+                                     Label = lbl, HasPos = true, TX = x, TZ = z });
+            }
+            list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+            return list;
+        }
+
         var pts = new List<(float x, float z)>();
         if (AutoWalk.GridRouter.HasGrid())
         {
@@ -1123,7 +1228,6 @@ internal class DungeonNav
             string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
             // A door the player/auto-walker has walked THROUGH reads "Open door".
             string label = want != Kind.Door ? noun
-                         : IsDoorLocked(x, z) ? "Locked door"
                          : IsDoorOpenMarked(x, z) ? "Open door" : noun;
             list.Add(new Entry { Say = $"{label} {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
                                  Label = label, HasPos = true, TX = x, TZ = z, NX = nx, NZ = nz });
@@ -1168,6 +1272,25 @@ internal class DungeonNav
             list.Add(new Entry { Say = $"{label} {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
                                  Label = label, HasPos = true, TX = x, TZ = z });
         }
+        // LOBBY fixed objects from the catalog (2026-09-29): the hub's Velvet Room door is not in
+        // the master table, and some lobbies' save points aren't either. Skip one already listed.
+        if (!floorOnly)
+        {
+            foreach (var (proc, x, z) in OverworldNav.CatalogTriggers(FieldTracker.CurrentMajor, FieldTracker.CurrentMinor))
+            {
+                string? label = proc == "save_point" ? "Save point" : proc == "velvet_room" ? "Velvet Room" : null;
+                if (label == null) continue;
+                bool dup = false;
+                foreach (var e in list)
+                    if (e.Label == label && (e.TX - x) * (e.TX - x) + (e.TZ - z) * (e.TZ - z) < 700f * 700f) { dup = true; break; }
+                if (dup) continue;
+                float dx = x - px, dz = z - pz;
+                float dist = MathF.Sqrt(dx * dx + dz * dz);
+                int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
+                list.Add(new Entry { Say = $"{label} {WorldDirection(dx, dz)}, {steps} step{(steps == 1 ? "" : "s")}",
+                                     Dist = dist, Label = label, HasPos = true, TX = x, TZ = z });
+            }
+        }
         // -- SEEN-CACHE (2026-08-31): the game deactivates FAR lobby actors (streaming), so
         // people vanished from this list until you walked close (player report). Once seen
         // this visit, keep them listed at their last-known position until the floor changes.
@@ -1195,6 +1318,41 @@ internal class DungeonNav
 
     private readonly Dictionary<string, (float x, float z)> _placeCache = new();
     private string _placeCacheKey = "";
+
+    /// <summary>Distance from (px,pz) to the NEAREST non-door interactable that a confirm press
+    /// would act on — an unopened chest or a walk-up person (the Fox, a benched party member:
+    /// master-table cat=9). +∞ when none. Used by the auto-walker before any stall-time press.</summary>
+    internal static float NearestNonDoorInteractable(float px, float pz)
+    {
+        float best = float.PositiveInfinity;
+        try
+        {
+            foreach (var (x, z) in Chests())
+            {
+                float d = MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz));
+                if (d < best) best = d;
+            }
+            foreach (var (x, z, cat, _, _) in EnumeratePlaces())
+            {
+                if (cat != 9) continue;
+                float d = MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz));
+                if (d < 120f) continue;   // the player's own node
+                if (d < best) best = d;
+            }
+        }
+        catch { }
+        return best;
+    }
+
+    /// <summary>Lobby exit name for a catalog trigger proc, or null when it is not an exit.</summary>
+    private static string? LobbyExitLabel(string proc)
+    {
+        if (proc.StartsWith("enter_") || proc == "into_shop") return "Dungeon entrance";
+        if (proc == "return_entrance") return "Back to the Entrance";
+        if (proc == "return_point") return "Exit to Junes";
+        if (proc == "out_shop") return "Exit";
+        return null;
+    }
 
     // cat=5 master-table id → display name for lobby NPCs. The live model-path
     // resolver returns nothing on these nodes (verified 2026-06-17), so names
@@ -1580,15 +1738,29 @@ internal class DungeonNav
     // dungeon script (dungeon.flow dng_door → sauna_03F_door etc.) keys its LOCK logic on
     // exactly that id. Rows below = `dungeon_named_floor_map.json` named_doors with
     // kind "locked_door": passable when the OPENED bit is set or the KEY bit is set.
-    // The planner treats a locked door as a wall (routes via the other door); the
-    // browser labels it "Locked door". Story "scripted_door" rows are NOT here on purpose.
+    // The planner treats a locked door as a wall (routes via the other door). Since 2026-10-02 the
+    // browser does NOT label it (Haru: auto-walk learns them, the list doesn't show them) — it reads as
+    // a plain "Door". Story "scripted_door" rows are NOT here on purpose.
+    // 2026-10-02 audit of every door script in dungeon.flow (memory/locked_doors_bath3.md):
+    // the game's locked doors are Castle 5F ×2, Bath #3, Marukyu 7F, Lab B4F, Lab B6F, Magatsu Inaba 2F ×2 and the
+    // Void Quest boss room (Orb of Darkness, f026 bossroom_door). Haru 10-02: learn them all EXCEPT Magatsu and
+    // Void Quest. The two flags flip the moment the key is won / the door is opened, so a door stops counting
+    // as locked at once — read live on every plan.
     private static readonly (int floorId, int doorId, int openedBit, int keyBit)[] LockedDoorTable =
     {
-        // ⚠ BOUNDED to Bath #3 for now (user call 2026-09-04: "so this logic can't break any
-        // other dungeon"). Castle 5F's two locked doors (10240 opened 3685 / 10255 opened 3686,
-        // both key 3684, floor id 10) are known from the same table — add them only after a
-        // live check on that floor.
+        // Bath #3 since 2026-09-04; Castle 5F added 2026-09-30 after the live check (nav pt2): on floor
+        // id 10 (map 60/1) the node pairs are 10240/10241 @ (9600,5500) and 10255/10256 @ (8400,16100);
+        // both open with their own opened bit or the key 3684 (won at the battle door 10248 @ (14900,12000)).
         (23, 10246, 3714, 3715),   // Steamy Bathhouse Bath #3, sauna_03F_door (key bit 3715)
+        (10, 10240, 3685, 3684),   // Yukiko's Castle 5F, castle_05F_door (key bit 3684)
+        (10, 10255, 3686, 3684),   // Yukiko's Castle 5F, castle_05F_door (key bit 3684)
+        // 2026-10-02 (from the scripts; node ids = the script's FLD_FUNCTION_0014 door ids):
+        (47, 10307, 3751, 3751),   // Marukyu Striptease 7F, playhouse_07F_door: Rise's "not yet!" until the
+                                   // battle door 10271 on the same floor is won (3751); no separate opened bit
+        (84, 10251, 3811, 3809),   // Secret Laboratory B4F, base_04F_door "research area": Research Card
+                                   // (item 1076, BIT 3809, the key chest on B6F — box_open_086)
+        (86, 10246, 3812, 3810),   // Secret Laboratory B6F, base_06F_door "classified area": Leader Card
+                                   // (item 1077, BIT 3810, the key chest on B4F — box_open_084)
     };
     private static readonly object _doorIdsLock = new();
     private static Dictionary<(float, float), List<int>> _doorIds = new();

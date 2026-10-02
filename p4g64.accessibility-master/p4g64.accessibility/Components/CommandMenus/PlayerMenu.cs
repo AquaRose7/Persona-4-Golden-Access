@@ -68,7 +68,7 @@ internal sealed unsafe class PlayerMenu
     private int _lastStripId = -1;
     private string _lastSpoken = "";
 
-    private int _itemRow = -1, _itemTab = -1, _itemTarget = -1, _itemPersonaTarget = -1;
+    private int _itemRow = -1, _itemTab = -1, _itemTarget = -1, _itemPersonaTarget = -1, _itemPendingRow = -1;
     private bool _itemTargeting;
     // True once the skill-card persona panel was seen during the current item-use; reset when we
     // return to the item list. Distinguishes the skill-card learn transition (which must NOT announce
@@ -358,7 +358,13 @@ internal sealed unsafe class PlayerMenu
             Log($"[PlayerMenu][Item] tab={tab}");
         }
 
-        if (row == _itemRow || row < 0 || row > 128) return;
+        // No fixed row cap: a full inventory runs past 128 rows (175 live, 2026-10-02 — everything
+        // below row 128 was silent, incl. the wrap from the top to the last item). The list's own
+        // end (id 0) bounds it; 1024 is only a sanity limit for a garbage cursor.
+        if (row == _itemRow || row < 0 || row > 1024) { _itemPendingRow = -1; return; }
+        // Settle: the scroll slides through other rows on a wrap/jump (rows 117 and 97 were read
+        // while wrapping to row 174) — speak only a row seen on two polls in a row.
+        if (row != _itemPendingRow) { _itemPendingRow = row; return; }
 
         nint pair = obj + 0x3E + row * 4;
         if (!IsReadable(pair, 4)) return;
@@ -1364,7 +1370,7 @@ internal sealed unsafe class PlayerMenu
     private void ResetCursors()
     {
         _lastStripId = -1;
-        _itemRow = _itemTab = -1;
+        _itemRow = _itemTab = _itemPendingRow = -1;
         _skillRow = _skillMember = -1;
         _skillPaneList = false;
         _itemTarget = -1;

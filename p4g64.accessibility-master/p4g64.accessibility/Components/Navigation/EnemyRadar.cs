@@ -27,6 +27,10 @@ namespace p4g64.accessibility.Components.Navigation;
 /// </summary>
 internal class EnemyRadar
 {
+    // Spoken Dodge/Strike rate limit (2026-09-29: "Dodge." x7 in a row during an auto-walk).
+    private const long CueRepeatMs = 4000;
+    private static long _lastDodgeMs;
+
     private const int PollMs = 40;
     private const int UpdateMs = 80;
     private const int VK_M = 0xBE;   // . (period) — Shadow radar toggle (rebound from M, 2026-06-11)
@@ -324,7 +328,9 @@ internal class EnemyRadar
     private void FireCue(bool opportunity)
     {
         Log($"[EnemyRadar] strike cue: {(opportunity ? "OPPORTUNITY (behind it — strike)" : "DANGER (it faces you)")}");
-        if (opportunity) { _cue.Trigger(1200f, 2300f, 0.45f * SoundSettings.RadarVol, 200f); Speech.Say("Strike.", true); }
+        // 2026-10-02: the "behind it" opportunity no longer sounds — "Strike." fired at 500u whatever your
+        // facing or reach, so players swung and whiffed. AmbushCue chimes only when a swing would land.
+        if (opportunity) { }
         else { _cue.Trigger(700f, 340f, 0.45f * SoundSettings.RadarVol, 240f); }   // ("It sees you." speech removed per user 2026-06-24; danger tone kept)
     }
 
@@ -368,8 +374,12 @@ internal class EnemyRadar
                 ? (s.fx * (px - s.x) + s.fz * (pz - s.z)) / dist : -1f;
             bool facingPlayer = cos > ConeSeeCos;
 
-            if (reliable && moved > LungePerUpdate && ddist < -ApproachPerUpdate && facingPlayer && dist < ChaseAwareRange)
+            if (reliable && moved > LungePerUpdate && ddist < -ApproachPerUpdate && facingPlayer && dist < ChaseAwareRange
+                && Environment.TickCount64 - _lastDodgeMs > CueRepeatMs)
+            {
+                _lastDodgeMs = Environment.TickCount64;
                 Speech.Say("Dodge.", true);
+            }
 
             // Constant-distance pursuit (circling/keeping pace) is NOT "stopped";
             // only an actual recede or going stationary is.

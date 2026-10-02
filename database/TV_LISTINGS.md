@@ -202,5 +202,5 @@ invisible to MsgWindow::DrawDialog): work+0x10 list → per-caption items — it
 container (+0x18 = RELOCATED in-memory MSG1), item+0x24 = dialog index. `TelopReader.cs`
 decodes and speaks each new caption, obeying the Shift+M dialogue reader toggle (voice
 mode → history only). Generic: covers ANY telop caption scene, not just the quiz.
-A quiz PLAYOFF round exists later in the story — same mechanism. Memory:
+The quiz PLAYOFF round later in the story — same mechanism, ✅ user-verified 2026-09-04. Memory:
 `miracle_quiz_and_telop.md`.

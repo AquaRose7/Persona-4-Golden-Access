@@ -45,7 +45,27 @@ internal static class Speech
     // The IndexOf guard avoids allocating when there's no full-width space (the norm).
     // Verified 2026-07-09: "Custom　Sub　Menu" → "Custom Sub Menu".
     private static string Normalize(string s)
-        => s.IndexOf('　') >= 0 ? s.Replace('　', ' ') : s;
+    {
+        if (s.IndexOf('　') >= 0) s = s.Replace('　', ' ');
+        return s.IndexOfAny(KanjiChars) >= 0 ? SpeakKanji(s) : s;
+    }
+
+    // The European scripts show exactly three kanji, drawn as pictures: 応天門 (the Outen Gate) in
+    // the lecture "missed the dot on top of the 応 character" (event E471) and as the three choices
+    // of the finals question "Even Kobo made mistakes in writing" (E474, player report 2026-10-02).
+    // An English voice can't pronounce a lone kanji, so they are spoken as what a sighted player
+    // sees. Japanese / Chinese / Korean games keep them as normal text.
+    private static readonly char[] KanjiChars = { '応', '天', '門' };
+    private static readonly string[] KanjiWords = { "kanji O", "kanji Ten", "kanji Mon" };
+
+    private static string SpeakKanji(string s)
+    {
+        int lang = Native.Text.GameText.LanguageId;
+        if (lang != 1 && (lang < 5 || lang > 8)) return s;
+        for (int i = 0; i < KanjiChars.Length; i++)
+            s = s.Replace(KanjiChars[i].ToString(), KanjiWords[i]);
+        return s;
+    }
 
     /// <summary>Speak a line AND record it to history. Drop-in for the old <c>Tolk.Output</c>.</summary>
     internal static void Say(string text, bool interrupt = true,

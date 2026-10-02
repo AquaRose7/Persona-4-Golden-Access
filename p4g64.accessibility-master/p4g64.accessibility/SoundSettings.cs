@@ -21,6 +21,14 @@ internal static class Defaults
     public const int CursorBeepVol = 100;
     public const int ChimeVol = 100;
     public const int BumpVol = 100;
+    // 2026-10-02: the minigame + ambush cues get their own volumes (they borrowed the arrival chime's / the
+    // P beacon's before). 100 = exactly the loudness they had.
+    public const int FishBiteVol = 100;
+    public const int FishReelVol = 100;
+    public const int BugChimeVol = 100;
+    public const int AmbushTickVol = 100;
+    public const int AmbushTurnVol = 100;
+    public const int AmbushStrikeVol = 100;
     public const int ShadowFreqYou = 140;
     public const int ShadowFreqAway = 300;
     public const int CursorMode = 1;    // 1 = Look
@@ -54,6 +62,12 @@ internal static class SoundSettings
     public static float CursorBeepVol = 1f;
     public static float ChimeVol = 1f;
     public static float BumpVol = 1f;
+    public static float FishBiteVol = 1f;
+    public static float FishReelVol = 1f;
+    public static float BugChimeVol = 1f;
+    public static float AmbushTickVol = 1f;
+    public static float AmbushTurnVol = 1f;
+    public static float AmbushStrikeVol = 1f;
     // ⚠ 140/300 defaults are EAR-PROVEN (see EnemyRadar's warning comment) — these are
     // the user-adjustable overrides; the menu row descriptions carry the caveat.
     public static float ShadowFreqYou = 140f;
@@ -74,6 +88,12 @@ internal static class SoundSettings
         CursorBeepVol = ModSettings.GetInt("vol_cursor_beeps", Defaults.CursorBeepVol) / 100f;
         ChimeVol      = ModSettings.GetInt("vol_arrival_chime", Defaults.ChimeVol) / 100f;
         BumpVol       = ModSettings.GetInt("vol_wall_bump", Defaults.BumpVol) / 100f;
+        FishBiteVol     = ModSettings.GetInt("vol_fish_bite", Defaults.FishBiteVol) / 100f;
+        FishReelVol     = ModSettings.GetInt("vol_fish_reel", Defaults.FishReelVol) / 100f;
+        BugChimeVol     = ModSettings.GetInt("vol_bug_chime", Defaults.BugChimeVol) / 100f;
+        AmbushTickVol   = ModSettings.GetInt("vol_ambush_tick", Defaults.AmbushTickVol) / 100f;
+        AmbushTurnVol   = ModSettings.GetInt("vol_ambush_turn", Defaults.AmbushTurnVol) / 100f;
+        AmbushStrikeVol = ModSettings.GetInt("vol_ambush_strike", Defaults.AmbushStrikeVol) / 100f;
         ShadowFreqYou = ModSettings.GetInt("shadow_freq_facing_you", Defaults.ShadowFreqYou);
         ShadowFreqAway = ModSettings.GetInt("shadow_freq_facing_away", Defaults.ShadowFreqAway);
         Utils.Log("[SoundSettings] loaded");

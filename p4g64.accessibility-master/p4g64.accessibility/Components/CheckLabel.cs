@@ -33,6 +33,7 @@ internal sealed unsafe class CheckLabel
     private static readonly object Lock = new();
     private static string? _label;          // last plausible field label drawn
     private static long _labelTick;         // when it was drawn
+    private static int _labelFocus = -1;    // the game's focused interactable when it was drawn (-1 = unknown)
     private static string? _spoken;         // label already announced for this prompt
     private static bool _promptAnnounced;   // FieldTracker's rise announcement happened
     private static volatile string? _areaBanner;  // the map's own name bar, learned on entry — never a label
@@ -79,12 +80,13 @@ internal sealed unsafe class CheckLabel
             lock (Lock) { _areaBanner = s; _label = null; }
             return;
         }
-        if (s == _areaBanner) return;
+        if (s == _areaBanner || IsAreaBanner(s)) return;
 
         lock (Lock)
         {
             _label = s;
             _labelTick = Environment.TickCount64;
+            _labelFocus = FieldTracker.FocusedInteractable;
 
             // Label CHANGED while the prompt is still up (walked from one object to
             // the next without the flag dropping) → speak the new target ourselves.
@@ -107,6 +109,44 @@ internal sealed unsafe class CheckLabel
         }
     }
 
+    /// <summary>The map's own name bar redraws for UNLABELED targets (talk prompts, bare checks).
+    /// The 2.5 s learn window misses it when the first draw is late — then "Check: Tatsuhime
+    /// Shrine" was spoken for a child and "Check: Entrance" for every TV-hub party member
+    /// (2026-09-29 playtest). So also reject a label that IS (a part of) the area's name.</summary>
+    private static bool IsAreaBanner(string s)
+    {
+        try
+        {
+            string area = FieldTracker.CurrentAreaName();
+            if (string.IsNullOrEmpty(area)) return false;
+            if (string.Equals(s, area, StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (var part in area.Split(','))
+                if (string.Equals(s, part.Trim(), StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>The label the game drew for the CURRENT prompt (≤ <paramref name="maxAgeMs"/> old,
+    /// never the area banner), or null. Read by the overworld auto-walk to confirm arrival by the
+    /// prompt's IDENTITY instead of by distance alone (2026-09-29).</summary>
+    internal static string? FreshLabel(int maxAgeMs = 1500)
+    {
+        lock (Lock)
+        {
+            if (_label == null) return null;
+            // Drawn since the prompt last went away = this prompt's label (it may draw only once).
+            // ...and the game still has the SAME interactable focused (2026-09-29): touching zones hand
+            // the prompt over without it ever going away — "Bus Stop" stayed "this prompt's" label at
+            // the South street exit next to it, and the exit walk refused the exit's own prompt.
+            bool sameFocus = _labelFocus < 0 || _labelFocus == FieldTracker.FocusedInteractable;
+            if (!sameFocus) return null;
+            bool thisPrompt = _labelTick > _fallTick && FieldTracker.CheckPromptActive;
+            return thisPrompt || Environment.TickCount64 - _labelTick <= maxAgeMs ? _label : null;
+        }
+    }
+    private static long _fallTick;
+
     /// <summary>FieldTracker, on the CHECK flag RISE: the label to append, or null
     /// for the plain honest "Check" (no fresh draw latched).</summary>
     internal static string? TakeForRise()
@@ -125,6 +165,6 @@ internal sealed unsafe class CheckLabel
     /// and clearing here made the quick re-rise announce a bare "Check" mid-spam.</summary>
     internal static void OnPromptGone()
     {
-        lock (Lock) { _promptAnnounced = false; _spoken = null; }
+        lock (Lock) { _promptAnnounced = false; _spoken = null; _fallTick = Environment.TickCount64; }
     }
 }

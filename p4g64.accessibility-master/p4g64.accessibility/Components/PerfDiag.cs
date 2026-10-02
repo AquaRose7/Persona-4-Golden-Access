@@ -57,9 +57,11 @@ internal static class PerfDiag
 
     internal static void Bump(B b)   // count-only bucket (no timing)
     {
+#if DEBUG
         Interlocked.Increment(ref _calls[(int)b]);
         if (Interlocked.CompareExchange(ref _started, 1, 0) == 0)
             new Thread(Report) { IsBackground = true, Name = "PerfDiag" }.Start();
+#endif
     }
 
     private static void Report()

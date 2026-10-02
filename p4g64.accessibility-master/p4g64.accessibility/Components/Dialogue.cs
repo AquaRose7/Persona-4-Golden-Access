@@ -49,6 +49,12 @@ internal unsafe class Dialogue
     /// gates on it so a frozen-position dialog doesn't read as a wall hit.</summary>
     internal static long LastDialogTick;
 
+    /// <summary>The speaker label of the latest spoken dialogue line (the game's own name for whoever
+    /// talks — "Lazy student", "Chie") and when it was drawn. OverworldNav learns field NPC names
+    /// from it (2026-09-30).</summary>
+    internal static volatile string? LastSpeakerName;
+    internal static long LastSpeakerTick;
+
     internal static void ToggleReader()
     {
         ReaderEnabled = !ReaderEnabled;
@@ -119,6 +125,8 @@ internal unsafe class Dialogue
             if (!string.IsNullOrWhiteSpace(speakerNameStr))
             {
                 sb.Append(speakerNameStr + ": ");
+                LastSpeakerName = SanitiseDialog(speakerNameStr).Replace('\u3000', ' ').Trim();
+                LastSpeakerTick = Environment.TickCount64;
             }
         }
 

@@ -85,6 +85,8 @@ public class Mod : ModBase // <= Do not Remove.
     private Components.SocialLinkRankUp? _slRankUp;
     private Components.SocialLinkBond? _slBond;
     private Components.SkillRegainMenu? _skillRegain;
+    private Components.FishingReader? _fishing;
+    private Components.BugCatchingCue? _bugCatching;
     private SubtitleReader _subtitleReader;
     private MovieDescription _movieDescription;
     private Tutorial _tutorial;
@@ -99,6 +101,7 @@ public class Mod : ModBase // <= Do not Remove.
     private Components.CheckLabel _checkLabel;                      // "Check: Sofa" prompt-label reader — rooted (hook delegate)
     private DungeonCursor? _dungeonCursor;
     private EnemyRadar? _enemyRadar;
+    private AmbushCue? _ambushCue;
     private Components.Navigation.CameraNorth? _cameraNorth;
     private ExitBeacon? _exitBeacon;
     private ChestBeacon? _chestBeacon;
@@ -275,6 +278,10 @@ public class Mod : ModBase // <= Do not Remove.
         // "Select the skill you want to regain" menu (rare S.Link outing) — polls the
         // cmp_skill_add_ex task; see SkillRegainMenu.cs.
         _skillRegain = new Components.SkillRegainMenu();
+        // Fishing (2026-10-02): bait menu, bite cue, reel-gauge tone — task registry polling;
+        // see FishingReader.cs + memory/fishing_accessibility.md.
+        _fishing = new Components.FishingReader();
+        _bugCatching = new Components.BugCatchingCue();
         _subtitleReader = new SubtitleReader(_hooks!);
         _movieDescription = new MovieDescription();
         _tutorial = new Tutorial();
@@ -318,6 +325,7 @@ public class Mod : ModBase // <= Do not Remove.
         //   / (slash)  = exit/stairs beacon toward the next-floor stairs.
         //   , (comma)  = chest beacon toward the nearest chest.
         _enemyRadar = new EnemyRadar();
+        _ambushCue = new AmbushCue();
         _cameraNorth = new Components.Navigation.CameraNorth();
         _exitBeacon = new ExitBeacon();
         _chestBeacon = new ChestBeacon();

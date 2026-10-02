@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using DavyKager;
+using p4g64.accessibility.Native.Text;
 using static p4g64.accessibility.Utils;
 
 namespace p4g64.accessibility.Components.Navigation;
@@ -40,7 +41,6 @@ internal class OverworldNav
     private const int VK_OEM_5     = 0xDC;   // \
     private const int VK_BACK      = 0x08;   // Backspace
     private const int VK_P         = 0x50;   // P beacon
-    private const int VK_F2        = 0x71;   // F2 → speak selected NPC's area+id (rename diagnostic)
 
     // Final-step assist: a bounded position-write nudge for the last ≤130u onto the spot (school only;
     // travel is always stick). PERMANENTLY ON — the O-key toggle was removed 2026-06-22 (user never wants it
@@ -79,6 +79,14 @@ internal class OverworldNav
         public int Kind;
         public ushort PersonId;   // live cat-3 unit handle; 0 = static target
         public string? ModelKey;  // live NPC model base-id ("n1851"); null = unknown / not a person
+        // The game's OWN check-prompt label for this trigger (2026-09-29): h-row label id baked into
+        // the catalog; text resolved live in the game's language (GameText.FieldLabel). 0 = none.
+        public int LabelId;
+        // The catalog name before any label rename - the stable key for learned spots (CalibKey).
+        public string? BaseName;
+        // The trigger's GATE (2026-09-29): a FlowScript BIT the game requires ON for this trigger to exist
+        // (h-row i32 @+0 — Ema/Fortune Hanger 3263, Trophy 3237, fld_debug_menu 3403…). -1 = always live.
+        public int[]? GateBits;   // FlowScript BITs that must ALL be ON for the trigger to exist (null = always)
     }
 
     private sealed class Area
@@ -103,7 +111,7 @@ internal class OverworldNav
 
     private readonly Thread _thread;
     private volatile bool _stopped;
-    private bool _minusWas, _plusWas, _lbWas, _rbWas, _bsWas, _bkWas, _pWas, _idWas;
+    private bool _minusWas, _plusWas, _lbWas, _rbWas, _bsWas, _bkWas, _pWas;
 
     private int _catIndex = -1;
     private bool _activeLast;
@@ -146,7 +154,7 @@ internal class OverworldNav
     // parked on the route, a load hiccup) must not degrade a player's area for good
     // (user concern 2026-07-06). A genuinely bad map just re-earns its entry cheaply;
     // blacklisted = the proven v1 straight-line walker, never "broken".
-    private static readonly HashSet<string> _noRouteAreas = new() { "8_9", "11_1" };
+    private static readonly HashSet<string> _noRouteAreas = new();   // 8_9 + 11_1 routed again 2026-09-29: both grids were mis-framed (collision bone translation ignored) — rebuilt   // 8_9 routed again 2026-09-29: its grid was mis-framed (collision bone translation ignored) — fixed
     private static readonly Dictionary<string, long> _noRouteUntil = new();
     private const long NoRouteMs = 15 * 60_000;
 
@@ -330,13 +338,34 @@ internal class OverworldNav
                         }
                         float bx = it.GetProperty("x").GetSingle();
                         float bz = it.GetProperty("z").GetSingle();
+                        int labelId = it.TryGetProperty("labelId", out var li) && li.ValueKind == JsonValueKind.Number
+                            ? li.GetInt32() : 0;
+                        string baseName = PlaceNames.Translate(name ?? proc ?? "Unknown trigger");
+                        // gate [bit,-1,-1] = live only while the bit is ON. 3-value rows = ALL listed bits ON
+                        // (2026-09-30, slot 11: Cushion [3254,12,1621] with 3254 off draws no prompt; its script
+                        // clears 1621 after giving the item, so 1621 must be part of the gate for it to vanish).
+                        int[]? gateBits = null;
+                        if (it.TryGetProperty("gate", out var ga) && ga.ValueKind == JsonValueKind.Array)
+                        {
+                            var gl = new List<int>();
+                            foreach (var gv in ga.EnumerateArray()) { int b = gv.GetInt32(); if (b >= 0) gl.Add(b); }
+                            if (gl.Count > 0) gateBits = gl.ToArray();
+                        }
                         area.Targets.Add(new Target
                         {
-                            Name = PlaceNames.Translate(name ?? proc ?? "Unknown trigger"),
+                            Name = baseName,
+                            BaseName = baseName,
+                            LabelId = labelId,
+                            GateBits = gateBits,
                             Proc = proc,
-                            X = bx + ex / 2f,
+                            // The HBN box position is the trigger CENTRE (|ext| = full size) —
+                            // proven 2026-09-29 against the 100 learned spots: 40 fit only the
+                            // centre reading, 8 only the old "corner + ext/2" one (38 both). The
+                            // old reading aimed every box target half a box off (Street exit 1:
+                            // 560u east of the real "Leave the shopping district?" spot).
+                            X = bx,
                             Y = it.GetProperty("y").GetSingle(),
-                            Z = bz + ez / 2f,
+                            Z = bz,
                             BX = bx, BZ = bz, ExtX = ex, ExtZ = ez,
                             Boundary = boundary,
                             Kind = kind,
@@ -382,6 +411,19 @@ internal class OverworldNav
         {
             Log($"[OverworldNav] catalog load failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>An area's catalog triggers as (proc, box X, box Z) — for DungeonNav's LOBBY exits
+    /// (enter_* / return_* / save_point / velvet_room). The box position is the trigger CENTRE
+    /// (live-verified 2026-09-29: the game's prompt spots sit inside the box around it).</summary>
+    internal static List<(string proc, float x, float z)> CatalogTriggers(int major, int minor)
+    {
+        var list = new List<(string, float, float)>();
+        var inst = Instance;
+        if (inst == null || !inst._catalog.TryGetValue($"{major:000}_{minor:000}", out var a)) return list;
+        foreach (var t in a.Targets)
+            if (t.Proc != null) list.Add((t.Proc, t.BX, t.BZ));
+        return list;
     }
 
     private Area? CurrentArea()
@@ -435,9 +477,17 @@ internal class OverworldNav
 
         if (_walking || _learnedThisStop || _stationaryMs < 600 || !FieldTracker.CheckPromptActive) return;
         var area = CurrentArea(); if (area == null) return;
+        // IDENTITY (2026-09-29): credit the object whose game label the prompt DRAWS. The old
+        // "nearest trigger" rule taught wrong spots (Fishing Equipment learned a spot where the
+        // TV's prompt lights). No label drawn → only a label-less target (exits) may be credited.
+        string? drawn = CheckLabel.FreshLabel();
+        string drawnNorm = drawn != null ? NormLabel(drawn) : "";
         Target best = default; float bestD = float.MaxValue; bool found = false;
         foreach (var tt in area.Targets)
         {
+            string? own = GameText.FieldLabel(tt.LabelId);
+            if (own != null ? !LabelIs(tt.LabelId, drawnNorm) : drawnNorm.Length > 0 && LabelBelongsToOther(in tt, drawnNorm)) continue;
+            if (own != null && drawnNorm.Length == 0) continue;
             float d = MathF.Min((tt.BX - px) * (tt.BX - px) + (tt.BZ - pz) * (tt.BZ - pz),
                                 (tt.X - px) * (tt.X - px) + (tt.Z - pz) * (tt.Z - pz));
             if (d < bestD) { bestD = d; best = tt; found = true; }
@@ -457,6 +507,91 @@ internal class OverworldNav
         }
     }
 
+    // ── NPC NAMES FROM THE TALK WINDOW (2026-09-30, nav pt2 item 6) ──────────────────────
+    // Field NPCs are named from their MODEL ("Townsperson", "Student") — the game names them in the
+    // talk window ("Lazy student:"). When a conversation starts within 2 s of a lit CHECK prompt and
+    // exactly ONE person stands within 220u (the next one ≥100u farther), the speaker label is that
+    // person's name: pinned to area + slot id + model key (the exact occupant), saved to
+    // npc_learned_names.json. Only generic model names are replaced — hand renames
+    // (npc_instance_names.json) and named models (Chie, Dojima) always win. Never guessed.
+    private long _promptSeenMs;
+    private long _learnedSpeakerTick = -1;
+    private readonly Dictionary<string, string> _npcLearned = new();
+    private bool _npcLearnedLoaded;
+    // Story characters speak under their own name already — never relabel their models.
+    private static readonly HashSet<string> StoryNpcNames = new(StringComparer.OrdinalIgnoreCase)
+    { "Chie", "Yosuke", "Yukiko", "Rise", "Nanako", "Teddie", "Naoto", "Kanji", "Marie", "Namatame", "Dojima",
+      "Mitsuo", "Fox", "Fox cub", "Margaret", "Protagonist", "Adachi", "Igor", "Elizabeth", "Yuta", "Nakajima" };
+
+    private string LearnedPath() => System.IO.Path.Combine(
+        string.IsNullOrEmpty(Utils.ModDir) ? AppContext.BaseDirectory : Utils.ModDir, "npc_learned_names.json");
+
+    private void EnsureLearnedLoaded()
+    {
+        if (_npcLearnedLoaded) return;
+        _npcLearnedLoaded = true;
+        try
+        {
+            string p = LearnedPath();
+            if (!File.Exists(p)) return;
+            using var doc = JsonDocument.Parse(File.ReadAllText(p));
+            foreach (var kv in doc.RootElement.EnumerateObject())
+                if (kv.Value.GetString() is string v && v.Length > 0) _npcLearned[kv.Name] = v.Replace('\u3000', ' ').Trim();
+            Log($"[NpcLearn] {_npcLearned.Count} learned NPC name(s) loaded");
+        }
+        catch (Exception ex) { Log($"[NpcLearn] load failed: {ex.Message}"); }
+    }
+
+    private string LearnedNpcName(string areaKey, ushort id, string modelKey, string current, string modelName)
+    {
+        EnsureLearnedLoaded();
+        if (current != modelName || StoryNpcNames.Contains(current)) return current;   // hand rename / story name wins
+        lock (_npcLearned)
+            return _npcLearned.TryGetValue($"{areaKey}:{id:X4}:{modelKey}", out var n) ? n : current;
+    }
+
+    private void LearnNpcNameFromTalk()
+    {
+        long now = Environment.TickCount64;
+        if (FieldTracker.CheckPromptActive) _promptSeenMs = now;
+        string? spk = Dialogue.LastSpeakerName;
+        if (spk == null || spk.Length == 0 || spk.Length > 40 || now - Dialogue.LastSpeakerTick > 1500) return;
+        // Each spoken speaker LINE is judged once (by its draw tick, not by the name: a name-based "seen"
+        // lost the "Refreshed old man" for the whole session — his first talk began while the walk was still
+        // running and his second talk was skipped as already seen; a second "Old man" elsewhere would be too).
+        if (Dialogue.LastSpeakerTick == _learnedSpeakerTick) return;
+        _learnedSpeakerTick = Dialogue.LastSpeakerTick;
+        if (now - _promptSeenMs > 2500) return;              // not a conversation the player started
+        if (StoryNpcNames.Contains(spk)) return;             // a story voice never names a generic model
+        var (px, _, pz, ok) = FieldTracker.WorldPlayerPos();
+        if (!ok) return;
+        Target best = default; float d1 = float.MaxValue, d2 = float.MaxValue; bool any = false;
+        foreach (var t in EnumerateLivePeople(px, pz))
+        {
+            float d = MathF.Sqrt((t.X - px) * (t.X - px) + (t.Z - pz) * (t.Z - pz));
+            if (d < d1) { d2 = d1; d1 = d; best = t; any = true; }
+            else if (d < d2) d2 = d;
+        }
+        if (!any || d1 > 220f || d2 < d1 + 100f || string.IsNullOrEmpty(best.ModelKey)) return;
+        string baseName = ModelNameOf(best.ModelKey);
+        if (StoryNpcNames.Contains(baseName) || spk.Equals(baseName, StringComparison.OrdinalIgnoreCase)) return;
+        string areaKey = $"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}";
+        string key = $"{areaKey}:{best.PersonId:X4}:{best.ModelKey}";
+        EnsureLearnedLoaded();
+        lock (_npcLearned)
+        {
+            if (_npcLearned.TryGetValue(key, out var old) && old == spk) return;
+            _npcLearned[key] = spk;
+            try
+            {
+                var opts = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(LearnedPath(), JsonSerializer.Serialize(_npcLearned, opts));
+            }
+            catch (Exception ex) { Log($"[NpcLearn] save failed: {ex.Message}"); }
+        }
+        Log($"[NpcLearn] {key} ({baseName}, {d1:F0}u away) = \"{spk}\"");
+    }
+
     private void Tick()
     {
         bool active = ActiveHere();
@@ -470,6 +605,7 @@ internal class OverworldNav
         }
         if (!active) return;
         LearnCheckSpot();
+        try { LearnNpcNameFromTalk(); } catch (Exception ex) { Log($"[NpcLearn] error: {ex.Message}"); }
         if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
         if (SettingsMenu.IsOpen) return;     // settings menu owns input
 
@@ -498,6 +634,9 @@ internal class OverworldNav
         _bsWas = bs;
 
         bool bk = IsKeyDown(VK_BACK);
+#if DEBUG
+        bk |= IsKeyDown(0x77) && !IsKeyDown(0x11);   // TEST HARNESS ONLY: F8 = Backspace (see DungeonNav)
+#endif
         if (bk && !_bkWas)
         {
             if (shift) RecordSpot();                                   // Shift+Backspace = record this spot
@@ -510,12 +649,6 @@ internal class OverworldNav
         if (p && !_pWas && !shift) ToggleBeacon();   // Shift+P = repeat last (HistoryKeys)
         _pWas = p;
 
-        // NPC-id "rename diagnostic" — MOVED to F2 2026-07-07 (; is now the
-        // global party-status cycle, PartyStatus). Speaks the selected NPC's
-        // area + id; used for NPC-name authoring.
-        bool idk = IsKeyDown(VK_F2);
-        if (idk && !_idWas) AnnounceSelectedId();
-        _idWas = idk;
         // (Removed 2026-06-22: the O-key PosDrive toggle. The final-step assist stays permanently ON — the
         // user never wants it off — and O is the party HP/SP key, so the binding was a conflict.)
     }
@@ -526,8 +659,290 @@ internal class OverworldNav
     // CALL_FIELD(8,1) etc. — verified in the decompiled flow) plus call_lmap
     // (the "Leave the street?" town-map prompt). The catalog resolves their
     // names to "Exit to <area>".
+    /// <summary>Is the lit prompt (its drawn <paramref name="label"/>) for target <paramref name="t"/>?
+    /// +1 when the label names t (at least as well as any other target of this area), or when it
+    /// names NO target here and we stand close (the catalog's "Down to riverbank" draws as "Stairs").
+    /// A label that names ANOTHER target here is never ours (the Pharmacy passed on the way).</summary>
+    private int PromptIdentity(in Target t, string label, float px, float pz, float distArr)
+    {
+        // EXACT IDENTITY (2026-09-29): the trigger's own game label vs the drawn one. The fuzzy
+        // name score below let "Calendar" confirm "Examine shelf" / "Examine my room TV" 200-330u
+        // away (a tiny room: everything is within the old 380u fallback).
+        string drawn = NormLabel(label);
+        if (GameText.FieldLabel(t.LabelId) is not null)
+            return LabelIs(t.LabelId, drawn) ? (distArr < 900f ? 1 : 0) : -1;
+        if (LabelBelongsToOther(in t, drawn)) return -1;
+        int mine = LabelScore(label, t.Name), bestOther = 0;
+        var area = CurrentArea();
+        if (area != null)
+            foreach (var o in area.Targets)
+            {
+                if (o.Name == t.Name && MathF.Abs(o.BX - t.BX) < 1f && MathF.Abs(o.BZ - t.BZ) < 1f) continue;
+                bestOther = Math.Max(bestOther, LabelScore(label, o.Name));
+            }
+        if (mine > 0 && mine >= bestOther) return distArr < 600f ? 1 : 0;
+        if (bestOther > 0) return -1;
+        // Names nothing here: ours when close OR standing inside our own trigger box (the Samegawa stairs
+        // lit "Stairs" at 430u from the embankment box's centre — inside the 970u-wide box, 2026-09-29).
+        return distArr < 380f || ((t.ExtX != 0 || t.ExtZ != 0) && InsideBox(in t, px, pz, 60f)) ? 1 : 0;
+    }
+
+    private static string NormLabel(string s)
+        => string.Join(' ', (s ?? "").ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    // RUNTIME LABEL SWAPS (2026-09-30): the game redraws a few triggers under another label of the same
+    // table — "Shiroku Store" (55) is "Shiroku Pub" (122) in the evening (slot 5, Apr 17: every walk ended
+    // "Turn to face it" with the Pub prompt lit), "Open Land" (120) becomes "Vegetable Patch" (123) once
+    // the garden is planted. No h-row carries 122/123, so the swap is in code; the drawn alias counts.
+    private static readonly Dictionary<int, int[]> LabelAliases = new() { [55] = new[] { 122 }, [120] = new[] { 123 } };
+
+    /// <summary>Does the drawn (normalised) label name this label id — itself or its runtime alias?</summary>
+    private static bool LabelIs(int labelId, string drawnNorm)
+    {
+        if (drawnNorm.Length == 0) return false;
+        if (GameText.FieldLabel(labelId) is string own && NormLabel(own) == drawnNorm) return true;
+        if (LabelAliases.TryGetValue(labelId, out var al))
+            foreach (int a in al)
+                if (GameText.FieldLabel(a) is string alt && NormLabel(alt) == drawnNorm) return true;
+        return false;
+    }
+
+    /// <summary>Is the player inside the box of the (other) trigger that owns this drawn label (+30u)?</summary>
+    private bool LabelOwnerContains(in Target t, string drawnNorm, float px, float pz)
+    {
+        var area = CurrentArea();
+        if (area == null || drawnNorm.Length == 0) return false;
+        foreach (var o in area.Targets)
+        {
+            if (MathF.Abs(o.BX - t.BX) < 1f && MathF.Abs(o.BZ - t.BZ) < 1f) continue;
+            if (LabelIs(o.LabelId, drawnNorm) && InsideBox(in o, px, pz, 30f)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Does a drawn label name ANOTHER labelled trigger of this area?</summary>
+    private bool LabelBelongsToOther(in Target t, string drawnNorm)
+    {
+        var area = CurrentArea();
+        if (area == null || drawnNorm.Length == 0) return false;
+        foreach (var o in area.Targets)
+        {
+            if (MathF.Abs(o.BX - t.BX) < 1f && MathF.Abs(o.BZ - t.BZ) < 1f) continue;
+            if (LabelIs(o.LabelId, drawnNorm)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Distance to the nearest live person (NPC) in this area, +∞ when none.</summary>
+    private float NearestPersonDist(float px, float pz)
+    {
+        float best = float.PositiveInfinity;
+        try
+        {
+            foreach (var p in EnumerateLivePeople(px, pz))
+            {
+                float d = MathF.Sqrt((p.X - px) * (p.X - px) + (p.Z - pz) * (p.Z - pz));
+                if (d < best) best = d;
+            }
+        }
+        catch { }
+        return best;
+    }
+
+    /// <summary>How well a drawn prompt label names a catalog target: 3 same, 2 one contains the
+    /// other, 1 a shared word (4+ letters), 0 unrelated. "Examine"/"Exit to" and commas ignored.</summary>
+    private static int LabelScore(string label, string name)
+    {
+        static string Norm(string x)
+        {
+            x = x.ToLowerInvariant().Replace(",", " ").Replace("'", "");
+            foreach (var pre in new[] { "examine ", "exit to ", "to " })
+                if (x.StartsWith(pre)) x = x.Substring(pre.Length);
+            return string.Join(' ', x.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        }
+        string a = Norm(label), b = Norm(name);
+        if (a.Length == 0 || b.Length == 0) return 0;
+        if (a == b) return 3;
+        if (a.Contains(b) || b.Contains(a)) return 2;
+        var bw = b.Split(' ');
+        foreach (var w in a.Split(' '))
+            if (w.Length >= 4 && Array.IndexOf(bw, w) >= 0) return 1;
+        return 0;
+    }
+
+    /// <summary>Developer leftovers in the catalog ("Fld Debug Menu" was listed as a Shrine Place).</summary>
+    private static bool IsDevLeftover(Target t)
+        => (t.Proc?.Contains("debug", StringComparison.OrdinalIgnoreCase) ?? false)
+           || t.Name.Contains("Debug", StringComparison.OrdinalIgnoreCase);
+
+    private const int WideRingAfterMs = 3600;   // small sweep first, then the wide ring (2026-09-29)
+    private const int RingSlotMs = 1500;        // per stand point: walk there, then step in toward the box
+
+    /// <summary>WALKING PEOPLE (2026-09-29, "it said press to talk but there was no one"): a townsperson
+    /// strolls out of talk range while "Talk available" is still being spoken. If they are moving,
+    /// keep close behind them (≤8 s) so the talk prompt stays up until the player presses — stops the
+    /// moment a dialogue starts, the walk is cancelled, or a standing person needs no follow.</summary>
+    private void FollowUntilTalk(ushort personId, bool camLive, float wAngle)
+    {
+        long start = Environment.TickCount64, dlg0 = Dialogue.LastDialogTick;
+        float lastNx = float.NaN, lastNz = 0f; bool moving = false, logged = false;
+        try
+        {
+            while (Environment.TickCount64 - start < 8000 && _walking && Utils.GameHasFocus())
+            {
+                Thread.Sleep(80);
+                if (Dialogue.LastDialogTick != dlg0) break;                 // the talk started
+                if (!TryGetPersonPos(personId, out float nx, out float nz)) break;
+                var (px, _, pz, ok) = FieldTracker.WorldPlayerPos();
+                if (!ok) break;
+                if (!float.IsNaN(lastNx) && (nx - lastNx) * (nx - lastNx) + (nz - lastNz) * (nz - lastNz) > 16f) moving = true;
+                lastNx = nx; lastNz = nz;
+                if (!moving) { if (Environment.TickCount64 - start > 1200) break; continue; }
+                if (!logged) { logged = true; Log("[OverworldNav] person is walking — following until the talk starts"); }
+                if (camLive)
+                {
+                    var (cfx, cfz) = FieldTracker.CameraForward3D();
+                    if (MathF.Sqrt(cfx * cfx + cfz * cfz) > 0.1f) wAngle = MathF.Atan2(cfz, cfx);
+                }
+                float dx = nx - px, dz = nz - pz, d = MathF.Sqrt(dx * dx + dz * dz);
+                if (d > 105f)
+                {
+                    float rad = MathF.Atan2(dz, dx) - wAngle, spd = Math.Clamp(d * 0.85f, 40f, 110f);
+                    ControllerInput.DriveStickXY(0x80 + (int)MathF.Round(MathF.Sin(rad) * spd),
+                                                 0x80 - (int)MathF.Round(MathF.Cos(rad) * spd));
+                }
+                else ControllerInput.ReleaseDriveStick();
+            }
+        }
+        finally { ControllerInput.ReleaseDriveStick(); }
+    }
+
+    /// <summary>Up to 8 WALKABLE stand points around a trigger box (walkgrid, one cell of clearance),
+    /// nearest to the player first; duplicates within 90u merged.</summary>
+    private static List<(float x, float z)> RingStandPoints(in Target t, MeshGrid? g, float px, float pz)
+    {
+        var pts = new List<(float x, float z)>();
+        float reach = MathF.Max(MathF.Abs(t.ExtX), MathF.Abs(t.ExtZ)) * 0.5f + 360f;
+        for (int k = 0; k < 8; k++)
+        {
+            float a = k * MathF.PI / 4f, ux = MathF.Cos(a), uz = MathF.Sin(a);
+            for (float d = 60f; d <= reach; d += 30f)
+            {
+                float x = t.BX + ux * d, z = t.BZ + uz * d;
+                if (g == null) { if (d >= reach - 30f) pts.Add((x, z)); continue; }
+                g.WorldToCell(x, z, out int r, out int c);
+                // walkable is enough: stand points hug furniture and walls (Fishing Equipment's is a
+                // 1-cell strip along the south wall); a clearance test rejected them all.
+                if (!g.Blocked(r, c)) { pts.Add((x, z)); break; }
+            }
+        }
+        var merged = new List<(float x, float z)>();
+        foreach (var p in pts)
+            if (!merged.Exists(m => (m.x - p.x) * (m.x - p.x) + (m.z - p.z) * (m.z - p.z) < 90f * 90f)) merged.Add(p);
+        float qx = px, qz = pz;
+        merged.Sort((a, b) => ((a.x - qx) * (a.x - qx) + (a.z - qz) * (a.z - qz)).CompareTo((b.x - qx) * (b.x - qx) + (b.z - qz) * (b.z - qz)));
+        Log($"[OverworldNav] ring: {merged.Count} walkable stand points around {t.Name}");
+        return merged;
+    }
+
     private static bool IsExit(Target t)
         => t.Proc?.StartsWith("call_") ?? false;
+
+    /// <summary>A walkable cell INSIDE the target's trigger box (+30u), nearest the box centre. False when the
+    /// box centre itself is walkable (nothing to fix), the target has no box, or no such cell exists.
+    /// BOX ACROSS A FENCE (2026-09-30, 7_1 "Open Land"): with the player position, unreachable cells never
+    /// win, and when the nearest-the-centre cell is >1000u further to WALK than the best cell in the box
+    /// (the field half behind the fence, reachable only out past the street's west end — the walk took that
+    /// detour into a pole), the pick becomes walking distance + 2 × centre distance. Ordinary boxes keep the
+    /// nearest-the-centre cell (a plain path score moved "Home entrance" off its doorstep).</summary>
+    private static bool NearestFreeInBox(MeshGrid g, in Target t, out float x, out float z, float px = float.NaN, float pz = float.NaN)
+    {
+        x = t.X; z = t.Z;
+        if (t.ExtX == 0 && t.ExtZ == 0 || t.PersonId != 0) return false;
+        g.WorldToCell(t.BX, t.BZ, out int br, out int bc);
+        bool centreFree = g.InBounds(br, bc) && !g.Blocked(br, bc);
+        int[]? pd = float.IsNaN(px) ? null : g.PathDistances(px, pz);
+        // A WALKABLE centre is fine unless it is far round a fence (7_1 "Home entrance": the centre inside
+        // the house is grid-walkable only via the street's east end — the walk went 1500u round and gave up).
+        if (centreFree && pd == null) return false;
+        int walkCentre = centreFree ? pd![br * g.Cols + bc] : -1;
+        float hx = MathF.Abs(t.ExtX) * 0.5f + 30f, hz = MathF.Abs(t.ExtZ) * 0.5f + 30f;
+        g.WorldToCell(t.BX - hx, t.BZ - hz, out int r0, out int c0);
+        g.WorldToCell(t.BX + hx, t.BZ + hz, out int r1, out int c1);
+        float bestC = float.MaxValue, bestS = float.MaxValue; int walkC = 0, walkMin = int.MaxValue;
+        float sx = 0, sz = 0;
+        for (int r = r0; r <= r1; r++)
+            for (int c = c0; c <= c1; c++)
+            {
+                if (!g.InBounds(r, c) || g.Blocked(r, c)) continue;
+                g.CellToWorld(r, c, out float cx, out float cz);
+                if (MathF.Abs(cx - t.BX) > hx || MathF.Abs(cz - t.BZ) > hz) continue;
+                int w = pd != null ? pd[r * g.Cols + c] : 0;
+                if (w < 0) continue;   // unreachable from here
+                float d = MathF.Sqrt((cx - t.BX) * (cx - t.BX) + (cz - t.BZ) * (cz - t.BZ));
+                if (d < bestC) { bestC = d; x = cx; z = cz; walkC = w; }
+                walkMin = Math.Min(walkMin, w);
+                float score = w * MeshGrid.Cell + 2f * d;
+                if (score < bestS) { bestS = score; sx = cx; sz = cz; }
+            }
+        if (bestC == float.MaxValue) return false;
+        if (centreFree)
+        {
+            if (walkCentre >= 0 && (walkCentre - walkMin) * MeshGrid.Cell <= 1000f) { x = t.X; z = t.Z; return false; }
+            Log($"[OverworldNav] box across a wall ({t.Name}): aim ({sx:F0},{sz:F0}) — the walkable box centre is {(walkCentre < 0 ? "unreachable" : $"{(walkCentre - walkMin) * MeshGrid.Cell:F0}u further to walk")}");
+            x = sx; z = sz;
+            return true;
+        }
+        if (pd != null && (walkC - walkMin) * MeshGrid.Cell > 1000f)
+        {
+            Log($"[OverworldNav] box across a wall ({t.Name}): aim ({sx:F0},{sz:F0}) — the cell nearest the centre ({x:F0},{z:F0}) is {(walkC - walkMin) * MeshGrid.Cell:F0}u further to walk");
+            x = sx; z = sz;
+        }
+        return true;
+    }
+
+    private const long FlagBitmapPtr = 0x1451FF7A0L;   // *(byte**) → the FlowScript BIT bitmap
+
+    // What a place is FOR, when the game's own label doesn't say (Haru 2026-09-29: the fortune is drawn at
+    // "Yashiro", not at the "Fortune Hanger"). List-only suffix; the arrival still matches the game label.
+    private static readonly Dictionary<string, string> PlaceHints = new()
+    {
+        ["jinjya_yashiro"] = "draw a fortune",
+    };
+
+    /// <summary>Is this trigger switched ON by the game right now? (its h-row gate BIT; unreadable → live)</summary>
+    private static unsafe bool TriggerLive(in Target t)
+    {
+        if (t.GateBits == null) return true;
+        nint bm;
+        if (!Utils.TryReadRaw((nint)FlagBitmapPtr, &bm, 8) || bm == 0) return true;
+        foreach (int bit in t.GateBits)
+        {
+            uint word;
+            if (!Utils.TryReadRaw(bm + (bit >> 5) * 4, &word, 4)) return true;
+            if ((word & (1u << (bit & 31))) == 0) return false;
+        }
+        return true;
+    }
+
+    /// <summary>UNREACHABLE EXITS (2026-09-29): some areas carry leftover exit triggers OUTSIDE the game's own
+    /// wall outline — Okina's Street exits 2/3 sit past both closed street ends (driven: the body stops at
+    /// x≈-1414). The prebuilt walkgrid is reach-filtered (cells a body can get to from where players really
+    /// stood), so an exit with no walkable cell within 150u of its box can never be walked into — don't
+    /// offer it. No grid for the area → keep it (unknown ≠ unreachable).</summary>
+    private bool ExitReachable(in Target t)
+    {
+        string key = $"{FieldTracker.CurrentMajor:000}_{FieldTracker.CurrentMinor:000}";
+        if (!_walkgrid.TryGetValue(key, out var w)) return true;
+        float hx = MathF.Abs(t.ExtX) * 0.5f + 150f, hz = MathF.Abs(t.ExtZ) * 0.5f + 150f;
+        const float cell = 60f;
+        int c0 = Math.Max(0, (int)MathF.Floor((t.BX - hx - w.ox) / cell)), c1 = Math.Min(w.cols - 1, (int)MathF.Floor((t.BX + hx - w.ox) / cell));
+        int r0 = Math.Max(0, (int)MathF.Floor((t.BZ - hz - w.oz) / cell)), r1 = Math.Min(w.rows - 1, (int)MathF.Floor((t.BZ + hz - w.oz) / cell));
+        for (int r = r0; r <= r1; r++)
+            for (int c = c0; c <= c1; c++)
+                if (w.walk[r * w.cols + c]) return true;
+        return false;
+    }
     private static bool IsStreet(Target t) => false;
 
     private List<(Target, float)> BuildCategory(Cat cat)
@@ -549,12 +964,31 @@ internal class OverworldNav
 
         var area = CurrentArea();
         if (area == null) return list;
+        // GAME LABELS AS NAMES (2026-09-29): an object is named by the label the game draws on its
+        // CHECK prompt ("Calendar", not our proc-derived "Examine diary") - what the player hears
+        // on arrival is what they picked. Repeats get a stable number (catalog order).
+        var labelTotal = new Dictionary<string, int>();
         foreach (var t in area.Targets)
+            if (!IsExit(t) && TriggerLive(in t) && GameText.FieldLabel(t.LabelId) is string gl0)
+                labelTotal[gl0] = labelTotal.GetValueOrDefault(gl0) + 1;
+        var labelSeen = new Dictionary<string, int>();
+        foreach (var t0 in area.Targets)
         {
+            var t = t0;
+            // GATED TRIGGERS (2026-09-29): the game switches some triggers off by a story BIT — the list
+            // offered the Shrine's hangers, the Trophy, Fishing Equipment and dead street exits that have
+            // no check at this point in the story (walks "arrived" on a neighbour or stopped short).
+            if (!TriggerLive(in t)) continue;
+            if (!IsExit(t) && GameText.FieldLabel(t.LabelId) is string gl)
+            {
+                labelSeen[gl] = labelSeen.GetValueOrDefault(gl) + 1;
+                t.Name = labelTotal[gl] > 1 ? $"{gl} {labelSeen[gl]}" : gl;
+            }
+            if (t.Proc != null && PlaceHints.TryGetValue(t.Proc, out var hint)) t.Name = $"{t.Name}, {hint}";
             bool match = cat switch
             {
-                Cat.Exits => IsExit(t),
-                Cat.Places => !IsExit(t) && !IsStreet(t) && !t.Boundary && t.Proc != null,
+                Cat.Exits => IsExit(t) && ExitReachable(in t),
+                Cat.Places => !IsExit(t) && !IsStreet(t) && !t.Boundary && t.Proc != null && !IsDevLeftover(t),
                 Cat.Other => !IsExit(t) && (IsStreet(t) || t.Boundary || t.Proc == null),
                 _ => false,
             };
@@ -639,13 +1073,17 @@ internal class OverworldNav
                 person++;
                 string mkey = TryGetNpcModelKey(cur) ?? "";
                 string name = mkey.Length > 0 ? ModelNameOf(mkey) : $"NPC {person}";
+                string modelName = name;
                 name = OverrideNpcName(areaKey, id, mkey, name);
+                if (mkey.Length > 0) name = LearnedNpcName(areaKey, id, mkey, name, modelName);
                 outp.Add(new Target { Name = name, X = bx, Z = bz, PersonId = id, ModelKey = mkey });
             }
             if (!IsReadable(cur + OFF_NODE_NEXT, 8)) break;
             cur = *(nint*)(cur + OFF_NODE_NEXT);
         }
-        DumpPeopleOnce(areaKey, outp);
+#if DEBUG
+        DumpPeopleOnce(areaKey, outp);   // [NpcDump] authoring log (dev builds only, 2026-10-02)
+#endif
         // de-duplicate display names ("Student" ×3 → "Student 1..3")
         var counts = new Dictionary<string, int>();
         foreach (var t in outp)
@@ -864,8 +1302,31 @@ internal class OverworldNav
             float dx = px - t.X, dz = pz - t.Z;
             return MathF.Sqrt(dx * dx + dz * dz) < ArriveDist + margin;
         }
-        if (InRect(t.BX, t.BZ, t.BX + t.ExtX, t.BZ + t.ExtZ, px, pz, margin)) return true;
-        return InRect(t.BX - t.ExtX, t.BZ - t.ExtZ, t.BX, t.BZ, px, pz, margin);
+        // (BX,BZ) is the box CENTRE and |Ext| its full size (2026-09-29, proven on 100 learned spots).
+        // The old "either corner" test covered TWICE the box: it bound the Samegawa stairs trigger
+        // (down_embankment, centre -977) to a follow point 670u away, so the walk stopped far short.
+        float hx = MathF.Abs(t.ExtX) * 0.5f, hz = MathF.Abs(t.ExtZ) * 0.5f;
+        return InRect(t.BX - hx, t.BZ - hz, t.BX + hx, t.BZ + hz, px, pz, margin);
+    }
+
+    /// <summary>BOX IDENTITY (2026-09-29): +1 = standing in OUR trigger box (+30u) and in no other live box;
+    /// -1 = inside another live trigger's box and clearly outside ours (+60u); 0 = can't tell (overlaps,
+    /// no boxes). The second opinion for prompts that draw NO label (Save Point, exits) or a STALE one
+    /// (the Bus Stop's label kept at South Street exit 1 next to it — touching zones never drop the prompt).</summary>
+    private int BoxIdent(in Target t, float px, float pz)
+    {
+        var area = CurrentArea();
+        if (area == null || (t.ExtX == 0 && t.ExtZ == 0)) return 0;
+        bool inOther = false;
+        foreach (var o in area.Targets)
+        {
+            if (MathF.Abs(o.BX - t.BX) < 1f && MathF.Abs(o.BZ - t.BZ) < 1f) continue;
+            if ((o.ExtX == 0 && o.ExtZ == 0) || !TriggerLive(in o)) continue;
+            if (InsideBox(in o, px, pz, 0f)) { inOther = true; break; }
+        }
+        if (!inOther && InsideBox(in t, px, pz, 30f)) return 1;
+        if (inOther && !InsideBox(in t, px, pz, 60f)) return -1;
+        return 0;
     }
 
     private static bool InRect(float ax, float az, float bx, float bz, float px, float pz, float m)
@@ -878,10 +1339,16 @@ internal class OverworldNav
     private void CycleCategory(int dir)
     {
         int n = Categories.Length;
-        _catIndex = _catIndex < 0 ? (dir > 0 ? 0 : n - 1) : (_catIndex + dir + n) % n;
-        _cursor = 0;
-        Cat cat = Categories[_catIndex];
-        _entries = BuildCategory(cat);
+        // Skip EMPTY categories (2026-09-29, the P5R rule — "Other: none here" in almost every area).
+        Cat cat = Categories[0];
+        for (int tries = 0; tries < n; tries++)
+        {
+            _catIndex = _catIndex < 0 ? (dir > 0 ? 0 : n - 1) : (_catIndex + dir + n) % n;
+            _cursor = 0;
+            cat = Categories[_catIndex];
+            _entries = BuildCategory(cat);
+            if (_entries.Count > 0) break;
+        }
         Log($"[OverworldNav] category → {cat} entries={_entries.Count}");
         if (_entries.Count == 0)
         {
@@ -933,7 +1400,7 @@ internal class OverworldNav
         RememberStick();
 
         SetSelection(_entries[_cursor].t);
-        Speech.Say($"{Say(_entries[_cursor])}, {_cursor + 1} of {_entries.Count}.", true);
+        Speech.Say($"{Say(_entries[_cursor])}. {_cursor + 1} of {_entries.Count}.", true);   // same format as the dungeon browser
         WinBeep(1000, 25);
     }
 
@@ -973,32 +1440,7 @@ internal class OverworldNav
         lock (_selLock) { t = _selTarget; return _hasSel; }
     }
 
-    /// <summary>
-    /// Rename diagnostic (the <c>;</c> key). Speaks the currently-selected NPC's area key and
-    /// 16-bit handle id — exactly the two values <see cref="OverrideNpcName"/> needs to add a
-    /// per-instance rename. Navigate to a "Townsperson" with <c>[</c>/<c>]</c>, press <c>;</c>,
-    /// read back the id, and we add one line. Only People targets carry an id (PersonId != 0).
-    /// (For TV-world LOBBY NPCs the id table is DungeonNav.PlaceNpcNames; those already speak
-    /// "Person &lt;id&gt;" in DECIMAL via the dungeon browser.)
-    /// </summary>
-    private void AnnounceSelectedId()
-    {
-        if (!TryGetSelection(out var t)) { Speech.Say("Nothing selected.", true); return; }
-        if (t.PersonId == 0)
-        {
-            Speech.Say($"{t.Name} is not a person, no id to rename.", true);
-            return;
-        }
-        int maj = FieldTracker.CurrentMajor, min = FieldTracker.CurrentMinor;
-        string hex = t.PersonId.ToString("X4");
-        string spoken = string.Join(" ", hex.ToCharArray());   // digit-by-digit so the reader doesn't mangle it
-        string mk = string.IsNullOrEmpty(t.ModelKey) ? "unknown" : t.ModelKey;
-        string mkSpoken = mk == "unknown" ? mk : "n " + string.Join(" ", mk.Substring(1).ToCharArray());
-        Speech.Say($"{t.Name}. Area {maj} {min}. Id {spoken}. Model {mkSpoken}.", true);
-        Log($"[OverworldNav] ID DIAG: area {maj}_{min} id 0x{hex} model {mk} name '{t.Name}'");
-    }
-
-    private static string CalibKey(Target t) => $"{(int)MathF.Round(t.BX)}_{(int)MathF.Round(t.BZ)}_{t.Name}";
+    private static string CalibKey(Target t) => $"{(int)MathF.Round(t.BX)}_{(int)MathF.Round(t.BZ)}_{t.BaseName ?? t.Name}";
 
     private static string CalibWritePath()
     {
@@ -1073,6 +1515,12 @@ internal class OverworldNav
         if (!TryGetSelection(out var t)) { Speech.Say("Select a target first.", true); return; }
         _beacon = true;
         Speech.Say($"Beacon on: {t.Name}.", true);
+        {
+            var (cfx, cfz) = FieldTracker.CameraForward3D();
+            var (bpx, _, bpz, _) = FieldTracker.WorldPlayerPos();
+            Log($"[OverworldNav] beacon on: {t.Name} at ({t.X:F0},{t.Z:F0}) player ({bpx:F0},{bpz:F0}) "
+                + $"frame=screen camera=({cfx:F2},{cfz:F2})");
+        }
         new Thread(BeaconLoop) { IsBackground = true, Name = "OverworldBeacon" }.Start();
     }
 
@@ -1118,7 +1566,7 @@ internal class OverworldNav
                 // Arrival = CHECK prompt inside THIS target's box, or on the centre.
                 // Only the cramped fridge + sofa (which sit right next to other checks)
                 // use a tight radius; every other place keeps the normal tolerance.
-                bool tight = IsRoomArea() && (t.Name == "check_reizou" || t.Name == "check_sofa_p4p");
+                bool tight = IsRoomArea() && (t.Proc == "check_reizou" || t.Proc == "check_sofa_p4p");
                 float arrive = tight ? 38f : ArriveDist;
                 bool atCheck = FieldTracker.CheckPromptActive &&
                                (tight ? dist < arrive : InsideBox(in t, px, pz, 60f));
@@ -1147,9 +1595,15 @@ internal class OverworldNav
                 // user-verified pan sign).
                 float ux = dist > 1e-3f ? dx / dist : 0f;
                 float uz = dist > 1e-3f ? dz / dist : 0f;
+                // TOWN SCREEN MODE (2026-09-30, nav pt2 item 16 — Haru: "the beacon in 2.5D maps is not
+                // working really good"): the fixed world frame ignores which way each fixed camera looks
+                // (a south-looking camera turns it into a mirror). The LIVE camera (CameraForward3D — the
+                // same vector every town walk steers by since round 3; the old CameraForwardX/Z that was
+                // rejected in June read (0,0) indoors) gives the screen frame: W = up the screen, D =
+                // (−fz,fx) = right. No setting (Haru 09-30: "the Compass one is wrong anyway"); the fixed
+                // world frame below is only the fallback while the camera is unreadable.
                 float pan, openness;
-                var (cfx, cfz) = FieldTracker.CurrentMajor == 6
-                    ? FieldTracker.CameraForward3D() : (0f, 0f);
+                var (cfx, cfz) = FieldTracker.CameraForward3D();
                 if ((cfx != 0f || cfz != 0f) && dist > 1f)
                 {
                     float fwd = ux * cfx + uz * cfz;              // ahead(+1) … behind(-1)
@@ -1208,6 +1662,15 @@ internal class OverworldNav
 
     private void StartWalk()
     {
+        // DIALOGUE GUARD (2026-09-30, nav pt2 item 11): a walk started while a message window is up
+        // pushed the stick into the conversation for ~13 s ("grinds in place"). The DrawDialog hook
+        // stamps LastDialogTick every frame a window with text/choices is visible.
+        if (Environment.TickCount64 - Dialogue.LastDialogTick < 600)
+        {
+            Speech.Say("Finish the conversation first.", true);
+            Log("[Nav] walk refused: a dialogue is on screen");
+            return;
+        }
         if (!TryGetSelection(out var t)) { Speech.Say("Select a target first.", true); return; }
         var (_, _, _, ok) = FieldTracker.WorldPlayerPos();
         if (!ok) { Speech.Say("Position unavailable.", true); return; }
@@ -1311,13 +1774,35 @@ internal class OverworldNav
         // If the user recorded a verified spot for this target, drive to THAT (not the catalog point)
         // and arrive on the recorded pos+facing — ground truth instead of the unreliable flags.
         bool calib = TryGetCalib(t, out float calX, out float calZ, out float calFx, out float calFz);
+        // EXITS aim at their trigger box, never a learned spot (2026-09-29): "Exit to Shopping District
+        // North" had learned a spot 900u OUTSIDE its box facing west → every walk stopped short with
+        // "push that way". An exit is a volume you walk INTO; the box is the truth.
+        if (calib && IsExit(t) && (t.ExtX != 0 || t.ExtZ != 0)) calib = false;
+        // A learned spot far OUTSIDE its trigger box is a mislearned one (the pre-label learner credited
+        // the NEAREST trigger: Marutake Hobby Shop's spot sat 250u outside its box beside a wall → 13
+        // stalls). Ignore it; the ring search + label-verified learning replace it.
+        if (calib && (t.ExtX != 0 || t.ExtZ != 0) && FieldTracker.CurrentMajor != 6)
+        {
+            float hx = MathF.Abs(t.ExtX) * 0.5f, hz = MathF.Abs(t.ExtZ) * 0.5f;
+            float ox = MathF.Max(0f, MathF.Abs(calX - t.BX) - hx), oz = MathF.Max(0f, MathF.Abs(calZ - t.BZ) - hz);
+            if (ox * ox + oz * oz > 400f * 400f)
+            {
+                Log($"[OverworldNav] learned spot for {t.Name} is {MathF.Sqrt(ox * ox + oz * oz):F0}u outside its box — ignoring it");
+                calib = false;
+            }
+        }
+        long calibWrongSinceMs = -1;
+        long promptOnMs = -1;   // when the current CHECK prompt lit (its label lands a moment later)
         if (calib) { t.X = calX; t.Z = calZ; }
         // REMOVED 2026-06-22: the old "adopt nearest scene object" step. TryNearestSceneObject is unreliable
         // in the school (it returns walls/props, not the door) and it DRAGGED targets onto the wrong thing —
         // it pulled "Sports Clubs" (undoubu box centre -5253,69) over to (-5200,206), right onto the Passage,
         // so the walk grabbed the passage's check. Use the catalog target (box centre/follow-point) directly;
         // the learned-spot system handles any per-target offset (e.g. the save's butterfly) far better.
-        var areaObs = ObstaclesFor(areaAtStart);   // learned walls for this area (Stage 2)
+        // Learned walls are PER-WALK only since 2026-09-29: persisted ones piled up in the MIDDLE of open
+        // streets (NPC / pole bumps — 180 in the Shrine, most against its mis-framed grid) and bent every
+        // later route. The grids are now built right (bone translations), so a stall teaches THIS walk only.
+        var areaObs = new List<float[]>();
         var collGrid = PrebuiltGrid(areaAtStart);   // for position-drive's own wall collision
 
         // REACHABLE-DOOR TARGET (town, 2026-06-22): a shop's catalog point is often the trigger-box CENTRE,
@@ -1353,7 +1838,22 @@ internal class OverworldNav
             // Position-drive writes WORLD pos directly, so it needs no probe — skip it (faster start, and
             // no false "can't walk from here" when the body is momentarily wedged).
             float wAngle = 0f;
-            if (!wholePosDrive)
+            // TOWN STEERING FROM THE LIVE CAMERA (2026-09-29): stick-forward = the camera's forward (XZ),
+            // stick-right 90° counter-clockwise from it — the same camera the school/dungeon walkers
+            // use. The per-walk stick PROBE it replaces measured ~6u of motion next to furniture and
+            // mis-aimed the whole walk (Entrance: wedged on the door frame 3 s at (367,-93) while a
+            // camera-steered probe walked straight onto the prompt), and its 0.2-0.9 s cost every walk.
+            bool camLive = false;
+            if (!wholePosDrive && FieldTracker.CurrentMajor != 6)
+            {
+                var (cf0x, cf0z) = FieldTracker.CameraForward3D();
+                if (MathF.Sqrt(cf0x * cf0x + cf0z * cf0z) > 0.1f)
+                {
+                    wAngle = MathF.Atan2(cf0z, cf0x); camLive = true;
+                    Log($"[OverworldNav] stick mapping from the live camera: forward angle={wAngle * 180 / MathF.PI:F0}°");
+                }
+            }
+            if (!wholePosDrive && !camLive)
             {
                 wAngle = float.NaN;
                 var stickProbes = new (float deg, int x, int y)[]
@@ -1393,6 +1893,11 @@ internal class OverworldNav
             int stalls = 0;   // total stalls this walk — learn+detour each, give up after too many
             int lastLogMs = -1000;   // throttle the per-move diagnostic log
             int arriveStartMs = -1;  // when we entered ARRIVE mode (at the destination)
+            int exitZoneMs = -1;     // when we first stood in an exit's volume without its prompt (2026-09-29)
+            int objZoneMs = -1; bool faceSweepDone = false;   // in OUR object's zone, prompt dark → face-sweep once
+            int burstUntilMs = -1, lastBurstMs = -10000;      // full-stick push when the arrival is wedged (a step)
+            int exitDiagMs = -10000;   // [ExitDiag] throttle (DEBUG)
+            int exitNudgeUntilMs = -1, lastExitNudgeMs = -10000;   // exit shows a NEIGHBOUR's prompt → push into the exit box
             bool finalApproach = false, recovered = false;
             int finalMs = 0;
 
@@ -1408,6 +1913,9 @@ internal class OverworldNav
             int pathDrops = 0;   // 2 dropped paths in one walk = this area's grid is bad → session no-route
             float faceX = 0, faceZ = 0;   // last world-space movement dir = the player's facing
             int sweepIdx = 0, sweepTickMs = 0;   // final search sweep to enter offset volumes + face them
+            List<(float x, float z)>? ringPts = null;   // walkable stand points around the trigger box
+            int ringIdx = 0, ringPhaseMs = 0; bool ringStepIn = false, ringDone = false;
+            List<(float x, float z)>? arrivePath = null; int arrivePathMs = 0;   // short route around a corner at arrival
             int readyPolls = 0;                  // debounce: both flags must hold, not flicker
             int tFocus = 0; float tFocusDist = 9e9f;   // the target's focused-id, learned at closest approach
 
@@ -1444,23 +1952,47 @@ internal class OverworldNav
                         // Runtime scene-mesh fallback is SCHOOL-ONLY (the wall-bubble enumerator is tuned for
                         // major 6). For other areas, no prebuilt grid → leave path null → straight-line stick
                         // (the prior 2.5D behaviour), rather than route on an untrusted partial mesh.
-                        if (FieldTracker.CurrentMajor != 6) { path = null; partial = false; gridKind = "none"; break; }
+                        // (2026-09-29) KEEP the prebuilt PARTIAL route: it ends at the reachable cell nearest the
+                        // target — exactly what the arrival logic wants. Nulling it here sent every town walk to
+                        // a target just outside the reachable grid ("Stairs to my room", Street exits) straight-line
+                        // into a wall ("nopath" from the start, then "Couldn't reach").
+                        if (FieldTracker.CurrentMajor != 6) { if (path == null) { partial = false; gridKind = "none"; } break; }
                         MeshGrid.AccumulateScene(areaAtStart); g = MeshGrid.BuildAccumulated(p0y, 0, fx, fz, t.X, t.Z);
                     }
                     if (g == null) { path = null; partial = false; gridKind = "none"; continue; }
                     StampObstacles(g);
                     foreach (var o in areaObs) g.StampObstacle(o[0], o[1], 1);
-                    g.ClearAround(fx, fz, 1);   // player is standing here = walkable
-                    if (calib) g.ClearAround(calX, calZ, 1);
+                    // Only the OWN cell on the prebuilt (un-inflated) mask: a 1-cell radius around the learned
+                    // fridge spot opened the entryway's north wall (7_2, 2026-09-30 — the route ran through it
+                    // from the Entrance and ground 8 stalls: "Couldn't reach Fridge, 1 step away").
+                    g.ClearAround(fx, fz, prebuilt ? 0 : 1);   // player is standing here = walkable
+                    if (calib) g.ClearAround(calX, calZ, prebuilt ? 0 : 1);
                     // SNAP the A* target to the nearest WALKABLE cell. Catalog stand-points routinely sit
                     // ~100u beyond the floor (at a wall/door/trigger-box), which A* can never reach → PARTIAL.
                     // Route to the reachable cell next to it; the follower + 350u press-range cover the rest.
                     float ptx = t.X, ptz = t.Z;
                     g.WorldToCell(t.X, t.Z, out int trr, out int tcc);
-                    if (g.NearestFree(trr, tcc, out int tfr, out int tfc)) g.CellToWorld(tfr, tfc, out ptx, out ptz);
+                    // INSIDE THE BOX FIRST (2026-09-29, the door of your room): the nearest walkable cell to a
+                    // non-walkable box centre can lie OUTSIDE the box (the door snapped to the sofa's spot);
+                    // the prompt lights only standing IN the box facing the object. Prefer a walkable cell
+                    // inside the box (+30u), nearest its centre; else the plain nearest walkable cell.
+                    if (!NearestFreeInBox(g, in t, out ptx, out ptz, calib ? float.NaN : fx, fz)   // a learned spot stays the aim
+                        && g.NearestFree(trr, tcc, out int tfr, out int tfc)) g.CellToWorld(tfr, tfc, out ptx, out ptz);
                     snapTx = ptx; snapTz = ptz;   // remember the reachable cell for the final-step approach
                     path = g.PlanWorld(fx, fz, ptx, ptz); carrot = 0;
                     partial = path != null && !g.LastReachedTarget;
+                    if (prebuilt && (path == null || partial)
+                        && TryPlanWithoutStatic(fx, fz, ptx, ptz, out var p2, out var g2))
+                    { path = p2; partial = false; g = g2; carrot = 0; }
+#if DEBUG
+                    if (path == null && prebuilt)
+                    {
+                        // [TownPlanDiag] (TEMP 2026-09-29): why did A* find nothing? Dump the grid.
+                        g.WorldToCell(fx, fz, out int dpr, out int dpc); g.WorldToCell(ptx, ptz, out int dtr, out int dtc);
+                        Log($"[TownPlanDiag] NO PATH {areaAtStart} from ({fx:F0},{fz:F0}) cell ({dpr},{dpc}) to ({ptx:F0},{ptz:F0}) cell ({dtr},{dtc}) (grid follows)");
+                        foreach (var gl in g.Ascii(dpr, dpc, dtr, dtc).Split('\n')) Log("[TownPlanDiag] " + gl);
+                    }
+#endif
                     gridKind = prebuilt ? "PREBUILT" : "runtime";
                     // snapTx = where the route ACTUALLY ENDS. For a town shop in a DISCONNECTED walkable island
                     // the route ends at the reachable cell nearest the shop = the STREET-SIDE DOOR — head there
@@ -1479,10 +2011,63 @@ internal class OverworldNav
             var interactables = new List<(float x, float z)>();
             { var ar0 = CurrentArea(); if (ar0 != null) foreach (var ot in ar0.Targets) interactables.Add((ot.X, ot.Z)); }
             try { foreach (var pp in EnumerateLivePeople(p0x, p0z)) interactables.Add((pp.X, pp.Z)); } catch { }
+            // OBSTACLES = live PEOPLE only (2026-09-29). Static catalog triggers were stamped too (a
+            // 180u square each) from the pre-walkgrid days; in the 11-object living room those stamps
+            // sealed the room → "PARTIAL" plans → the fridge walk pushed into the kotatsu for 10 s. The
+            // walkgrid is the real collision now; trigger boxes sit ON walls/furniture it already has.
             var obstacles = new List<(float x, float z)>();
-            foreach (var (ix, iz) in interactables)
-            { float ddx = ix - t.X, ddz = iz - t.Z; if (ddx * ddx + ddz * ddz > 70f * 70f) obstacles.Add((ix, iz)); }
-            void StampObstacles(MeshGrid? g) { if (g == null) return; foreach (var o in obstacles) g.StampObstacle(o.x, o.z, 1); }
+            try
+            {
+                foreach (var pp in EnumerateLivePeople(p0x, p0z))
+                { float ddx = pp.X - t.X, ddz = pp.Z - t.Z; if (ddx * ddx + ddz * ddz > 70f * 70f) obstacles.Add((pp.X, pp.Z)); }
+            }
+            catch { }
+            // Static triggers stay as a FIRST-TRY obstacle set: outdoors they stand in for props the
+            // walkgrid lacks (the Shrine approach: without them the route ran into the gate). The plan
+            // retries WITHOUT them when they seal the target off (the 11-object living room).
+            var staticObs = new List<(float x, float z)>();
+            { var ar1 = CurrentArea(); if (ar1 != null) foreach (var ot in ar1.Targets)
+                { float ddx = ot.X - t.X, ddz = ot.Z - t.Z; if (ddx * ddx + ddz * ddz > 70f * 70f) staticObs.Add((ot.X, ot.Z)); } }
+            bool useStatic = true;
+            // the static stamps sealed the target off → replan with people (+ learned walls) only
+            // RELAXATION LADDER: when our stamps seal the target off, drop them in order — first the
+            // static trigger stamps (the 11-object living room), then this walk's LEARNED walls (the
+            // Shrine: a stall at the 2-cell gate gap stamped a 3×3 wall INTO the only gap → every
+            // replan led into the dead-end corridor). People always stay.
+            bool TryPlanWithoutStatic(float fx2, float fz2, float ptx2, float ptz2,
+                                      out List<(float x, float z)>? p2, out MeshGrid? g2)
+            {
+                p2 = null; g2 = null;
+                for (int level = 0; level < 2; level++)
+                {
+                    if (level == 0 && (!useStatic || staticObs.Count == 0)) continue;
+                    if (level == 1 && areaObs.Count == 0) continue;
+                    g2 = PrebuiltGrid(areaAtStart);
+                    if (g2 == null) return false;
+                    foreach (var o in obstacles) g2.StampObstacle(o.x, o.z, 1);
+                    if (level == 0) foreach (var o in areaObs) g2.StampObstacle(o[0], o[1], 1);
+                    g2.ClearAround(fx2, fz2, 0);
+                    if (calib) g2.ClearAround(calX, calZ, 0);
+                    p2 = g2.PlanWorld(fx2, fz2, ptx2, ptz2);
+                    if (p2 == null || !g2.LastReachedTarget) continue;
+                    useStatic = false;
+                    if (level == 1)
+                    {
+                        Log($"[OverworldNav] learned walls sealed the route ({areaObs.Count}) — cleared them");
+                        areaObs.Clear();
+                    }
+                    else Log("[OverworldNav] static-object stamps sealed the route — replanned without them");
+                    return true;
+                }
+                return false;
+            }
+
+            void StampObstacles(MeshGrid? g)
+            {
+                if (g == null) return;
+                foreach (var o in obstacles) g.StampObstacle(o.x, o.z, 1);
+                if (useStatic) foreach (var o in staticObs) g.StampObstacle(o.x, o.z, 1);
+            }
             // True when the interactable nearest the player IS (≈) our target — i.e. the Check prompt
             // showing is for the target, not a closer blocker.
             bool TargetIsNearest(float px2, float pz2)
@@ -1520,8 +2105,12 @@ internal class OverworldNav
                 else Log("[OverworldNav] major 6 but CameraForward3D unreadable");
                 Log($"[OverworldNav] plan ({gridKind}): {(path == null ? "A* NULL" : (partial ? "PARTIAL " : "") + path.Count + "pts")} → {t.Name}");
             }
-            else if (t.PersonId == 0)
+            else if (t.PersonId == 0 || MathF.Sqrt((t.X - p0x) * (t.X - p0x) + (t.Z - p0z) * (t.Z - p0z)) > 700f)
             {
+                // (2026-09-29) PEOPLE ROUTE TOO — when FAR (>700u); a close person keeps the proven direct
+                // chase (routing Nanako across the small living room stalled 2 steps short). the straight live-chase failed every NPC walk that
+                // started on the Samegawa stairs (a wall in every straight line). Route to where the
+                // person stands now; the loop drops the route for the direct chase once close.
                 // TOWN ROUTES AT WALK START (2026-07-06 pivot): the prebuilt walkgrid is
                 // COMPLETE for town — there is nothing to "learn by grinding" (that loop
                 // burned 90s and gave up on a small map, user verdict: impractical). The
@@ -1531,12 +2120,28 @@ internal class OverworldNav
                 // reachable cell nearest the target = the street-side door — the proven
                 // arrival takes it from there. NPCs keep the straight live-chase.
                 Replan(p0x, p0z);
-                if (path != null)
-                    Log($"[OverworldNav] town plan ({gridKind}): {(partial ? "PARTIAL " : "")}{path.Count}pts → {t.Name}");
+                Log(path != null
+                    ? $"[OverworldNav] town plan ({gridKind}): {(partial ? "PARTIAL " : "")}{path.Count}pts → {t.Name}"
+                    : $"[OverworldNav] town plan: NONE ({gridKind}) → {t.Name} — straight line");
+#if DEBUG
+                if (path != null && path.Count > 0)
+                    Log("[TownPlanDiag] route: " + string.Join(" ", path.Take(12).Select(pp => $"({pp.x:F0},{pp.z:F0})")) + (path.Count > 12 ? " ..." : ""));
+#endif
             }
 
+            long walkT0 = Environment.TickCount64;
             while (_walking && !_stopped && totalMs < 45000)
             {
+                // A CONVERSATION STARTED (2026-09-30, Haru's log): "Townsperson 1. Check available." was spoken,
+                // Haru pressed and talked — but the walk ran on for 6 s under the dialogue and ended "Turn to face
+                // them to talk". A message window that appears after the walk began = the player is talking to
+                // (or being talked to by) someone: stop quietly, the dialogue reader has the floor.
+                if (Dialogue.LastDialogTick > walkT0 + 300 && Environment.TickCount64 - Dialogue.LastDialogTick < 400)
+                {
+                    ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
+                    Log($"[OverworldNav] walk END (a conversation started) target {t.Name}");
+                    return;
+                }
                 var (px, _, pz, ok) = FieldTracker.WorldPlayerPos();
                 if (!ok) break;
                 // live target refresh: townspeople walk around (keeps the chase on the moving ones)
@@ -1546,6 +2151,19 @@ internal class OverworldNav
                 }
                 float dx = t.X - px, dz = t.Z - pz;
                 float dist = MathF.Sqrt(dx * dx + dz * dz);
+                // A person's route only brings us NEAR them — from there the live chase (they move).
+                // …but only when nothing solid stands between us (2026-09-30, school 6_6): Chie sits INSIDE
+                // a 65u-tall desk block 31u from the right aisle, 439u from the door — the chase dropped
+                // the aisle route at once and drove into the desk corner 15 times. Chase straight only when
+                // the line to a point 110u short of the person is clear on the walk grid, or they are close.
+                // After a stall the detour wins too: the static grid can't see PEOPLE (Yosuke standing in the
+                // classroom's back corridor ground the "Timid female student" walk 15 times the same way).
+                if (t.PersonId != 0 && path != null && dist < 450f)
+                {
+                    float sx = t.X - dx / dist * 110f, sz = t.Z - dz / dist * 110f;
+                    if (dist < 150f || (stalls == 0 && (collGrid == null || collGrid.LineOfSight(px, pz, sx, sz))))
+                    { path = null; partial = false; }
+                }
 
                 // Bug2 LEAVE: stop wall-following once we're strictly CLOSER to the goal than where we hit
                 // the wall (monotonic progress → can't orbit). Resume normal path-follow + replan.
@@ -1565,7 +2183,8 @@ internal class OverworldNav
                 float aimTx = calib ? calX : t.X, aimTz = calib ? calZ : t.Z;
                 float distArr = MathF.Sqrt((aimTx - px) * (aimTx - px) + (aimTz - pz) * (aimTz - pz));
 
-                bool arriving = (path != null && distSnap < 90f) || distArr < 130f;
+                bool arriving = (path != null && distSnap < 90f) || distArr < 130f
+                                || (ringPts != null && arriveStartMs >= 0);   // the ring search keeps its clock
                 arriveStartMs = arriving ? (arriveStartMs < 0 ? totalMs : arriveStartMs) : -1;
 
                 // CONFIRM. SCHOOL (major 6, packed interactables): TIGHT — the nudge lands the player on the
@@ -1574,23 +2193,100 @@ internal class OverworldNav
                 // 0x7F4 fires at the building edge, so confirm on the game's REAL prompt 0x7F4 within a GENEROUS
                 // 150u (tight distArr made every shop time out even with 0x7F4 ON — Save read 0x7F4=True at 109).
                 bool school = FieldTracker.CurrentMajor == 6;
+                bool npcT = t.PersonId != 0;
+                // IDENTITY (2026-09-29 playtest): the game DRAWS the prompt's label ("Check: Bus Stop",
+                // "Check: Stairs") — the arrival now asks WHOSE prompt is lit, not only how far our
+                // aim point is. It only ADDS arrivals (every old rule still stands): the false
+                // failures were all "prompt lit, aim point unreachable" — Bus Stop (learned spot
+                // behind a pole, 119u), the Samegawa stairs (292u, spoken "Check: Stairs" 6x).
+                string? plabel = FieldTracker.CheckPromptActive ? CheckLabel.FreshLabel() : null;
+                if (string.IsNullOrWhiteSpace(plabel)) plabel = null;
+                promptOnMs = FieldTracker.CheckPromptActive ? (promptOnMs < 0 ? totalMs : promptOnMs) : -1;
+                int ident = plabel != null && !npcT ? PromptIdentity(in t, plabel, px, pz, distArr) : 0;   // +1 ours, -1 another target's
+                int bid = !npcT && FieldTracker.CheckPromptActive ? BoxIdent(in t, px, pz) : 0;
+                if (!npcT && FieldTracker.CheckPromptActive)
+                {
+                    // no label drawn, but we stand in another trigger's box → that trigger's prompt (the Bus
+                    // Stop's learned spot sits in Street exit 1's box — "arrived" at the exit 7 times)
+                    if (ident == 0 && plabel == null && bid < 0) ident = -1;
+                    // our own label, but we stand in another trigger's box and well outside ours = a STALE label
+                    // (the Bus Stop walk "arrived" in Street exit 1's box on the leftover "Bus Stop" label)
+                    else if (ident > 0 && bid < 0) ident = -1;
+                    // an EXIT whose box we stand in, the label naming an object whose box we are NOT in = stale
+                    else if (ident < 0 && IsExit(t) && bid > 0 && !LabelOwnerContains(in t, NormLabel(plabel!), px, pz)) ident = 0;
+                }
+                bool npcPromptIsObject = npcT && plabel != null && LabelBelongsToOther(in t, NormLabel(plabel));
+                // SELF-HEALING learned spots (2026-09-29): standing on the learned spot but the lit prompt
+                // names ANOTHER object for ~1 s → the spot was mis-learned (the old nearest-trigger
+                // learner). Forget it and aim at the catalog trigger instead.
+                if (calib && ident < 0 && distArr < 160f)
+                {
+                    if (calibWrongSinceMs < 0) calibWrongSinceMs = totalMs;
+                    else if (totalMs - calibWrongSinceMs > 1000)
+                    {
+                        lock (_calibLock) _calib.Remove(CalibKey(t));
+                        SaveCalib();
+                        calib = false;
+                        Log($"[OverworldNav] learned spot for {t.Name} lights '{plabel}' — dropped it, aiming at the trigger");
+                        arriveStartMs = -1;
+                        continue;
+                    }
+                }
+                else calibWrongSinceMs = -1;
+                bool ours = ident > 0;
                 bool ready;
-                if (school)
-                    // SCHOOL: the position-write nudge places the player + holds the facing, so the real check
-                    // fires — calib can trust the spot (≤12u) or 0x7F4; non-calib needs 0x7F4 within 45u.
-                    ready = calib ? ((FieldTracker.CheckPromptActive && distArr < 40f) || distArr < 12f)
-                                  : (FieldTracker.CheckPromptActive && distArr < 45f);
-                else if (IsExit(t))
-                    // TOWN EXIT (call_* proc) = a WALK-INTO transition, NOT a press-check (it never sets 0x7F4).
-                    // Arrive when we're IN the exit volume (0x720) near the target — the player walks forward to leave.
-                    ready = FieldTracker.InInteractZone && distArr < 75f;
-                else if (t.PersonId != 0)
+                if (npcT)
                     // NPC: confirm the INSTANT the talk prompt (0x7F4) is on. distArr is to the person's CENTER,
                     // and their BODY stops us ~100-123u short of it (log: every NPC bumped + got 0x7F4 at
                     // distArr 103-123 but my old <90 was UNREACHABLE → it fell through to the 5s timeout = the
                     // long wait + NO arrival beep). 140u covers the bump so the proper ready path fires (with the
                     // sound). The chase faces the target, so 0x7F4 within 140u of it = THIS person's talk.
-                    ready = FieldTracker.CheckPromptActive && distArr < 140f;
+                    // ⚠ Checked BEFORE the school rule (2026-09-29): the school's 45u window failed Chie at 81u
+                    // with her talk prompt lit.
+                    ready = FieldTracker.CheckPromptActive && distArr < 140f && !npcPromptIsObject;
+                else if (school)
+                    // SCHOOL: the position-write nudge places the player + holds the facing, so the real check
+                    // fires — calib can trust the spot (≤12u) or 0x7F4; non-calib needs 0x7F4 within 45u.
+                    ready = ours || (calib ? ((FieldTracker.CheckPromptActive && distArr < 40f) || distArr < 12f)
+                                           : (FieldTracker.CheckPromptActive && distArr < 45f));
+                else if (IsExit(t))
+                    // TOWN EXIT (call_* proc). Most are CHECK prompts you FACE and press ("Check: Shopping
+                    // District, North", the Shrine torii, "Leave the shopping district?") — live 2026-09-29;
+                    // a few are walk-into volumes (0x720).
+                    // An UNNAMED lit prompt near the exit counts only when no person stands at us (a talk
+                    // prompt draws the area banner = no label) — "Street exit 1. Press to go." fired beside
+                    // the Bus Stop's check (2026-09-29).
+                {
+                    bool inZone = FieldTracker.InInteractZone && distArr < 250f;   // the zone flag IS the signal (87u live miss, 2026-09-29)
+                    // In the volume but no prompt yet: keep pushing toward the exit ~1.5 s — most exits
+                    // raise their CHECK prompt a step further in ("Exit to Shopping District North" stopped
+                    // at 66u saying "Walk forward to leave", 2026-09-29); a walk-into exit changes the area.
+                    if (inZone && !FieldTracker.CheckPromptActive) { if (exitZoneMs < 0) exitZoneMs = totalMs; }
+                    else exitZoneMs = -1;
+                    // LABEL GRACE (2026-09-29): the label draws a moment AFTER the prompt lights — Okina's
+                    // unreachable Street exit 3 took Cafe Chagall's prompt in that gap ("Press to go" at the
+                    // cafe). An unlabelled prompt counts only after 800 ms with still no label drawn.
+                    // A NEIGHBOUR'S PROMPT AT THE EXIT (2026-09-29, [ExitDiag]): South Street exit 1 sits beside
+                    // the Bus Stop — arriving facing the pole, the lit prompt drew "Bus Stop" for 4 s and the walk
+                    // timed out. Which one lights depends on FACING: push into the exit's own box for 0.6 s.
+                    if (FieldTracker.CheckPromptActive && ident < 0 && totalMs - lastExitNudgeMs > 1500)
+                    { lastExitNudgeMs = totalMs; exitNudgeUntilMs = totalMs + 600; Log($"[OverworldNav] exit shows '{plabel}' — pushing into {t.Name}"); }
+                    ready = ours
+                            // bid > 0: standing in OUR box (and no other) — the distance to a box centre far past
+                            // the path's end doesn't matter (Samegawa's exits: prompt lit at 393u, timed out)
+                            || (ident == 0 && FieldTracker.CheckPromptActive && (distArr < 350f || bid > 0)
+                                && NearestPersonDist(px, pz) > 180f
+                                && (plabel != null || (promptOnMs >= 0 && totalMs - promptOnMs > 800)))
+                            || (inZone && exitZoneMs >= 0 && totalMs - exitZoneMs > 2500);
+#if DEBUG
+                    if (arriving && totalMs - exitDiagMs >= 1000)
+                    {
+                        exitDiagMs = totalMs;
+                        Log($"[ExitDiag] {t.Name}: prompt={FieldTracker.CheckPromptActive} zone={FieldTracker.InInteractZone} focus={FieldTracker.FocusedInteractable} " +
+                            $"plabel='{plabel ?? "-"}' ident={ident} promptAge={(promptOnMs >= 0 ? totalMs - promptOnMs : -1)} person={NearestPersonDist(px, pz):F0} distArr={distArr:F0} ready={ready}");
+                    }
+#endif
+                }
                 else
                 {
                     // TOWN shop/object: the REAL check flag 0x7F4 within 75u of the (door-snapped) target. TIGHT
@@ -1601,9 +2297,39 @@ internal class OverworldNav
                     // Per-object tighten (2026-06-24): the fridge (check_reizou, Living Room 7_2) and the sofa
                     // (check_sofa_p4p, Your Room 7_3) confirm at 50u so they stop on their OWN check; every other
                     // object — here and everywhere else — stays at the stock 75u.
-                    bool tight50 = IsRoomArea() && (t.Name == "check_reizou" || t.Name == "check_sofa_p4p");
+                    bool tight50 = IsRoomArea() && (t.Proc == "check_reizou" || t.Proc == "check_sofa_p4p");
                     float win = tight50 ? 50f : 75f;
-                    ready = FieldTracker.CheckPromptActive && distArr < win;
+                    // FACE SWEEP (2026-09-29): standing INSIDE the object's box, the game's zone flag (0x720) on,
+                    // yet no prompt — the prompt needs the body FACING the object (the Shrine's Fortune Hanger:
+                    // "no-check timeout" at 25u from the box centre). Once per walk, after 1.2 s like that, turn
+                    // through 8 short pushes and stop the moment the prompt lights; the label check below then
+                    // decides whose prompt it is.
+                    if (!faceSweepDone && FieldTracker.InInteractZone && !FieldTracker.CheckPromptActive
+                        && (t.ExtX != 0 || t.ExtZ != 0) && InsideBox(in t, px, pz, 40f))
+                    {
+                        if (objZoneMs < 0) objZoneMs = totalMs;
+                        else if (totalMs - objZoneMs > 1200)
+                        {
+                            faceSweepDone = true;
+                            ReleaseKeys(held);
+                            for (int k = 0; k < 8 && !FieldTracker.CheckPromptActive && _walking; k++)
+                            {
+                                double sa = k * Math.PI / 4;
+                                ControllerInput.DriveStickXY(0x80 + (int)Math.Round(Math.Sin(sa) * 60), 0x80 - (int)Math.Round(Math.Cos(sa) * 60));
+                                Thread.Sleep(180);
+                                ControllerInput.ReleaseDriveStick();
+                                Thread.Sleep(220);
+                            }
+                            ControllerInput.ReleaseDriveStick();
+                            Log($"[OverworldNav] face sweep at {t.Name}: prompt={FieldTracker.CheckPromptActive}");
+                            totalMs += 3200;
+                            if (arriveStartMs >= 0) arriveStartMs += 3200;   // the sweep must not eat the arrival budget
+                            continue;
+                        }
+                    }
+                    else if (!FieldTracker.InInteractZone) objZoneMs = -1;
+                    // ident -1 = the lit prompt draws ANOTHER object's label - never ours, however close.
+                    ready = ours || (ident == 0 && FieldTracker.CheckPromptActive && distArr < win);
                 }
 
                 // arrival diagnostic — logs the ACTUAL flags so the log shows exactly why it does/doesn't latch
@@ -1618,13 +2344,64 @@ internal class OverworldNav
                     ControllerInput.ReleaseDriveStick(); ReleaseKeys(held);
                     if (++readyPolls >= 2)
                     {
+                        // VERIFIED LEARNING (2026-09-29): the prompt drew THIS object's own game label, so
+                        // where we stand is a proven check spot — remember it (replacing a mislearned one).
+                        if (ours && !npcT && !IsExit(t) && GameText.FieldLabel(t.LabelId) != null
+                            && FieldTracker.TryPlayerPose(out float lpx, out float lpz, out float lfx, out float lfz)
+                            && (!TryGetCalib(t, out float ocx, out float ocz, out _, out _)
+                                || (ocx - lpx) * (ocx - lpx) + (ocz - lpz) * (ocz - lpz) > 70f * 70f))
+                        {
+                            lock (_calibLock) _calib[CalibKey(t)] = new[] { lpx, lpz, lfx, lfz };
+                            SaveCalib();
+                            Log($"[OverworldNav] LEARNED (label-verified) check spot for {t.Name} at ({lpx:F0},{lpz:F0})");
+                        }
                         ArrivalChime();
                         string doneKind;
+                        if (IsExit(t) && !FieldTracker.CheckPromptActive)
+                        {
+                            // STICK SWEEP (2026-09-29): in the exit volume but its prompt is dark — the game
+                            // raises it only when FACING the street end. Try 8 short pushes (what raised
+                            // "Check: Shopping District, North" by hand) and stop the moment it lights or the
+                            // area changes (a walk-into exit).
+                            // INTO THE BOX FIRST (2026-09-29, the Shrine torii): the walk stops at the zone's edge
+                            // (0x720 on, 50u outside the box) — walking on toward the box centre raises the prompt
+                            // or leaves the map. Up to 1.5 s at a steady pace, camera-steered like the walk.
+                            {
+                                long t0 = Environment.TickCount64;
+                                while (!float.IsNaN(wAngle) && Environment.TickCount64 - t0 < 1500 && !FieldTracker.CheckPromptActive && _walking
+                                       && $"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}" == areaAtStart)
+                                {
+                                    var (qx, _, qz, qok) = FieldTracker.WorldPlayerPos();
+                                    if (!qok) break;
+                                    float ang = MathF.Atan2(t.BZ - qz, t.BX - qx) - wAngle;
+                                    ControllerInput.DriveStickXY(0x80 + (int)Math.Round(MathF.Sin(ang) * 90), 0x80 - (int)Math.Round(MathF.Cos(ang) * 90));
+                                    Thread.Sleep(60);
+                                }
+                                ControllerInput.ReleaseDriveStick();
+                                if ($"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}" != areaAtStart)
+                                { Log("[OverworldNav] walk END (walked into the exit)"); return; }
+                            }
+                            for (int k = 0; k < 8 && !FieldTracker.CheckPromptActive; k++)
+                            {
+                                double sa = k * Math.PI / 4;
+                                ControllerInput.DriveStickXY(0x80 + (int)Math.Round(Math.Sin(sa) * 70), 0x80 - (int)Math.Round(Math.Cos(sa) * 70));
+                                Thread.Sleep(260);
+                                ControllerInput.ReleaseDriveStick();
+                                Thread.Sleep(170);
+                                if ($"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}" != areaAtStart) break;
+                            }
+                            ControllerInput.ReleaseDriveStick();
+                            if ($"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}" != areaAtStart)
+                            { Log("[OverworldNav] walk END (exit sweep walked through)"); return; }
+                        }
                         if (IsExit(t))
                         {
-                            // EXIT = a walk-into transition; we're standing in its volume → tell the player to
-                            // walk forward (or press) to leave. No "check" — exits don't have one.
-                            Speech.Say($"At {t.Name}. Walk forward to leave.", true);
+                            // EXIT: a lit prompt = press to go (most town exits are checks); otherwise it is a
+                            // walk-into volume → walk forward.
+                            // No prompt after the sweep: say WHICH WAY the exit lies (the old "walk forward" gave no
+                            // direction — a sighted tester needed 4 tries, 2026-09-29). Compass words match the list.
+                            Speech.Say(FieldTracker.CheckPromptActive ? $"{t.Name}. Press to go."
+                                : $"At {t.Name}. It is {WorldDirection(t.BX - px, t.BZ - pz)} — push that way, then press.", true);
                             doneKind = "exit";
                         }
                         else
@@ -1639,7 +2416,8 @@ internal class OverworldNav
                                                  : $"You're at {t.Name}. Turn to find the {(npc ? "person" : "check")}.", true);
                             doneKind = realCheck ? "check" : "at-place";
                         }
-                        Log($"[OverworldNav] walk DONE ({doneKind}) at ({px:F0},{pz:F0}) target {t.Name} 0x7F4={FieldTracker.CheckPromptActive} distArr={distArr:F0}");
+                        Log($"[OverworldNav] walk DONE ({doneKind}) at ({px:F0},{pz:F0}) target {t.Name} label='{CheckLabel.FreshLabel() ?? "-"}' 0x7F4={FieldTracker.CheckPromptActive} distArr={distArr:F0}");
+                        if (t.PersonId != 0 && doneKind == "check") FollowUntilTalk(t.PersonId, camLive, wAngle);
                         return;
                     }
                     Thread.Sleep(60); totalMs += 60; continue;
@@ -1649,17 +2427,26 @@ internal class OverworldNav
                 // ARRIVE give-up: we're at the object but the game never offered a check (door not
                 // interactable now / story-gated / blocked). Say so HONESTLY — do NOT claim "press" when
                 // there's no real check (that was the false positive at Drama/Library).
-                if (arriving && totalMs - arriveStartMs > 5000)
+                bool wideRing = (t.ExtX != 0 || t.ExtZ != 0) && t.PersonId == 0 && !school;
+                if (arriving && (wideRing ? (ringDone || totalMs - arriveStartMs > WideRingAfterMs + 30000)
+                                          : totalMs - arriveStartMs > 5000))
                 {
                     ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
                     // A LEARNED target's check IS here (the user did it before) — trust that over a flaky
                     // 0x7F4, but only if we're actually NEAR the learned spot (else it'd announce 80u short).
                     if (FieldTracker.CheckPromptActive && distArr < 55f)
                     { ArrivalChime(); Speech.Say($"{t.Name}. Check available.", true); }
+                    else if (distArr > 160f)
+                    {
+                        // NOT at it — the old line said "You're at" from 319u (school desks, 2026-09-29).
+                        int shortSteps = Math.Max(1, (int)MathF.Round(distArr / 250f));
+                        Speech.Say($"Stopped short of {t.Name}, {shortSteps} step{(shortSteps == 1 ? "" : "s")} away.", true);
+                    }
                     else
                         // Reached the place but couldn't fire the REAL check (facing/geometry) → honest +
                         // actionable, NEVER a false "check available" (require 0x7F4, not just in-zone/learned).
-                        Speech.Say($"You're at {t.Name}. Turn to face it to check.", true);
+                        Speech.Say(t.PersonId != 0 ? $"You're next to {t.Name}. Turn to face them to talk."
+                                                   : $"You're at {t.Name}. Turn to face it to check.", true);
                     Log($"[OverworldNav] walk DONE (arrive timeout) at ({px:F0},{pz:F0}) target {t.Name} 0x7F4={FieldTracker.CheckPromptActive} 0x720={FieldTracker.InInteractZone} calib={calib} distArr={distArr:F0}");
                     return;
                 }
@@ -1699,11 +2486,11 @@ internal class OverworldNav
 
                 // 3D area: refresh W's world direction from the LIVE camera so steering tracks the
                 // rotation (no lag, no mistaking a camera swing for a wall).
-                if (cam3D)
+                if (cam3D || camLive)
                 {
                     var (cfx, cfz) = FieldTracker.CameraForward3D();
                     if (MathF.Sqrt(cfx * cfx + cfz * cfz) > 0.1f)
-                        wAngle = MathF.Atan2(cfz, cfx) + camOffset;
+                        wAngle = MathF.Atan2(cfz, cfx) + (cam3D ? camOffset : 0f);
                 }
 
                 // Grow wall coverage while walking (the scene cache only shows nearby walls). If the
@@ -1725,6 +2512,7 @@ internal class OverworldNav
                 // STEERING aim: in the school follow the A* carrot (routes around walls); otherwise
                 // (or if planning failed) head straight at the target.
                 bool atFrontier = false;
+                bool ringTravel = false;   // moving between ring stand points (normal speed, not the arrival creep)
                 float adx = dx, adz = dz;
                 if (path != null && path.Count > 0)
                 {
@@ -1734,7 +2522,11 @@ internal class OverworldNav
                         // Town consumes waypoints from FARTHER out (the 2.5D walk covers ~60u
                         // per tick at full speed — the school's 54u radius gets overshot and
                         // the waypoint never consumes → part of the 07-06 orbit).
-                        if (MathF.Sqrt(wcx * wcx + wcz * wcz) < MeshGrid.Cell * (cam3D ? 0.9f : 1.6f)) carrot++; else break;
+                        // A waypoint beside a wall (a gate gap, a doorway) must be reached TIGHTLY — consuming it
+                        // 96u early cut the corner into the Shrine gate pillar (2026-09-29).
+                        float consume = MeshGrid.Cell * (cam3D ? 0.9f : 1.6f);
+                        if (!cam3D && collGrid != null && collGrid.NearWall(path[carrot].x, path[carrot].z)) consume = MeshGrid.Cell * 0.8f;
+                        if (MathF.Sqrt(wcx * wcx + wcz * wcz) < consume) carrot++; else break;
                     }
                     float cwx = path[carrot].x - px, cwz = path[carrot].z - pz;
                     // WAYPOINT ORBIT WATCHDOG (2026-07-06): a waypoint the body can't
@@ -1757,11 +2549,11 @@ internal class OverworldNav
                             {
                                 Log($"[OverworldNav] final waypoint unreachable — dropping path, straight-line");
                                 path = null; partial = false;
-                                if (++pathDrops >= 2)
-                                {
-                                    _noRouteUntil[areaAtStart] = Environment.TickCount64 + NoRouteMs;
-                                    Log($"[OverworldNav] area {areaAtStart} grid proved bad live — no-route for 15 min");
-                                }
+                                // (2026-09-29) No AREA blacklist any more: ONE unreachable target (the Shrine
+                                // main hall through its torii) dropped its path twice and made EVERY other
+                                // Shrine walk go straight-line for 15 min. The grids are right now; the drop
+                                // stays for this walk only.
+                                ++pathDrops;
                             }
                             wdCarrot = -1;
                             if (path != null) { cwx = path[carrot].x - px; cwz = path[carrot].z - pz; }
@@ -1795,7 +2587,14 @@ internal class OverworldNav
                     }
                     else if (arriving)
                     {
-                        if (wholePosDrive)
+                        if (IsExit(t) && exitZoneMs >= 0 && !school)
+                        {
+                            // EXIT PUSH (2026-09-29): in the exit's volume without its prompt → walk INTO the
+                            // trigger box (its centre). The small step search here faced away; one step toward
+                            // the box raised "Check: Shopping District, North" live.
+                            adx = t.BX - px; adz = t.BZ - pz;
+                        }
+                        else if (wholePosDrive)
                         {
                             // position-drive writes facing directly; aim at the snapped spot.
                             adx = snapTx - px; adz = snapTz - pz;
@@ -1824,8 +2623,43 @@ internal class OverworldNav
                             // physically stalled (~0.6s no motion), engage the SAME tiny-step
                             // search from farther out with a wider ring so the genuine-motion
                             // sweep slides around the blocker's corner.
-                            bool arrStuck = stuckMs > 600 && distArr < 115f;
-                            if ((distArr < 60f || arrStuck) && t.PersonId == 0)
+                            // 200u (2026-09-29): the stairs to your room wedged at 119u on the stair's side
+                            // corner and ground straight into it for 4 s — just outside the old 115u.
+                            bool arrStuck = stuckMs > 600 && distArr < 200f;
+                            // WIDE RING (2026-09-29): the small sweep circles the SNAPPED walkable aim point,
+                            // but some prompts fire only from one side of the trigger BOX (the Samegawa stairs
+                            // light on the steps below the aim, the Shrine plaques/fortune from the front).
+                            // After ~3.6 s of small sweeps with no prompt, circle the BOX centre at a radius
+                            // sized to the box, stepping in from each of 8 sides.
+                            bool hasBox = t.ExtX != 0 || t.ExtZ != 0;
+                            if (hasBox && t.PersonId == 0 && arriveStartMs >= 0 && totalMs - arriveStartMs > WideRingAfterMs)
+                            {
+                                // STAND POINTS FROM THE COLLISION (2026-09-29): along each of 8 directions from the
+                                // box centre, the first walkable cell (with a cell of clearance) = where a body can
+                                // stand facing the object. Blind ring points sat behind walls (Fishing Equipment:
+                                // half the ring outside the room) and the stick ground into them.
+                                if (ringPts == null) { ringPts = RingStandPoints(in t, collGrid, px, pz); ringPhaseMs = totalMs; }
+                                if (ringIdx >= ringPts.Count) { ringDone = true; adx = t.BX - px; adz = t.BZ - pz; }
+                                else
+                                {
+                                    // Per stand point: WALK there (≤3 s), then STEP IN toward the box (0.6 s) —
+                                    // the time follows the distance instead of a fixed slot that ended before
+                                    // a far point was even reached (the North exit, 850u away).
+                                    var (sxp, szp) = ringPts[ringIdx];
+                                    float rdx = sxp - px, rdz = szp - pz, rd = MathF.Sqrt(rdx * rdx + rdz * rdz);
+                                    if (!ringStepIn)
+                                    {
+                                        if (rd < 60f || totalMs - ringPhaseMs > 3000) { ringStepIn = true; ringPhaseMs = totalMs; }
+                                        adx = rdx; adz = rdz; ringTravel = rd > 60f;
+                                    }
+                                    else
+                                    {
+                                        adx = t.BX - px; adz = t.BZ - pz;
+                                        if (totalMs - ringPhaseMs > 600) { ringStepIn = false; ringIdx++; ringPhaseMs = totalMs; }
+                                    }
+                                }
+                            }
+                            else if ((distArr < 60f || arrStuck) && t.PersonId == 0)
                             {
                                 float ring = arrStuck && distArr >= 60f ? 55f : 30f;
                                 float a = (sweepIdx % 8) * (45f * MathF.PI / 180f);
@@ -1833,6 +2667,29 @@ internal class OverworldNav
                                 if (totalMs - sweepTickMs > 450) { sweepTickMs = totalMs; sweepIdx++; }
                             }
                             else { adx = dx; adz = dz; }
+                            // WALL BETWEEN US AND THE SPOT (2026-09-29, the stairs to your room): arriving
+                            // switches to "head straight at it", and that straight line crossed the wall
+                            // corner at z -257 — pinned 3 s, then the ring. While the grid says the line
+                            // is blocked and the route still has waypoints, keep following the route.
+                            if (collGrid != null && !collGrid.LineOfSight(px, pz, px + adx, pz + adz))
+                            {
+                                if (arrivePath == null || totalMs - arrivePathMs > 800)
+                                {
+                                    arrivePath = collGrid.PlanWorld(px, pz, px + adx, pz + adz);
+                                    arrivePathMs = totalMs;
+                                }
+                                if (arrivePath != null && arrivePath.Count > 1)
+                                { adx = arrivePath[1].x - px; adz = arrivePath[1].z - pz; }
+                            }
+                            else arrivePath = null;
+                            // STEP BURST (2026-09-29, the stairs to your room): the gentle arrival WALK cannot
+                            // climb a stair's first step — it stops at its foot (z -272 there, live: stick 0.75
+                            // stops, 1.0 lights the prompt at -302). Wedged close with no prompt → a 0.55 s
+                            // FULL-stick push straight at the spot, at most every 1.5 s.
+                            if (arrStuck && t.PersonId == 0 && !FieldTracker.CheckPromptActive && totalMs - lastBurstMs > 1500)
+                            { lastBurstMs = totalMs; burstUntilMs = totalMs + 550; Log($"[OverworldNav] step burst toward {t.Name} at ({px:F0},{pz:F0})"); }
+                            if (totalMs < burstUntilMs) { adx = aimTx - px; adz = aimTz - pz; }
+                            if (totalMs < exitNudgeUntilMs) { adx = t.BX - px; adz = t.BZ - pz; }
                         }
                     }
                     else if (path != null) { adx = snapTx - px; adz = snapTz - pz; }
@@ -1869,7 +2726,8 @@ internal class OverworldNav
                 // just feeding it a perfect joystick. 0x80 = centre, <0x30 up/left, >0xD0 down/right.
                 // Arrival speed is GENTLE so we catch the check's rising edge instead of blowing past it
                 // (the "it passed it" report). School 42 (the nudge places it); town 55 (straight-walk in).
-                float speed = arriving ? (school ? 42f : 55f)
+                float speed = ringTravel ? 100f
+                            : arriving ? (school ? 42f : 55f)
                             : finalApproach ? Math.Clamp(dist * 0.6f, 35f, 110f)     // ease in near the target
                                             : Math.Clamp(dist * 1.0f, 110f, 127f);   // full tilt en route
                 // NPC: walk straight up and EASE TO A NEAR-STOP. The old floor-70 chase BLEW PAST them — then
@@ -1877,7 +2735,12 @@ internal class OverworldNav
                 // moved around a while till it noticed"). dist*0.85 with a low floor brakes us onto the spot so
                 // the talk prompt registers and the confirm latches immediately. Live refresh still re-chases a
                 // walker if it strolls off (distArr climbs → speed climbs again).
-                if (t.PersonId != 0) speed = Math.Clamp(dist * 0.85f, 8f, 110f);
+                // …but only CLOSE: far away a person is walked to at full tilt like any object (2026-09-30,
+                // Samegawa: a 1400u walk to a townsperson started on the stair slope crawled at stick 110 —
+                // a partial stick can't climb stairs — and ground 15 stalls into "Couldn't reach").
+                if (t.PersonId != 0) speed = dist > 450f ? Math.Clamp(dist, 110f, 127f) : Math.Clamp(dist * 0.85f, 8f, 110f);
+                if (totalMs < burstUntilMs) speed = 127f;   // step burst (see above)
+                if (totalMs < exitNudgeUntilMs) speed = 90f; // exit nudge (see the exit confirm)
                 float rad = deg * (MathF.PI / 180f);
                 bool nearTarget = distArr < 130f;   // the stick WEDGES on the last ~100u (log: stuck=4920, moved=0)
                 // Finishing facing: the LEARNED facing if taught, else straight at the aim spot.
@@ -2007,7 +2870,7 @@ internal class OverworldNav
                             // caught on camera 2026-07-06: 45s triangle ping-pong, carrot never
                             // consumed). The town camera is FIXED, so the walk-start calibration
                             // stays valid for the whole walk. (3D: the live camera is authoritative.)
-                            if (!cam3D && path == null) wAngle = moveAng - comboOff;
+                            if (!cam3D && !camLive && path == null) wAngle = moveAng - comboOff;
                             deviated = 0;
                         }
                         else if (!following && !arriving && ++deviated >= 3 && totalMs >= sidestepUntil)
@@ -2061,13 +2924,16 @@ internal class OverworldNav
                         Log($"[OverworldNav] detour unproductive ({totalMs - lastProgMs}ms) — dropping path, back to straight-line");
                         path = null; partial = false;
                         lastProgMs = totalMs; bestProgDist = dist;
-                        if (++pathDrops >= 2)
-                        {
-                            _noRouteUntil[areaAtStart] = Environment.TickCount64 + NoRouteMs;
-                            Log($"[OverworldNav] area {areaAtStart} grid proved bad live — no-route for 15 min");
-                        }
+                        ++pathDrops;   // this walk only — no area blacklist (see above, 2026-09-29)
                     }
 
+                    // STALL BURST (2026-09-30): before a stall counts, one 0.55 s FULL-stick push the same way —
+                    // steps and stair slopes stop a partial stick but not a full one (the arrival STEP BURST rule).
+                    if (stuckMs >= 500 && !arriving && totalMs - lastBurstMs > 2000)
+                    {
+                        lastBurstMs = totalMs; burstUntilMs = totalMs + 550; stuckMs = 0;
+                        Log($"[OverworldNav] stall burst (full stick) at ({nx:F0},{nz:F0}) toward {t.Name}");
+                    }
                     if (stuckMs >= 500 && !arriving)   // CONFIRMED stall en route (NOT at the destination — there we just face+check)
                     {
                         // LEARN: stamp the wall just AHEAD of where we wedged so A* routes around it (this
@@ -2077,7 +2943,6 @@ internal class OverworldNav
                         {
                             float ahx = nx + adx / adl * MeshGrid.Cell, ahz = nz + adz / adl * MeshGrid.Cell;
                             areaObs.Add(new[] { ahx, ahz });
-                            SaveObstacles();   // permanent: the overworld never changes (2026-07-06)
                             Log($"[OverworldNav] learned wall at ({ahx:F0},{ahz:F0}) — {areaObs.Count} total");
                         }
                         stuckMs = 0;
@@ -2085,7 +2950,7 @@ internal class OverworldNav
                         {
                             ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
                             int steps = Math.Max(1, (int)MathF.Round(dist / UnitsPerStep));
-                            Speech.Say($"Couldn't reach {t.Name}. It's {steps} steps away.", true);
+                            Speech.Say($"Couldn't reach {t.Name}. It's {steps} step{(steps == 1 ? "" : "s")} away.", true);
                             Log($"[OverworldNav] gave up (too many stalls) at ({nx:F0},{nz:F0}) dist={dist:F0}");
                             return;
                         }
@@ -2111,6 +2976,13 @@ internal class OverworldNav
                             ControllerInput.DriveStickXY(0x80 + (int)MathF.Round(MathF.Sin(backRad) * 80),
                                                          0x80 - (int)MathF.Round(MathF.Cos(backRad) * 80));
                             Thread.Sleep(250); totalMs += 250;
+                        }
+                        // A LEARNED spot we keep stalling on the way to (3 stalls) is suspect (mislearned by the
+                        // pre-label learner, or behind a wall) — aim at the trigger box itself for this walk.
+                        if (calib && stalls >= 3 && (t.ExtX != 0 || t.ExtZ != 0) && FieldTracker.CurrentMajor != 6)
+                        {
+                            calib = false; t.X = t.BX; t.Z = t.BZ;
+                            Log($"[OverworldNav] learned spot for {t.Name} unreachable ({stalls} stalls) — aiming at its trigger box");
                         }
                         Replan(nx, nz);
                         Log($"[OverworldNav] stall #{stalls} → detour {(path == null ? "no-path" : path.Count + "pts")}");

@@ -194,7 +194,38 @@ internal sealed unsafe class QuestMenu : IDisposable
         if (desc.Length == 0 || desc.Contains(UndiscoveredSentinel))
             Speech.Say($"Quest {row + 1} of {total}, not yet discovered.");
         else
-            Speech.Say($"Quest {row + 1} of {total}. {desc}");
+            Speech.Say($"Quest {row + 1} of {total}{QuestStatus(row)}. {desc}");
+    }
+
+    // The "Completed" stamp and the "New" tag are sprites (no text for the hook), but they come
+    // from the game's quest table *(0x140EC0A48): +4 count, 16-byte entries @+0x10 — +0x0 "New"
+    // BIT, +0x4 accepted BIT, +0x8 COMPLETED BIT, +0xC quest number. Menu row r = table entry r
+    // (live-verified 2026-10-02 against the screen; COMPLETE_QUEST sets +8 — FUN_14017B1A0).
+    private const long QuestTablePtrAddr = 0x140EC0A48;
+    private const long FlagBitmapPtrAddr = 0x1451FF7A0;
+
+    /// <summary>", completed" / ", new" for the quest on menu row <paramref name="row"/>, else "".</summary>
+    private static string QuestStatus(int row)
+    {
+        nint table;
+        if (!TryReadRaw((nint)QuestTablePtrAddr, &table, 8) || table == 0) return "";
+        int count;
+        if (!TryReadRaw(table + 4, &count, 4) || row < 0 || row >= count) return "";
+        uint* entry = stackalloc uint[3];
+        if (!TryReadRaw(table + 0x10 + row * 0x10, entry, 12)) return "";
+        if (FlagSet(entry[2])) return ", completed";
+        if (FlagSet(entry[0])) return ", new";
+        return "";
+    }
+
+    private static bool FlagSet(uint bitId)
+    {
+        if (bitId == 0 || bitId >= 0x10000) return false;
+        nint bitmap;
+        if (!TryReadRaw((nint)FlagBitmapPtrAddr, &bitmap, 8) || bitmap == 0) return false;
+        uint word;
+        if (!TryReadRaw(bitmap + (nint)(bitId >> 5) * 4, &word, 4)) return false;
+        return (word & (1u << (int)(bitId & 31))) != 0;
     }
 
     // One VirtualQuery, then read up to maxLen ASCII bytes within the validated region.

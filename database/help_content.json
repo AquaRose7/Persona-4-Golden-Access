@@ -252,7 +252,7 @@
         },
         {
           "name": "Shadow encounters",
-          "text": "Turn on the shadow radar to hear every shadow around you. A soft steady tone means it has not seen you. A low growl means it is looking at you. Louder means closer, and the sound pans toward its direction. When you are close behind a shadow you hear a rising strike cue: press the confirm button to attack and start the battle with an advantage. A falling sweep means it sees you and may charge."
+          "text": "The shadow radar, on and off with the period key, plays every shadow around you from its direction: louder means closer, a higher pitch means it is in front of you and a lower one behind you, and the pitch rises further while it sees you. A falling sweep means a shadow close by is looking at you. To ambush one, first get behind it: while the nearest shadow has its back to you, soft ticks play from its direction. Walk toward the ticks; they speed up as you get closer. If the ticks stop and a low two-note warning plays, the shadow is turning toward you, so stop or back away and wait for the ticks to come back. When you are close enough, squarely behind it and facing it, a bright double chime plays: press the confirm button right away. Walking in works better than running, and the chime only plays while the shadow is in reach. The battle then starts with You struck first. If a shadow hits you first you hear Ambushed, and a normal start says nothing. The ticks, the warning and the chime play even with the radar off, and each has its own volume in Sound volumes."
         },
         {
           "name": "The wall sound",
@@ -277,6 +277,14 @@
         {
           "name": "Town travel",
           "text": "In town, browse places, exits and people with the same bracket keys and auto walk with Backspace. The mod confirms arrival and tells you when the interact prompt is ready. The P beacon guides you to the selection by ear, and the quick interact menu jumps you to objects inside supported rooms."
+        },
+        {
+          "name": "Fishing",
+          "text": "Fish at the river or the sea with a rod and bait. Choosing bait reads each bait with how many you own and which fish it attracts. After you cast, wait for a quick three-note chime: that is the bite, so press Action right away. Then comes the reeling gauge, played as a tone that moves left and right with the bobber; its pitch rises the farther the bobber is from the middle. In the middle, the blue area, the pulsing stops and a deep steady sound joins in, with a short tick as you enter. Hold Action only on that steady sound and let go as soon as the pulsing returns. Holding Action outside the blue strains the line: the mod says Strain 1 to Strain 4, and the fifth snaps it. Steer against the drift with left and right: a short press pushes gently, and holding pushes harder the longer you hold. A controller's left stick works the same way. At sea the blue area gets narrower while the fish struggles, so it is harder. The bite chime and the reel tone have their own volumes in Sound volumes."
+        },
+        {
+          "name": "Bug catching",
+          "text": "At the shrine tree you get one swing of the net a day, except on rainy days and in the depth of winter. After the bugs gather, the round starts with a sound, and about five seconds later the mod plays one short high chime: press Action right when you hear it. The perfect moment lasts only a fifth of a second and starts just after the chime. The game's own sounds come a little later, so reacting to them is too late. If you wait too long the round starts over, so you can let one pass and swing on the next chime. A perfect swing catches four bugs, a slightly off one two, and a bad one one; reading the bug books adds more. The chime has its own volume in Sound volumes."
         }
       ]
     },

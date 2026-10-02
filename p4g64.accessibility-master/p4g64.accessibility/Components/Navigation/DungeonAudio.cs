@@ -46,18 +46,43 @@ internal static class DungeonAudio
             bool changed = want ? _wanters.Add(who) : _wanters.Remove(who);
             if (!changed) return;
             bool run = _wanters.Count > 0;
-            if (run && _out == null)
-            {
-                _out = new WaveOutEvent { DesiredLatency = 120 };
-                _out.Init(Mixer());
-                _out.Play();
-            }
-            else if (!run && _out != null)
-            {
-                _out.Stop();
-                _out.Dispose();
-                _out = null;
-            }
+            if (run && _out == null) Open();
+            else if (!run && _out != null) Close();
         }
+    }
+
+    // Short-delay mode (2026-10-02, fishing): the reel gauge needs the ear to follow a needle that
+    // crosses its target zone in ~0.2 s, so while a feature asks for it the output is re-opened
+    // with ~60 ms of buffering instead of 160. Everything else keeps the stutter-safe default.
+    private static readonly HashSet<object> _lowLatency = new();
+
+    /// <summary>Ask for (or release) the short-delay output while <paramref name="who"/> needs it.</summary>
+    public static void SetLowLatency(object who, bool on)
+    {
+        lock (_lock)
+        {
+            bool changed = on ? _lowLatency.Add(who) : _lowLatency.Remove(who);
+            if (!changed || _out == null) return;
+            Close();
+            Open();
+        }
+    }
+
+    private static void Open()
+    {
+        // Default: 4 × 40 ms buffers instead of NAudio's 2 × 60 ms — when one buffer finishes, 120 ms stay
+        // queued, so a busy game frame can't starve the continuous wall/door loops into an audible gap
+        // (2026-09-29 stutter fix).
+        bool low = _lowLatency.Count > 0;
+        _out = new WaveOutEvent { DesiredLatency = low ? 60 : 160, NumberOfBuffers = low ? 3 : 4 };
+        _out.Init(Mixer());
+        _out.Play();
+    }
+
+    private static void Close()
+    {
+        _out!.Stop();
+        _out.Dispose();
+        _out = null;
     }
 }

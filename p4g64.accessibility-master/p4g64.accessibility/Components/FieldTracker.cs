@@ -3497,8 +3497,14 @@ internal unsafe class FieldTracker
                     // often speaks in the same instant — the check QUEUES after it
                     // instead of cutting it off ("Sofa." → "Check: Sofa").
                     string? lbl = CheckLabel.TakeForRise();
-                    if (SoundSettings.CheckSoundOn) PlayCheckCue(SoundSettings.CheckVol);
-                    Speech.Say(lbl != null ? $"Check: {lbl}" : "Check", interrupt: false);
+                    // Quiet while an auto-walk runs (2026-09-29): prompts passed on the way ("Check:
+                    // Pharmacy" 5x at a corner, 8x "Check" beside a scooter) buried the walk's own
+                    // arrival line. The label is still latched for the walker's identity check.
+                    if (!Navigation.OverworldNav.IsWalking && !Navigation.AutoWalk.AutoWalker.IsActive)
+                    {
+                        if (SoundSettings.CheckSoundOn) PlayCheckCue(SoundSettings.CheckVol);
+                        Speech.Say(lbl != null ? $"Check: {lbl}" : "Check", interrupt: false);
+                    }
                 }
                 else
                     CheckLabel.OnPromptGone();
@@ -5887,6 +5893,10 @@ internal unsafe class FieldTracker
         => Utils.ProbeReadable(addr, size);   // RPM probe (2026-08-31) — was a VirtualQuery copy; see Utils.ProbeReadable
 
     // ── Name tables ───────────────────────────────────────────────────────
+
+    /// <summary>The spoken name of the CURRENT area ("Tatsuhime Shrine", "Dojima Residence, Living
+    /// Room") — CheckLabel rejects a drawn "label" that is this banner (2026-09-29).</summary>
+    internal static string CurrentAreaName() => GetAreaName(CurrentMajor, CurrentMinor);
 
     private static string GetAreaName(int major, int minor) => major switch
     {

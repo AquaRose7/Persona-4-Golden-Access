@@ -223,7 +223,8 @@ internal sealed unsafe class ShuffleText
                 t = "level " + t[2..];
             sb.Append(t);
         }
-        if (titles.Count > 0 && category != null && category != "PERSONA" &&
+        // The footer's table index, not its English text (2026-10-02 language audit).
+        if (titles.Count > 0 && category != null && categoryIdx != PersonaCategory &&
             !string.Equals(titles[0], category, StringComparison.OrdinalIgnoreCase))
             sb.Append(" card");        // "Strength card", "Priestess card" (arcana)
         if (_glyphs.Count > 0)

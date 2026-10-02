@@ -1,5 +1,25 @@
 # OVERWORLD AUTO-WALK & ARRIVAL — source of truth (2026-06-22; TOWN ROUTING added 2026-07-06)
 
+> **★ 2026-09-29 UPDATE (read with `PLAYTEST_2026-09-29_NAV.md`, rounds 1-3) — supersedes parts of §0-§5:**
+> - **Identity = the game's OWN check label.** Every h-row has a label id (u16 +0x0E); text =
+>   `*(0x140910630 + lang*8)` → `char*[id]` (the same table holds location banners; 0 = no label). The catalog
+>   carries `labelId` + English `gameLabel`; `GameText.FieldLabel` resolves it live in the game's language.
+>   Places are NAMED by it; an object walk confirms ONLY when the prompt draws its exact label (<900u); a
+>   prompt showing another trigger's label is never ours; a person's walk never confirms on an object's label.
+> - **Learned spots self-heal** (learner credits the label-matching trigger; a spot that lights another label
+>   for 1 s is dropped; spots >400u outside their box (not school) / after 3 stalls are ignored; exits never
+>   use them). **Learned walls are per-walk only** (not loaded, not saved) and a relaxation ladder drops
+>   static stamps, then learned walls, when they seal the target.
+> - **Steering = the live camera** (`CameraForward3D`) outside school — the stick probe + motion recalibration
+>   (§0's "calibration FREEZES" machinery) no longer run there. The AREA BLACKLIST / `_noRouteAreas` below
+>   are GONE (the grids were rebuilt with bones — 99.9% audit).
+> - **Arrival ring** = walkable stand points around the box (walkgrid), nearest first; LoS arrival re-plan.
+> - **Round 4 (09-29 night):** the walkgrid is REACH-filtered (walkable = reachable from real stand points
+>   without crossing a ≥40u wall; `build_walkgrid.py`); catalog `gate` = the h-row's FlowScript BIT — a trigger
+>   exists only while it is ON, so the list hides dead ones; `BoxIdent` (our trigger box vs another's) settles
+>   unlabelled and STALE-labelled prompts; aim at a walkable cell inside the box first; step burst (full stick)
+>   climbs a stair's first step; exits push into their box. Details: `PLAYTEST_2026-09-29_NAV.md` round 4.
+
 ---
 
 ## 0. TOWN ROUTING v2 (2026-07-06, v1.4.0 item B) — READ FIRST

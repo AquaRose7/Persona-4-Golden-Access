@@ -16,7 +16,9 @@
      ],
      "proc": "door_entrance",
      "name": "door_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -31,7 +33,9 @@
      ],
      "proc": "upstair_1f_entrance",
      "name": "upstair_1f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 2,
@@ -46,7 +50,9 @@
      ],
      "proc": "upstair_1f_entrance",
      "name": "upstair_1f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 3,
@@ -61,7 +67,9 @@
      ],
      "proc": "upstair_1f_passage",
      "name": "upstair_1f_passage",
-     "kind": 2
+     "kind": 2,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 4,
@@ -76,7 +84,9 @@
      ],
      "proc": "passage_1f_b",
      "name": "passage_1f_b",
-     "kind": 1
+     "kind": 1,
+     "labelId": 4,
+     "gameLabel": "Practice Building, 1F"
     },
     {
      "box": 5,
@@ -91,7 +101,9 @@
      ],
      "proc": "syokuin_l_side",
      "name": "syokuin_l_side",
-     "kind": 1
+     "kind": 1,
+     "labelId": 11,
+     "gameLabel": "Faculty Office"
     },
     {
      "box": 6,
@@ -106,7 +118,9 @@
      ],
      "proc": "syokuin_r_side",
      "name": "syokuin_r_side",
-     "kind": 1
+     "kind": 1,
+     "labelId": 11,
+     "gameLabel": "Faculty Office"
     },
     {
      "box": 7,
@@ -121,7 +135,9 @@
      ],
      "proc": "undoubu",
      "name": "undoubu",
-     "kind": 2
+     "kind": 2,
+     "labelId": 16,
+     "gameLabel": "Emergency Exit"
     },
     {
      "box": 8,
@@ -136,7 +152,14 @@
      ],
      "proc": "getabako",
      "name": "getabako",
-     "kind": 4
+     "kind": 4,
+     "labelId": 70,
+     "gameLabel": "Your Shoe Locker",
+     "gate": [
+      1808,
+      -1,
+      -1
+     ]
     },
     {
      "box": 9,
@@ -151,7 +174,9 @@
      ],
      "proc": "hoken",
      "name": "hoken",
-     "kind": 1
+     "kind": 1,
+     "labelId": 12,
+     "gameLabel": "Nurse's Office"
     },
     {
      "box": 10,
@@ -166,7 +191,9 @@
      ],
      "proc": "seitosidou_oku",
      "name": "seitosidou_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 13,
+     "gameLabel": "Counselor's Office"
     },
     {
      "box": 11,
@@ -181,7 +208,9 @@
      ],
      "proc": "seitosidou_temae",
      "name": "seitosidou_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 13,
+     "gameLabel": "Counselor's Office"
     },
     {
      "box": 12,
@@ -196,7 +225,9 @@
      ],
      "proc": "jyosi_toire",
      "name": "jyosi_toire",
-     "kind": 3
+     "kind": 3,
+     "labelId": 15,
+     "gameLabel": "Women's Bathroom"
     },
     {
      "box": 13,
@@ -211,7 +242,9 @@
      ],
      "proc": "dansi_toire_6_1",
      "name": "dansi_toire_6_1",
-     "kind": 3
+     "kind": 3,
+     "labelId": 14,
+     "gameLabel": "Men's Bathroom"
     },
     {
      "box": 14,
@@ -226,7 +259,9 @@
      ],
      "proc": "iti_iti_temae",
      "name": "iti_iti_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 6,
+     "gameLabel": "Class 1-1"
     },
     {
      "box": 15,
@@ -241,7 +276,9 @@
      ],
      "proc": "iti_iti_oku",
      "name": "iti_iti_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 6,
+     "gameLabel": "Class 1-1"
     },
     {
      "box": 16,
@@ -256,7 +293,9 @@
      ],
      "proc": "iti_ni_temae",
      "name": "iti_ni_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 7,
+     "gameLabel": "Class 1-2"
     },
     {
      "box": 17,
@@ -271,7 +310,9 @@
      ],
      "proc": "iti_ni_oku",
      "name": "iti_ni_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 7,
+     "gameLabel": "Class 1-2"
     },
     {
      "box": 18,
@@ -286,7 +327,9 @@
      ],
      "proc": "iti_san_temae",
      "name": "iti_san_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 8,
+     "gameLabel": "Class 1-3"
     },
     {
      "box": 19,
@@ -301,7 +344,9 @@
      ],
      "proc": "iti_san_oku",
      "name": "iti_san_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 8,
+     "gameLabel": "Class 1-3"
     },
     {
      "box": 20,
@@ -316,7 +361,9 @@
      ],
      "proc": "keiji",
      "name": "keiji",
-     "kind": 3
+     "kind": 3,
+     "labelId": 88,
+     "gameLabel": "Notice Board"
     }
    ],
    "followPoints": [
@@ -1244,7 +1291,9 @@
      ],
      "proc": "upstair_2f_entrance",
      "name": "upstair_2f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 3,
+     "gameLabel": "Classroom Building, 3F"
     },
     {
      "box": 1,
@@ -1259,7 +1308,9 @@
      ],
      "proc": "downstair_2f_entrance",
      "name": "downstair_2f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 1,
+     "gameLabel": "Classroom Building, 1F"
     },
     {
      "box": 2,
@@ -1274,7 +1325,9 @@
      ],
      "proc": "upstair_2f_entrance",
      "name": "upstair_2f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 3,
+     "gameLabel": "Classroom Building, 3F"
     },
     {
      "box": 3,
@@ -1289,7 +1342,9 @@
      ],
      "proc": "downstair_2f_passage",
      "name": "downstair_2f_passage",
-     "kind": 2
+     "kind": 2,
+     "labelId": 1,
+     "gameLabel": "Classroom Building, 1F"
     },
     {
      "box": 4,
@@ -1304,7 +1359,9 @@
      ],
      "proc": "upstair_2f_passage",
      "name": "upstair_2f_passage",
-     "kind": 2
+     "kind": 2,
+     "labelId": 3,
+     "gameLabel": "Classroom Building, 3F"
     },
     {
      "box": 5,
@@ -1319,7 +1376,9 @@
      ],
      "proc": "into_classroom_left",
      "name": "into_classroom_left",
-     "kind": 1
+     "kind": 1,
+     "labelId": 18,
+     "gameLabel": "Class 2-2"
     },
     {
      "box": 6,
@@ -1334,7 +1393,9 @@
      ],
      "proc": "into_classroom_right",
      "name": "into_classroom_right",
-     "kind": 1
+     "kind": 1,
+     "labelId": 18,
+     "gameLabel": "Class 2-2"
     },
     {
      "box": 7,
@@ -1349,7 +1410,9 @@
      ],
      "proc": "passage_2f_b",
      "name": "passage_2f_b",
-     "kind": 1
+     "kind": 1,
+     "labelId": 5,
+     "gameLabel": "Practice Building, 2F"
     },
     {
      "box": 8,
@@ -1364,7 +1427,9 @@
      ],
      "proc": "tosyositu_temae",
      "name": "tosyositu_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 24,
+     "gameLabel": "Library"
     },
     {
      "box": 9,
@@ -1379,7 +1444,9 @@
      ],
      "proc": "tosyositu_oku",
      "name": "tosyositu_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 24,
+     "gameLabel": "Library"
     },
     {
      "box": 10,
@@ -1394,7 +1461,9 @@
      ],
      "proc": "seitokai_oku",
      "name": "seitokai_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 23,
+     "gameLabel": "Student Council Room"
     },
     {
      "box": 11,
@@ -1409,7 +1478,9 @@
      ],
      "proc": "seitokai_temae",
      "name": "seitokai_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 23,
+     "gameLabel": "Student Council Room"
     },
     {
      "box": 12,
@@ -1424,7 +1495,9 @@
      ],
      "proc": "syodou_oku",
      "name": "syodou_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 22,
+     "gameLabel": "Calligraphy Room"
     },
     {
      "box": 13,
@@ -1439,7 +1512,9 @@
      ],
      "proc": "syodou_temae",
      "name": "syodou_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 22,
+     "gameLabel": "Calligraphy Room"
     },
     {
      "box": 14,
@@ -1454,7 +1529,9 @@
      ],
      "proc": "jyosi_toire",
      "name": "jyosi_toire",
-     "kind": 1
+     "kind": 1,
+     "labelId": 15,
+     "gameLabel": "Women's Bathroom"
     },
     {
      "box": 15,
@@ -1469,7 +1546,9 @@
      ],
      "proc": "dansi_toire_6_2",
      "name": "dansi_toire_6_2",
-     "kind": 1
+     "kind": 1,
+     "labelId": 14,
+     "gameLabel": "Men's Bathroom"
     },
     {
      "box": 16,
@@ -1484,7 +1563,9 @@
      ],
      "proc": "ni_iti_temae",
      "name": "ni_iti_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 17,
+     "gameLabel": "Class 2-1"
     },
     {
      "box": 17,
@@ -1499,7 +1580,9 @@
      ],
      "proc": "ni_iti_oku",
      "name": "ni_iti_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 17,
+     "gameLabel": "Class 2-1"
     },
     {
      "box": 18,
@@ -1514,7 +1597,9 @@
      ],
      "proc": "ni_san_temae",
      "name": "ni_san_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 19,
+     "gameLabel": "Class 2-3"
     },
     {
      "box": 19,
@@ -1529,7 +1614,9 @@
      ],
      "proc": "ni_san_oku",
      "name": "ni_san_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 19,
+     "gameLabel": "Class 2-3"
     }
    ],
    "followPoints": [
@@ -2045,7 +2132,9 @@
      ],
      "proc": "upstair_3f_4f",
      "name": "upstair_3f_4f",
-     "kind": 3
+     "kind": 3,
+     "labelId": 33,
+     "gameLabel": "Roof"
     },
     {
      "box": 1,
@@ -2060,7 +2149,9 @@
      ],
      "proc": "downstair_3f_entrance",
      "name": "downstair_3f_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 2,
@@ -2075,7 +2166,9 @@
      ],
      "proc": "upstair_3f_4f",
      "name": "upstair_3f_4f",
-     "kind": 3
+     "kind": 3,
+     "labelId": 33,
+     "gameLabel": "Roof"
     },
     {
      "box": 3,
@@ -2090,7 +2183,9 @@
      ],
      "proc": "downstair_3f_passage",
      "name": "downstair_3f_passage",
-     "kind": 2
+     "kind": 2,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 4,
@@ -2105,7 +2200,9 @@
      ],
      "proc": "dansi_toire_6_3",
      "name": "dansi_toire_6_3",
-     "kind": 1
+     "kind": 1,
+     "labelId": 14,
+     "gameLabel": "Men's Bathroom"
     },
     {
      "box": 5,
@@ -2120,7 +2217,9 @@
      ],
      "proc": "jyosi_toire",
      "name": "jyosi_toire",
-     "kind": 1
+     "kind": 1,
+     "labelId": 15,
+     "gameLabel": "Women's Bathroom"
     },
     {
      "box": 6,
@@ -2135,7 +2234,9 @@
      ],
      "proc": "sityoukaku_temae",
      "name": "sityoukaku_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 32,
+     "gameLabel": "A/V Room"
     },
     {
      "box": 7,
@@ -2150,7 +2251,9 @@
      ],
      "proc": "sityoukaku_oku",
      "name": "sityoukaku_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 32,
+     "gameLabel": "A/V Room"
     },
     {
      "box": 8,
@@ -2165,7 +2268,9 @@
      ],
      "proc": "konpyu_oku",
      "name": "konpyu_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 31,
+     "gameLabel": "Computer Lab"
     },
     {
      "box": 9,
@@ -2180,7 +2285,9 @@
      ],
      "proc": "konpyu_temae",
      "name": "konpyu_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 31,
+     "gameLabel": "Computer Lab"
     },
     {
      "box": 10,
@@ -2195,7 +2302,9 @@
      ],
      "proc": "housou_oku",
      "name": "housou_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 30,
+     "gameLabel": "Announcement Room"
     },
     {
      "box": 11,
@@ -2210,7 +2319,9 @@
      ],
      "proc": "housou_temae",
      "name": "housou_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 30,
+     "gameLabel": "Announcement Room"
     },
     {
      "box": 12,
@@ -2225,7 +2336,9 @@
      ],
      "proc": "san_iti_temae",
      "name": "san_iti_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 25,
+     "gameLabel": "Class 3-1"
     },
     {
      "box": 13,
@@ -2240,7 +2353,9 @@
      ],
      "proc": "san_iti_oku",
      "name": "san_iti_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 25,
+     "gameLabel": "Class 3-1"
     },
     {
      "box": 14,
@@ -2255,7 +2370,9 @@
      ],
      "proc": "san_ni_temae",
      "name": "san_ni_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 26,
+     "gameLabel": "Class 3-2"
     },
     {
      "box": 15,
@@ -2270,7 +2387,9 @@
      ],
      "proc": "san_ni_oku",
      "name": "san_ni_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 26,
+     "gameLabel": "Class 3-2"
     },
     {
      "box": 16,
@@ -2285,7 +2404,9 @@
      ],
      "proc": "san_san_temae",
      "name": "san_san_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 27,
+     "gameLabel": "Class 3-3"
     },
     {
      "box": 17,
@@ -2300,7 +2421,9 @@
      ],
      "proc": "san_san_oku",
      "name": "san_san_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 27,
+     "gameLabel": "Class 3-3"
     }
    ],
    "followPoints": [
@@ -2420,7 +2543,9 @@
      ],
      "proc": "passage_1f",
      "name": "passage_1f",
-     "kind": 3
+     "kind": 3,
+     "labelId": 1,
+     "gameLabel": "Classroom Building, 1F"
     },
     {
      "box": 1,
@@ -2435,7 +2560,9 @@
      ],
      "proc": "upstair_2f_b_r",
      "name": "upstair_2f_b_r",
-     "kind": 2
+     "kind": 2,
+     "labelId": 5,
+     "gameLabel": "Practice Building, 2F"
     },
     {
      "box": 2,
@@ -2450,7 +2577,9 @@
      ],
      "proc": "upstair_2f_b_l",
      "name": "upstair_2f_b_l",
-     "kind": 4
+     "kind": 4,
+     "labelId": 5,
+     "gameLabel": "Practice Building, 2F"
     },
     {
      "box": 3,
@@ -2465,7 +2594,9 @@
      ],
      "proc": "ongaku_mes",
      "name": "ongaku_mes",
-     "kind": 2
+     "kind": 2,
+     "labelId": 39,
+     "gameLabel": "Music Room"
     },
     {
      "box": 4,
@@ -2480,7 +2611,9 @@
      ],
      "proc": "enngeki",
      "name": "enngeki",
-     "kind": 3
+     "kind": 3,
+     "labelId": 34,
+     "gameLabel": "Meeting Room"
     },
     {
      "box": 5,
@@ -2495,7 +2628,9 @@
      ],
      "proc": "ongakujyunbi",
      "name": "ongakujyunbi",
-     "kind": 1
+     "kind": 1,
+     "labelId": 38,
+     "gameLabel": "Storage Room"
     },
     {
      "box": 6,
@@ -2510,7 +2645,9 @@
      ],
      "proc": "tyouri_oku",
      "name": "tyouri_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 36,
+     "gameLabel": "Home Ec Room"
     },
     {
      "box": 7,
@@ -2525,7 +2662,9 @@
      ],
      "proc": "tyouri_temae",
      "name": "tyouri_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 36,
+     "gameLabel": "Home Ec Room"
     },
     {
      "box": 8,
@@ -2540,7 +2679,9 @@
      ],
      "proc": "hihuku_oku",
      "name": "hihuku_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 37,
+     "gameLabel": "Sewing Room"
     },
     {
      "box": 9,
@@ -2555,7 +2696,9 @@
      ],
      "proc": "hihuku_temae",
      "name": "hihuku_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 37,
+     "gameLabel": "Sewing Room"
     },
     {
      "box": 10,
@@ -2570,7 +2713,9 @@
      ],
      "proc": "kagaku_temae",
      "name": "kagaku_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 80,
+     "gameLabel": "Science Lab"
     },
     {
      "box": 11,
@@ -2585,7 +2730,9 @@
      ],
      "proc": "kagaku_oku",
      "name": "kagaku_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 80,
+     "gameLabel": "Science Lab"
     },
     {
      "box": 12,
@@ -2600,7 +2747,9 @@
      ],
      "proc": "kaigisitu",
      "name": "kaigisitu",
-     "kind": 1
+     "kind": 1,
+     "labelId": 34,
+     "gameLabel": "Meeting Room"
     },
     {
      "box": 13,
@@ -2615,7 +2764,9 @@
      ],
      "proc": "dansi_toire_6_4",
      "name": "dansi_toire_6_4",
-     "kind": 3
+     "kind": 3,
+     "labelId": 14,
+     "gameLabel": "Men's Bathroom"
     },
     {
      "box": 14,
@@ -2630,7 +2781,9 @@
      ],
      "proc": "jyosi_toire",
      "name": "jyosi_toire",
-     "kind": 3
+     "kind": 3,
+     "labelId": 15,
+     "gameLabel": "Women's Bathroom"
     }
    ],
    "followPoints": [
@@ -2745,7 +2898,9 @@
      ],
      "proc": "passage_2f",
      "name": "passage_2f",
-     "kind": 3
+     "kind": 3,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 1,
@@ -2760,7 +2915,9 @@
      ],
      "proc": "downstair_1f_b_r",
      "name": "downstair_1f_b_r",
-     "kind": 2
+     "kind": 2,
+     "labelId": 4,
+     "gameLabel": "Practice Building, 1F"
     },
     {
      "box": 2,
@@ -2775,7 +2932,9 @@
      ],
      "proc": "downstair_1f_b_l",
      "name": "downstair_1f_b_l",
-     "kind": 4
+     "kind": 4,
+     "labelId": 4,
+     "gameLabel": "Practice Building, 1F"
     },
     {
      "box": 3,
@@ -2790,7 +2949,9 @@
      ],
      "proc": "gijyutu_temae",
      "name": "gijyutu_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 42,
+     "gameLabel": "Workshop"
     },
     {
      "box": 4,
@@ -2805,7 +2966,9 @@
      ],
      "proc": "gijyutu_oku",
      "name": "gijyutu_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 42,
+     "gameLabel": "Workshop"
     },
     {
      "box": 5,
@@ -2820,7 +2983,9 @@
      ],
      "proc": "syakai_temae",
      "name": "syakai_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 44,
+     "gameLabel": "Sociology Classroom"
     },
     {
      "box": 6,
@@ -2835,7 +3000,9 @@
      ],
      "proc": "syakai_oku",
      "name": "syakai_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 44,
+     "gameLabel": "Sociology Classroom"
     },
     {
      "box": 7,
@@ -2850,7 +3017,9 @@
      ],
      "proc": "eigo_oku",
      "name": "eigo_oku",
-     "kind": 3
+     "kind": 3,
+     "labelId": 43,
+     "gameLabel": "English Classroom"
     },
     {
      "box": 8,
@@ -2865,7 +3034,9 @@
      ],
      "proc": "eigo_temae",
      "name": "eigo_temae",
-     "kind": 3
+     "kind": 3,
+     "labelId": 43,
+     "gameLabel": "English Classroom"
     },
     {
      "box": 9,
@@ -2880,7 +3051,9 @@
      ],
      "proc": "bijyutu_temae",
      "name": "bijyutu_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 41,
+     "gameLabel": "Art Room"
     },
     {
      "box": 10,
@@ -2895,7 +3068,9 @@
      ],
      "proc": "bijyutu_oku",
      "name": "bijyutu_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 41,
+     "gameLabel": "Art Room"
     },
     {
      "box": 11,
@@ -2910,7 +3085,9 @@
      ],
      "proc": "seibutu_temae",
      "name": "seibutu_temae",
-     "kind": 1
+     "kind": 1,
+     "labelId": 40,
+     "gameLabel": "Biology Lab"
     },
     {
      "box": 12,
@@ -2925,7 +3102,9 @@
      ],
      "proc": "seibutu_oku",
      "name": "seibutu_oku",
-     "kind": 1
+     "kind": 1,
+     "labelId": 40,
+     "gameLabel": "Biology Lab"
     },
     {
      "box": 13,
@@ -2940,7 +3119,9 @@
      ],
      "proc": "dansi_toire_6_5",
      "name": "dansi_toire_6_5",
-     "kind": 3
+     "kind": 3,
+     "labelId": 14,
+     "gameLabel": "Men's Bathroom"
     },
     {
      "box": 14,
@@ -2955,7 +3136,9 @@
      ],
      "proc": "jyosi_toire",
      "name": "jyosi_toire",
-     "kind": 3
+     "kind": 3,
+     "labelId": 15,
+     "gameLabel": "Women's Bathroom"
     }
    ],
    "followPoints": [
@@ -3061,7 +3244,9 @@
      ],
      "proc": "out_classroom_over",
      "name": "out_classroom_over",
-     "kind": 4
+     "kind": 4,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 1,
@@ -3076,7 +3261,9 @@
      ],
      "proc": "out_classroom_under",
      "name": "out_classroom_under",
-     "kind": 4
+     "kind": 4,
+     "labelId": 2,
+     "gameLabel": "Classroom Building, 2F"
     },
     {
      "box": 2,
@@ -3091,7 +3278,9 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point"
     }
    ],
    "followPoints": [
@@ -9764,7 +9953,9 @@
      ],
      "proc": "downstair_4f_3f",
      "name": "downstair_4f_3f",
-     "kind": 1
+     "kind": 1,
+     "labelId": 3,
+     "gameLabel": "Classroom Building, 3F"
     }
    ],
    "followPoints": [
@@ -11123,7 +11314,9 @@
      ],
      "proc": "myhouse_entrance",
      "name": "myhouse_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -11137,8 +11330,10 @@
       -12.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 4
+     "name": "Town map, east end",
+     "kind": 4,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -11152,8 +11347,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 2
+     "name": "Town map, west end",
+     "kind": 2,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 3,
@@ -11168,7 +11365,9 @@
      ],
      "proc": "check_farmfield",
      "name": "check_farmfield",
-     "kind": 3
+     "kind": 3,
+     "labelId": 120,
+     "gameLabel": "Open Land"
     },
     {
      "box": 4,
@@ -11183,7 +11382,14 @@
      ],
      "proc": "check_bike",
      "name": "check_bike",
-     "kind": 3
+     "kind": 3,
+     "labelId": 121,
+     "gameLabel": "Scooter",
+     "gate": [
+      3234,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -11798,7 +12004,9 @@
      ],
      "proc": "door_entrance",
      "name": "door_entrance",
-     "kind": 4
+     "kind": 4,
+     "labelId": 97,
+     "gameLabel": "Entrance"
     },
     {
      "box": 1,
@@ -11813,7 +12021,9 @@
      ],
      "proc": "upstair_myroom",
      "name": "upstair_myroom",
-     "kind": 0
+     "kind": 0,
+     "labelId": 98,
+     "gameLabel": "Your Room"
     },
     {
      "box": 2,
@@ -11828,7 +12038,9 @@
      ],
      "proc": "check_livingroom_tv",
      "name": "check_livingroom_tv",
-     "kind": 3
+     "kind": 3,
+     "labelId": 73,
+     "gameLabel": "TV"
     },
     {
      "box": 3,
@@ -11843,7 +12055,9 @@
      ],
      "proc": "check_reizou",
      "name": "check_reizou",
-     "kind": 4
+     "kind": 4,
+     "labelId": 74,
+     "gameLabel": "Fridge"
     },
     {
      "box": 4,
@@ -11858,7 +12072,9 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 3
+     "kind": 3,
+     "labelId": 69,
+     "gameLabel": "Save Point"
     },
     {
      "box": 5,
@@ -11873,7 +12089,9 @@
      ],
      "proc": "check_kitchen",
      "name": "check_kitchen",
-     "kind": 4
+     "kind": 4,
+     "labelId": 79,
+     "gameLabel": "Kitchen"
     },
     {
      "box": 6,
@@ -11888,7 +12106,14 @@
      ],
      "proc": "zabuton",
      "name": "zabuton",
-     "kind": 0
+     "kind": 0,
+     "labelId": 89,
+     "gameLabel": "Cushion",
+     "gate": [
+      3254,
+      12,
+      1621
+     ]
     },
     {
      "box": 7,
@@ -11903,7 +12128,14 @@
      ],
      "proc": "tanabata",
      "name": "tanabata",
-     "kind": 0
+     "kind": 0,
+     "labelId": 94,
+     "gameLabel": "Tanabata Decoration",
+     "gate": [
+      1624,
+      -1,
+      -1
+     ]
     },
     {
      "box": 8,
@@ -11918,7 +12150,14 @@
      ],
      "proc": "check_farmtools",
      "name": "check_farmtools",
-     "kind": 0
+     "kind": 0,
+     "labelId": 96,
+     "gameLabel": "Gardening Tools",
+     "gate": [
+      3280,
+      -1,
+      -1
+     ]
     },
     {
      "box": 9,
@@ -11933,7 +12172,14 @@
      ],
      "proc": "check_farmtools",
      "name": "check_farmtools",
-     "kind": 0
+     "kind": 0,
+     "labelId": 96,
+     "gameLabel": "Gardening Tools",
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     },
     {
      "box": 10,
@@ -11948,7 +12194,14 @@
      ],
      "proc": "check_fishingtools",
      "name": "check_fishingtools",
-     "kind": 3
+     "kind": 3,
+     "labelId": 99,
+     "gameLabel": "Fishing Equipment",
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -15188,7 +15441,9 @@
      ],
      "proc": "door_living_room",
      "name": "door_living_room",
-     "kind": 4
+     "kind": 4,
+     "labelId": 46,
+     "gameLabel": "Living Room"
     },
     {
      "box": 1,
@@ -15203,7 +15458,9 @@
      ],
      "proc": "check_bedclothes",
      "name": "check_bedclothes",
-     "kind": 2
+     "kind": 2,
+     "labelId": 75,
+     "gameLabel": "Futon"
     },
     {
      "box": 2,
@@ -15218,7 +15475,9 @@
      ],
      "proc": "check_desk",
      "name": "check_desk",
-     "kind": 0
+     "kind": 0,
+     "labelId": 76,
+     "gameLabel": "Study Desk"
     },
     {
      "box": 3,
@@ -15233,7 +15492,9 @@
      ],
      "proc": "check_myroom_tv",
      "name": "check_myroom_tv",
-     "kind": 1
+     "kind": 1,
+     "labelId": 73,
+     "gameLabel": "TV"
     },
     {
      "box": 4,
@@ -15248,7 +15509,9 @@
      ],
      "proc": "check_mini_desk",
      "name": "check_mini_desk",
-     "kind": 0
+     "kind": 0,
+     "labelId": 77,
+     "gameLabel": "Work Table"
     },
     {
      "box": 5,
@@ -15263,7 +15526,9 @@
      ],
      "proc": "check_sofa_p4p",
      "name": "check_sofa_p4p",
-     "kind": 0
+     "kind": 0,
+     "labelId": 78,
+     "gameLabel": "Sofa"
     },
     {
      "box": 6,
@@ -15278,7 +15543,9 @@
      ],
      "proc": "check_roomrack",
      "name": "check_roomrack",
-     "kind": 4
+     "kind": 4,
+     "labelId": 87,
+     "gameLabel": "Shelf"
     },
     {
      "box": 7,
@@ -15293,7 +15560,14 @@
      ],
      "proc": "check_diary",
      "name": "check_diary",
-     "kind": 4
+     "kind": 4,
+     "labelId": 95,
+     "gameLabel": "Calendar",
+     "gate": [
+      3240,
+      -1,
+      -1
+     ]
     },
     {
      "box": 8,
@@ -15308,7 +15582,14 @@
      ],
      "proc": "check_trophy",
      "name": "check_trophy",
-     "kind": 4
+     "kind": 4,
+     "labelId": 124,
+     "gameLabel": "Trophy",
+     "gate": [
+      3237,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -16409,7 +16690,9 @@
      ],
      "proc": "call_street_01",
      "name": "Exit to Shopping District South",
-     "kind": 1
+     "kind": 1,
+     "labelId": 49,
+     "gameLabel": "Shopping District, South"
     },
     {
      "box": 1,
@@ -16423,8 +16706,10 @@
       13.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 4
+     "name": "Town map, southeast end",
+     "kind": 4,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -16438,8 +16723,15 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 3
+     "name": "Town map, north end 1",
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3243,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -16454,7 +16746,9 @@
      ],
      "proc": "keijiban",
      "name": "Bulletin board",
-     "kind": 0
+     "kind": 0,
+     "labelId": 58,
+     "gameLabel": "Town Bulletin Board"
     },
     {
      "box": 4,
@@ -16469,7 +16763,9 @@
      ],
      "proc": "tyuuka",
      "name": "Aiya Chinese Diner",
-     "kind": 2
+     "kind": 2,
+     "labelId": 57,
+     "gameLabel": "Chinese Diner Aiya"
     },
     {
      "box": 5,
@@ -16484,7 +16780,9 @@
      ],
      "proc": "tatumiya",
      "name": "Tatsumi Textiles",
-     "kind": 1
+     "kind": 1,
+     "labelId": 62,
+     "gameLabel": "Tatsumi Textiles"
     },
     {
      "box": 6,
@@ -16499,7 +16797,9 @@
      ],
      "proc": "call_street2shrine",
      "name": "Exit to Tatsuhime Shrine",
-     "kind": 1
+     "kind": 1,
+     "labelId": 61,
+     "gameLabel": "Tatsuhime Shrine"
     },
     {
      "box": 7,
@@ -16514,7 +16814,14 @@
      ],
      "proc": "sigemi2",
      "name": "sigemi2",
-     "kind": 4
+     "kind": 4,
+     "labelId": 82,
+     "gameLabel": "Bushes",
+     "gate": [
+      2731,
+      -1,
+      -1
+     ]
     },
     {
      "box": 8,
@@ -16529,7 +16836,9 @@
      ],
      "proc": "post",
      "name": "Mailbox",
-     "kind": 1
+     "kind": 1,
+     "labelId": 83,
+     "gameLabel": "Mailbox"
     },
     {
      "box": 9,
@@ -16544,7 +16853,9 @@
      ],
      "proc": "souzai",
      "name": "Souzai Daigaku",
-     "kind": 2
+     "kind": 2,
+     "labelId": 59,
+     "gameLabel": "Souzai Daigaku"
     },
     {
      "box": 10,
@@ -16559,7 +16870,9 @@
      ],
      "proc": "sakaya",
      "name": "Konishi Liquors",
-     "kind": 2
+     "kind": 2,
+     "labelId": 63,
+     "gameLabel": "Konishi Liquors"
     },
     {
      "box": 11,
@@ -16574,7 +16887,9 @@
      ],
      "proc": "jihan",
      "name": "Vending machine",
-     "kind": 2
+     "kind": 2,
+     "labelId": 84,
+     "gameLabel": "Vending Machine"
     },
     {
      "box": 12,
@@ -16589,7 +16904,9 @@
      ],
      "proc": "jiten",
      "name": "jiten",
-     "kind": 2
+     "kind": 2,
+     "labelId": 86,
+     "gameLabel": "Bicycle Shop"
     },
     {
      "box": 13,
@@ -16604,7 +16921,9 @@
      ],
      "proc": "tokoya",
      "name": "Barber shop",
-     "kind": 1
+     "kind": 1,
+     "labelId": 85,
+     "gameLabel": "Barber"
     },
     {
      "box": 14,
@@ -16619,7 +16938,9 @@
      ],
      "proc": "mokei",
      "name": "Model shop",
-     "kind": 2
+     "kind": 2,
+     "labelId": 60,
+     "gameLabel": "Marutake Hobby Shop"
     },
     {
      "box": 15,
@@ -16634,7 +16955,9 @@
      ],
      "proc": "yakuten",
      "name": "Pharmacy",
-     "kind": 4
+     "kind": 4,
+     "labelId": 91,
+     "gameLabel": "Pharmacy"
     },
     {
      "box": 16,
@@ -16649,7 +16972,9 @@
      ],
      "proc": "simatta",
      "name": "simatta",
-     "kind": 2
+     "kind": 2,
+     "labelId": 90,
+     "gameLabel": "Closed Store"
     },
     {
      "box": 17,
@@ -16664,7 +16989,9 @@
      ],
      "proc": "denki",
      "name": "Electronics store",
-     "kind": 2
+     "kind": 2,
+     "labelId": 92,
+     "gameLabel": "Electronics Store"
     },
     {
      "box": 18,
@@ -16679,7 +17006,9 @@
      ],
      "proc": "simatta",
      "name": "simatta",
-     "kind": 4
+     "kind": 4,
+     "labelId": 90,
+     "gameLabel": "Closed Store"
     },
     {
      "box": 19,
@@ -16693,8 +17022,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 3",
-     "kind": 3
+     "name": "Town map, north end 2",
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -19660,8 +19991,15 @@
       16.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 4
+     "name": "Town map, southeast end",
+     "kind": 4,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3243,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -19675,8 +20013,10 @@
       -44.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 1
+     "name": "Town map, south end 1",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -19691,7 +20031,9 @@
      ],
      "proc": "call_street_02",
      "name": "Exit to Shopping District North",
-     "kind": 3
+     "kind": 3,
+     "labelId": 48,
+     "gameLabel": "Shopping District, North"
     },
     {
      "box": 3,
@@ -19706,7 +20048,9 @@
      ],
      "proc": "equip_shop",
      "name": "Daidara Metalworks",
-     "kind": 2
+     "kind": 2,
+     "labelId": 53,
+     "gameLabel": "Daidara Metalworks"
     },
     {
      "box": 4,
@@ -19721,7 +20065,9 @@
      ],
      "proc": "item_shop",
      "name": "Shiroku Store",
-     "kind": 2
+     "kind": 2,
+     "labelId": 55,
+     "gameLabel": "Shiroku Store"
     },
     {
      "box": 5,
@@ -19736,7 +20082,14 @@
      ],
      "proc": "velvet_room",
      "name": "Velvet Room",
-     "kind": 2
+     "kind": 2,
+     "labelId": 52,
+     "gameLabel": "Velvet Room",
+     "gate": [
+      3239,
+      -1,
+      -1
+     ]
     },
     {
      "box": 6,
@@ -19751,7 +20104,9 @@
      ],
      "proc": "basutei",
      "name": "Bus Stop",
-     "kind": 0
+     "kind": 0,
+     "labelId": 56,
+     "gameLabel": "Bus Stop"
     },
     {
      "box": 7,
@@ -19766,7 +20121,9 @@
      ],
      "proc": "bookstore",
      "name": "Yomenaido Bookstore",
-     "kind": 2
+     "kind": 2,
+     "labelId": 51,
+     "gameLabel": "Yomenaido Bookstore"
     },
     {
      "box": 8,
@@ -19781,7 +20138,9 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point"
     },
     {
      "box": 9,
@@ -19796,7 +20155,9 @@
      ],
      "proc": "touhuya",
      "name": "Marukyu Tofu",
-     "kind": 2
+     "kind": 2,
+     "labelId": 54,
+     "gameLabel": "Marukyu Tofu"
     },
     {
      "box": 10,
@@ -19811,7 +20172,9 @@
      ],
      "proc": "post",
      "name": "Mailbox",
-     "kind": 3
+     "kind": 3,
+     "labelId": 83,
+     "gameLabel": "Mailbox"
     },
     {
      "box": 11,
@@ -19826,7 +20189,9 @@
      ],
      "proc": "jihan2",
      "name": "Vending machine",
-     "kind": 2
+     "kind": 2,
+     "labelId": 84,
+     "gameLabel": "Vending Machine"
     },
     {
      "box": 12,
@@ -19841,7 +20206,9 @@
      ],
      "proc": "gatyagatya",
      "name": "Capsule machine",
-     "kind": 2
+     "kind": 2,
+     "labelId": 93,
+     "gameLabel": "Capsule Machine"
     },
     {
      "box": 13,
@@ -19856,7 +20223,9 @@
      ],
      "proc": "bookstore_poster",
      "name": "Bookstore poster",
-     "kind": 2
+     "kind": 2,
+     "labelId": 102,
+     "gameLabel": "Store Poster"
     },
     {
      "box": 14,
@@ -19870,8 +20239,15 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 3",
-     "kind": 1
+     "name": "Town map, south end 2",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3244,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -22909,7 +23285,9 @@
      ],
      "proc": "call_shrine2street",
      "name": "Exit to Shopping District North",
-     "kind": 1
+     "kind": 1,
+     "labelId": 48,
+     "gameLabel": "Shopping District, North"
     },
     {
      "box": 1,
@@ -22924,7 +23302,9 @@
      ],
      "proc": "jinjya",
      "name": "Tatsuhime Shrine",
-     "kind": 3
+     "kind": 3,
+     "labelId": 105,
+     "gameLabel": "Main Hall"
     },
     {
      "box": 2,
@@ -22939,7 +23319,9 @@
      ],
      "proc": "jinjya_yashiro",
      "name": "Shrine main hall",
-     "kind": 2
+     "kind": 2,
+     "labelId": 106,
+     "gameLabel": "Yashiro"
     },
     {
      "box": 3,
@@ -22954,7 +23336,14 @@
      ],
      "proc": "jinjya_ema",
      "name": "Shrine ema plaques",
-     "kind": 3
+     "kind": 3,
+     "labelId": 107,
+     "gameLabel": "Ema Hanger",
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     },
     {
      "box": 4,
@@ -22969,7 +23358,14 @@
      ],
      "proc": "jinjya_mikuzikake",
      "name": "Shrine fortune",
-     "kind": 3
+     "kind": 3,
+     "labelId": 108,
+     "gameLabel": "Fortune Hanger",
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     },
     {
      "box": 5,
@@ -22983,8 +23379,10 @@
       0.0
      ],
      "proc": "musi_ap_shrine",
-     "name": "musi_ap_shrine",
-     "kind": 0
+     "name": "Bug-catching spot",
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 6,
@@ -22999,7 +23397,14 @@
      ],
      "proc": "fld_debug_menu",
      "name": "fld_debug_menu",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3403,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -30109,8 +30514,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit",
-     "kind": 1
+     "name": "Town map",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -30125,7 +30532,9 @@
      ],
      "proc": "go_foodcourt",
      "name": "go_foodcourt",
-     "kind": 2
+     "kind": 2,
+     "labelId": 65,
+     "gameLabel": "Elevator"
     }
    ],
    "followPoints": [
@@ -30359,8 +30768,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 1
+     "name": "Town map, south end",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -30374,8 +30785,10 @@
       -34.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 3
+     "name": "Town map, north end",
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -30390,7 +30803,9 @@
      ],
      "proc": "down_embankment",
      "name": "down_embankment",
-     "kind": 2
+     "kind": 2,
+     "labelId": 104,
+     "gameLabel": "Stairs"
     }
    ],
    "followPoints": [
@@ -31692,7 +32107,9 @@
      ],
      "proc": "up_embankment",
      "name": "up_embankment",
-     "kind": 4
+     "kind": 4,
+     "labelId": 103,
+     "gameLabel": "Stairs"
     },
     {
      "box": 1,
@@ -31707,7 +32124,9 @@
      ],
      "proc": "block",
      "name": "block",
-     "kind": 0
+     "kind": 0,
+     "labelId": 81,
+     "gameLabel": "Dock"
     },
     {
      "box": 2,
@@ -31722,7 +32141,14 @@
      ],
      "proc": "sigemi",
      "name": "sigemi",
-     "kind": 0
+     "kind": 0,
+     "labelId": 82,
+     "gameLabel": "Bushes",
+     "gate": [
+      2729,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -32981,7 +33407,9 @@
      ],
      "proc": "city_station",
      "name": "city_station",
-     "kind": 1
+     "kind": 1,
+     "labelId": 118,
+     "gameLabel": "Okina Station"
     },
     {
      "box": 1,
@@ -32995,8 +33423,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 1
+     "name": "Town map, southwest end",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -33010,8 +33440,15 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 4
+     "name": "Town map, east end",
+     "kind": 4,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -33025,8 +33462,15 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 3",
-     "kind": 2
+     "name": "Town map, west end",
+     "kind": 2,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     },
     {
      "box": 4,
@@ -33041,7 +33485,9 @@
      ],
      "proc": "city_bookstore",
      "name": "city_bookstore",
-     "kind": 3
+     "kind": 3,
+     "labelId": 114,
+     "gameLabel": "Okina Station Bookstore"
     },
     {
      "box": 5,
@@ -33056,7 +33502,9 @@
      ],
      "proc": "city_theater",
      "name": "city_theater",
-     "kind": 3
+     "kind": 3,
+     "labelId": 113,
+     "gameLabel": "30 frame"
     },
     {
      "box": 6,
@@ -33071,7 +33519,9 @@
      ],
      "proc": "city_clothshop",
      "name": "city_clothshop",
-     "kind": 3
+     "kind": 3,
+     "labelId": 112,
+     "gameLabel": "Croco Fur"
     },
     {
      "box": 7,
@@ -33086,7 +33536,9 @@
      ],
      "proc": "city_cafe",
      "name": "city_cafe",
-     "kind": 3
+     "kind": 3,
+     "labelId": 111,
+     "gameLabel": "Cafe Chagall"
     },
     {
      "box": 8,
@@ -33101,7 +33553,14 @@
      ],
      "proc": "city_police",
      "name": "city_police",
-     "kind": 3
+     "kind": 3,
+     "labelId": 115,
+     "gameLabel": "Okina Station Police Box",
+     "gate": [
+      3424,
+      -1,
+      -1
+     ]
     },
     {
      "box": 9,
@@ -33116,7 +33575,9 @@
      ],
      "proc": "city_board",
      "name": "city_board",
-     "kind": 3
+     "kind": 3,
+     "labelId": 116,
+     "gameLabel": "Bulletin Board"
     },
     {
      "box": 10,
@@ -33131,7 +33592,9 @@
      ],
      "proc": "ufo_catcher",
      "name": "ufo_catcher",
-     "kind": 3
+     "kind": 3,
+     "labelId": 117,
+     "gameLabel": "Crane Game"
     }
    ],
    "followPoints": [
@@ -37336,8 +37799,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 1",
-     "kind": 4
+     "name": "Town map, southeast end",
+     "kind": 4,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -37351,8 +37816,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit 2",
-     "kind": 3
+     "name": "Town map, north end",
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -37367,7 +37834,14 @@
      ],
      "proc": "farmshop",
      "name": "farmshop",
-     "kind": 3
+     "kind": 3,
+     "labelId": 101,
+     "gameLabel": "Vegetable Stand",
+     "gate": [
+      3312,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -38723,8 +39197,10 @@
       0.0
      ],
      "proc": "call_lmap",
-     "name": "Street exit",
-     "kind": 1
+     "name": "Town map",
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -38739,7 +39215,9 @@
      ],
      "proc": "entrance_lodge",
      "name": "entrance_lodge",
-     "kind": 4
+     "kind": 4,
+     "labelId": 132,
+     "gameLabel": "Cottage"
     },
     {
      "box": 2,
@@ -38754,7 +39232,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3263,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -39756,7 +40241,9 @@
      ],
      "proc": "return_point",
      "name": "return_point",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -39771,7 +40258,9 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point"
     },
     {
      "box": 2,
@@ -39786,7 +40275,9 @@
      ],
      "proc": "velvet_room",
      "name": "Velvet Room",
-     "kind": 0
+     "kind": 0,
+     "labelId": 52,
+     "gameLabel": "Velvet Room"
     }
    ],
    "followPoints": [
@@ -40732,7 +41223,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 2
+     "kind": 2,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -40747,7 +41240,9 @@
      ],
      "proc": "enter_overthecity",
      "name": "enter_overthecity",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -41041,7 +41536,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -41056,7 +41553,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -41071,7 +41570,9 @@
      ],
      "proc": "into_shop",
      "name": "into_shop",
-     "kind": 2
+     "kind": 2,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -41224,7 +41725,9 @@
      ],
      "proc": "out_shop",
      "name": "out_shop",
-     "kind": 2
+     "kind": 2,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -41239,7 +41742,9 @@
      ],
      "proc": "liquor_item",
      "name": "liquor_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -41254,7 +41759,9 @@
      ],
      "proc": "quest_item",
      "name": "quest_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -41371,7 +41878,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -41386,7 +41895,9 @@
      ],
      "proc": "enter_castle",
      "name": "enter_castle",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -41518,7 +42029,9 @@
      ],
      "proc": "bossroom_return",
      "name": "bossroom_return",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -41533,7 +42046,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3694,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -41548,7 +42068,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -41563,7 +42090,14 @@
      ],
      "proc": "castle_item",
      "name": "castle_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3693,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -41792,7 +42326,9 @@
      ],
      "proc": "dressroom_return",
      "name": "dressroom_return",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -41807,7 +42343,9 @@
      ],
      "proc": "dressroom_go",
      "name": "dressroom_go",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -41822,7 +42360,14 @@
      ],
      "proc": "dressroom_door_1",
      "name": "dressroom_door_1",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3695,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -42050,7 +42595,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -42065,7 +42612,9 @@
      ],
      "proc": "enter_sauna",
      "name": "enter_sauna",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -42197,7 +42746,9 @@
      ],
      "proc": "downstair_bossfloor",
      "name": "downstair_bossfloor",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -42212,7 +42763,14 @@
      ],
      "proc": "door_bossfloor",
      "name": "door_bossfloor",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3712,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -42227,7 +42785,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -42242,7 +42807,14 @@
      ],
      "proc": "sauna_item",
      "name": "sauna_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3718,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -42474,7 +43046,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -42489,7 +43063,9 @@
      ],
      "proc": "enter_playhouse",
      "name": "enter_playhouse",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -42641,7 +43217,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -42656,7 +43234,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3744,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -42671,7 +43256,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -42686,7 +43278,14 @@
      ],
      "proc": "playhouse_item",
      "name": "playhouse_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3752,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -43041,7 +43640,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -43056,7 +43657,9 @@
      ],
      "proc": "enter_gameworld",
      "name": "enter_gameworld",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -43202,7 +43805,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -43217,7 +43822,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3776,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -43232,7 +43844,9 @@
      ],
      "proc": "bone_object",
      "name": "bone_object",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 3,
@@ -43247,7 +43861,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -43419,7 +44040,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -43434,7 +44057,9 @@
      ],
      "proc": "enter_base",
      "name": "enter_base",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -43593,7 +44218,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -43608,7 +44235,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3808,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -43623,7 +44257,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -43638,7 +44279,14 @@
      ],
      "proc": "base_item",
      "name": "base_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3814,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -43874,7 +44522,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -43889,7 +44539,9 @@
      ],
      "proc": "enter_heaven",
      "name": "enter_heaven",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -44042,7 +44694,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -44057,7 +44711,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3840,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -44072,7 +44733,14 @@
      ],
      "proc": "boot_margaret",
      "name": "boot_margaret",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3860,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -44087,7 +44755,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     },
     {
      "box": 4,
@@ -44102,7 +44777,14 @@
      ],
      "proc": "heaven_item",
      "name": "heaven_item",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3842,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -44551,7 +45233,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -44566,7 +45250,14 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3872,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -44581,7 +45272,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -44840,7 +45538,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -44855,7 +45555,9 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -44870,7 +45572,14 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point",
+     "gate": [
+      3110,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -45045,7 +45754,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -45060,7 +45771,9 @@
      ],
      "proc": "enter_last",
      "name": "enter_last",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -45157,7 +45870,9 @@
      ],
      "proc": "return_entrance",
      "name": "return_entrance",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -45172,7 +45887,9 @@
      ],
      "proc": "enter_tomb",
      "name": "enter_tomb",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -45187,7 +45904,9 @@
      ],
      "proc": "save_point",
      "name": "Save Point",
-     "kind": 0
+     "kind": 0,
+     "labelId": 69,
+     "gameLabel": "Save Point"
     },
     {
      "box": 3,
@@ -45202,7 +45921,9 @@
      ],
      "proc": "velvet_room",
      "name": "Velvet Room",
-     "kind": 0
+     "kind": 0,
+     "labelId": 52,
+     "gameLabel": "Velvet Room"
     }
    ],
    "followPoints": [
@@ -45476,7 +46197,9 @@
      ],
      "proc": "bossroom_downstair",
      "name": "bossroom_downstair",
-     "kind": 1
+     "kind": 1,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -45491,7 +46214,9 @@
      ],
      "proc": "bossroom_door",
      "name": "bossroom_door",
-     "kind": 3
+     "kind": 3,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -45742,7 +46467,14 @@
      ],
      "proc": "warp_006f_01",
      "name": "warp_006f_01",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3683,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -45757,7 +46489,14 @@
      ],
      "proc": "warp_006f_02",
      "name": "warp_006f_02",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3683,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -45772,7 +46511,14 @@
      ],
      "proc": "warp_006f_03",
      "name": "warp_006f_03",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3683,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -45787,7 +46533,14 @@
      ],
      "proc": "warp_006f_04",
      "name": "warp_006f_04",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3683,
+      -1,
+      -1
+     ]
     },
     {
      "box": 4,
@@ -45802,7 +46555,14 @@
      ],
      "proc": "warp_006f_start",
      "name": "warp_006f_start",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3683,
+      3687,
+      -1
+     ]
     },
     {
      "box": null,
@@ -46260,7 +47020,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -46540,7 +47302,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -46787,7 +47551,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -46802,7 +47568,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -46817,7 +47585,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -46984,7 +47754,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -46999,7 +47771,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -47014,7 +47788,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -47899,7 +48675,14 @@
      ],
      "proc": "temptation_1",
      "name": "temptation_1",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3745,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -47914,7 +48697,14 @@
      ],
      "proc": "temptation_2",
      "name": "temptation_2",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3746,
+      -1,
+      -1
+     ]
     },
     {
      "box": null,
@@ -47959,7 +48749,14 @@
      ],
      "proc": "temptation_1",
      "name": "temptation_1",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3745,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -47974,7 +48771,14 @@
      ],
      "proc": "temptation_2",
      "name": "temptation_2",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3746,
+      -1,
+      -1
+     ]
     },
     {
      "box": null,
@@ -48431,7 +49235,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -48446,7 +49252,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -48461,7 +49269,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -48655,7 +49465,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -48670,7 +49482,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -48685,7 +49499,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -49096,7 +49912,9 @@
      ],
      "proc": "warp_63_00",
      "name": "warp_63_00",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 1,
@@ -49111,7 +49929,9 @@
      ],
      "proc": "warp_63_01",
      "name": "warp_63_01",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 2,
@@ -49126,7 +49946,9 @@
      ],
      "proc": "warp_63_02",
      "name": "warp_63_02",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 3,
@@ -49141,7 +49963,9 @@
      ],
      "proc": "warp_63_03",
      "name": "warp_63_03",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 4,
@@ -49156,7 +49980,9 @@
      ],
      "proc": "warp_63_04",
      "name": "warp_63_04",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 5,
@@ -49171,7 +49997,9 @@
      ],
      "proc": "warp_63_05",
      "name": "warp_63_05",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 6,
@@ -49186,7 +50014,9 @@
      ],
      "proc": "warp_63_06",
      "name": "warp_63_06",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 7,
@@ -49201,7 +50031,9 @@
      ],
      "proc": "warp_63_07",
      "name": "warp_63_07",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 8,
@@ -49216,7 +50048,9 @@
      ],
      "proc": "warp_63_08",
      "name": "warp_63_08",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 9,
@@ -49231,7 +50065,9 @@
      ],
      "proc": "warp_63_09",
      "name": "warp_63_09",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 10,
@@ -49246,7 +50082,9 @@
      ],
      "proc": "warp_63_10",
      "name": "warp_63_10",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 11,
@@ -49261,7 +50099,9 @@
      ],
      "proc": "warp_63_11",
      "name": "warp_63_11",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 12,
@@ -49276,7 +50116,9 @@
      ],
      "proc": "warp_63_12",
      "name": "warp_63_12",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 13,
@@ -49291,7 +50133,14 @@
      ],
      "proc": "warp_hint",
      "name": "warp_hint",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3777,
+      -1,
+      -1
+     ]
     },
     {
      "box": null,
@@ -49909,7 +50758,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -49924,7 +50775,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -50082,7 +50935,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -50097,7 +50952,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -50290,7 +51147,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -50305,7 +51164,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -50345,7 +51206,14 @@
      ],
      "proc": "turn_00",
      "name": "turn_00",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3783,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -50360,7 +51228,14 @@
      ],
      "proc": "turn_01",
      "name": "turn_01",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3784,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -50375,7 +51250,14 @@
      ],
      "proc": "turn_02",
      "name": "turn_02",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3785,
+      -1,
+      -1
+     ]
     },
     {
      "box": 3,
@@ -50390,7 +51272,14 @@
      ],
      "proc": "turn_03",
      "name": "turn_03",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3786,
+      -1,
+      -1
+     ]
     },
     {
      "box": 4,
@@ -50405,7 +51294,14 @@
      ],
      "proc": "turn_04",
      "name": "turn_04",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3787,
+      -1,
+      -1
+     ]
     },
     {
      "box": 5,
@@ -50420,7 +51316,14 @@
      ],
      "proc": "turn_05",
      "name": "turn_05",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3788,
+      -1,
+      -1
+     ]
     },
     {
      "box": 6,
@@ -50435,7 +51338,14 @@
      ],
      "proc": "turn_06",
      "name": "turn_06",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3789,
+      -1,
+      -1
+     ]
     },
     {
      "box": 7,
@@ -50450,7 +51360,14 @@
      ],
      "proc": "turn_07",
      "name": "turn_07",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3790,
+      -1,
+      -1
+     ]
     },
     {
      "box": 8,
@@ -50465,7 +51382,14 @@
      ],
      "proc": "turn_08",
      "name": "turn_08",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3791,
+      -1,
+      -1
+     ]
     },
     {
      "box": null,
@@ -50848,7 +51772,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -50863,7 +51789,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -50878,7 +51806,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -51406,7 +52336,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -51421,7 +52353,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -51436,7 +52370,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -52617,7 +53553,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -52632,7 +53570,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -52932,7 +53872,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -52947,7 +53889,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -53260,7 +54204,9 @@
      ],
      "proc": "falling_hole",
      "name": "falling_hole",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": null,
@@ -53560,7 +54506,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -53575,7 +54523,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -53590,7 +54540,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -53757,7 +54709,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -53772,7 +54726,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -53787,7 +54743,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -54611,7 +55569,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -54626,7 +55586,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -54958,7 +55920,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -54973,7 +55937,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -55470,7 +56436,14 @@
      ],
      "proc": "first_mes_1",
      "name": "first_mes_1",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3100,
+      -1,
+      -1
+     ]
     },
     {
      "box": 1,
@@ -55485,7 +56458,14 @@
      ],
      "proc": "first_mes_2",
      "name": "first_mes_2",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3101,
+      -1,
+      -1
+     ]
     },
     {
      "box": 2,
@@ -55500,7 +56480,14 @@
      ],
      "proc": "first_mes_3",
      "name": "first_mes_3",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3102,
+      -1,
+      -1
+     ]
     }
    ],
    "followPoints": [
@@ -55794,7 +56781,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -55809,7 +56798,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -55824,7 +56815,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -55839,7 +56832,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [],
@@ -56051,7 +57046,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -56066,7 +57063,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -56081,7 +57080,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     },
     {
      "box": 0,
@@ -56096,7 +57097,9 @@
      ],
      "proc": null,
      "name": null,
-     "kind": null
+     "kind": null,
+     "labelId": 0,
+     "gameLabel": null
     }
    ],
    "followPoints": [
@@ -56326,7 +57329,14 @@
      ],
      "proc": "event_167",
      "name": "event_167",
-     "kind": 0
+     "kind": 0,
+     "labelId": 0,
+     "gameLabel": null,
+     "gate": [
+      3910,
+      -1,
+      -1
+     ]
     },
     {
      "box": null,

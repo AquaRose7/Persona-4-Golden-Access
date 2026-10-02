@@ -143,7 +143,11 @@ internal sealed class OverworldZones
         _currentZone = zone;
         // First zone after entering the map queues after the game's own area
         // announcement; crossings while walking interrupt (short names, fast feed).
-        Speech.Say($"{zone}.", interrupt: !_firstOnMap);
+        // QUIET WHILE AUTO-WALKING (2026-09-29 playtest): every zone the walk passes through was
+        // spoken ("Shopping district. Save point. Shopping district. Bus stop.") on top of the walk's
+        // own arrival line. The zone is still tracked; manual walking speaks as before.
+        if (!OverworldNav.IsWalking && !AutoWalk.AutoWalker.IsActive)
+            Speech.Say($"{zone}.", interrupt: !_firstOnMap);
         _firstOnMap = false;
     }
 

@@ -34,7 +34,11 @@ internal static class ToneCue
         Log("[ToneCue] ready (one-shot cue pool on the shared mixer)");
     }
 
-    internal static void PlayTones(float gain, params (float freq, int ms)[] notes)
+    internal static void PlayTones(float gain, params (float freq, int ms)[] notes) => PlayTonesPanned(gain, 0f, notes);
+
+    /// <summary>Like <see cref="PlayTones"/>, placed left (-1) … right (+1) (equal-power pan; 2026-10-02, the ambush
+    /// sneak ticks).</summary>
+    internal static void PlayTonesPanned(float gain, float pan, params (float freq, int ms)[] notes)
     {
         try
         {
@@ -59,12 +63,37 @@ internal static class ToneCue
                 }
                 pos += n;   // freq 0 = silence gap (buffer already zeroed)
             }
-            Submit(buf);
+            Submit(buf, pan);
         }
         catch { /* a cue must never break its caller */ }
     }
 
-    internal static void PlayWav(float[] mono, float gain, int maxMs = 2000)
+    // ── Sound-file cues (2026-10-02, Haru: "make the new sounds real sound files like the other sounds we use").
+    // Each cue is a WAV in the mod folder (dev: database/sounds) — replace the file to redesign the sound, no
+    // rebuild. The file is loaded once; a missing/broken file falls back to the built-in tones, so the cue never
+    // goes silent. The shipped WAVs are these same tones rendered at full scale (database/tools/render_cues.py),
+    // so `gain` means the same loudness for both.
+    private static readonly Dictionary<string, float[]?> _cueFiles = new();
+
+    internal static void PlayCue(string file, float gain, params (float freq, int ms)[] fallback)
+        => PlayCuePanned(file, gain, 0f, fallback);
+
+    internal static void PlayCuePanned(string file, float gain, float pan, params (float freq, int ms)[] fallback)
+    {
+        float[]? mono;
+        lock (_cueFiles)
+        {
+            if (!_cueFiles.TryGetValue(file, out mono))
+            {
+                mono = TryLoadWav(file, out var m) ? m : null;
+                _cueFiles[file] = mono;
+            }
+        }
+        if (mono != null) PlayWav(mono, gain, 2000, pan);
+        else PlayTonesPanned(gain, pan, fallback);
+    }
+
+    internal static void PlayWav(float[] mono, float gain, int maxMs = 2000, float pan = 0f)
     {
         try
         {
@@ -78,7 +107,7 @@ internal static class ToneCue
                 float env = i > n - fade ? (n - i) / (float)fade : 1f;
                 buf[i] = mono[i] * gain * env;
             }
-            Submit(buf);
+            Submit(buf, pan);
         }
         catch { }
     }
@@ -86,14 +115,14 @@ internal static class ToneCue
     internal static bool TryLoadWav(string fileName, out float[] mono)
         => BeaconVoice.TryLoadMono(fileName, out mono);
 
-    private static void Submit(float[] rendered)
+    private static void Submit(float[] rendered, float pan = 0f)
     {
         var pool = _pool!;
         OneShot slot = pool[0];
         foreach (var v in pool) if (v.Idle) { slot = v; break; }   // else steal pool[0]
         _lastPlayTick = Environment.TickCount64;
         DungeonAudio.SetWant(_wantKey, true);
-        slot.Start(rendered);
+        slot.Start(rendered, pan);
     }
 
     private static void LingerCheck()
@@ -110,15 +139,23 @@ internal static class ToneCue
         catch { }
     }
 
-    /// <summary>Plays one pre-rendered mono buffer once, centered. Reusable.</summary>
+    /// <summary>Plays one pre-rendered mono buffer once, centered or panned. Reusable.</summary>
     private sealed class OneShot : ISampleProvider
     {
         public WaveFormat WaveFormat => DungeonAudio.Format;
         private volatile float[]? _buf;
         private int _pos;
+        private float _gl = 0.707f, _gr = 0.707f;
         public bool Idle => _buf == null;
 
-        public void Start(float[] buf) { _pos = 0; _buf = buf; }
+        public void Start(float[] buf, float pan = 0f)
+        {
+            float a = (Math.Clamp(pan, -1f, 1f) + 1f) * MathF.PI / 4f;   // equal power: centre = 0.707 each
+            _gl = MathF.Cos(a);
+            _gr = MathF.Sin(a);
+            _pos = 0;
+            _buf = buf;
+        }
 
         public int Read(float[] buffer, int offset, int count)
         {
@@ -132,8 +169,8 @@ internal static class ToneCue
                     if (_pos < buf.Length) s = buf[_pos++];
                     else { _buf = null; buf = null; }
                 }
-                buffer[offset + n * 2] = s * 0.707f;
-                buffer[offset + n * 2 + 1] = s * 0.707f;
+                buffer[offset + n * 2] = s * _gl;
+                buffer[offset + n * 2 + 1] = s * _gr;
             }
             return count;
         }

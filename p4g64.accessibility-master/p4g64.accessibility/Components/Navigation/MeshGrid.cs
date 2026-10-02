@@ -63,10 +63,52 @@ internal sealed class MeshGrid
         int n = Math.Min(cols * rows, walkable.Length), blocked = 0;
         for (int i = 0; i < n; i++) if (!walkable[i]) { g._blocked[i] = true; blocked++; }
         g.BlockedCount = blocked;
+        g._clearanceAware = true;
         return g;
     }
 
+    // CLEARANCE (2026-09-29, the living-room kotatsu): the prebuilt mask marks obstacles at their
+    // exact outline and was NOT inflated, so a route could graze a corner the ~55u-radius body
+    // can't pass (the TV walk ground into the kotatsu corner for 22 s). Rather than dilate (a
+    // 1-cell dilation sealed real doorways this morning), cells touching an obstacle COST more in
+    // A* and the string-pull only cuts a corner when the line keeps a cell of clearance.
+    private bool _clearanceAware;
+    private bool NearBlocked(int r, int c)
+    {
+        for (int dr = -1; dr <= 1; dr++)
+            for (int dc = -1; dc <= 1; dc++)
+                if ((dr != 0 || dc != 0) && Blocked(r + dr, c + dc)) return true;
+        return false;
+    }
+
+    /// <summary>Does the cell at (x,z) touch an obstacle (8-neighbourhood)?</summary>
+    public bool NearWall(float x, float z) { WorldToCell(x, z, out int r, out int c); return NearBlocked(r, c); }
+
     public bool InBounds(int r, int c) => r >= 0 && r < Rows && c >= 0 && c < Cols;
+
+    /// <summary>Walking distance in CELLS (4-connected BFS over free cells) from the free cell nearest
+    /// (px,pz) to every cell; -1 = unreachable. Null when the start has no free cell nearby.</summary>
+    public int[]? PathDistances(float px, float pz)
+    {
+        WorldToCell(px, pz, out int r0, out int c0);
+        if (!NearestFree(r0, c0, out r0, out c0)) return null;
+        var d = new int[Rows * Cols];
+        System.Array.Fill(d, -1);
+        var q = new Queue<int>();
+        d[r0 * Cols + c0] = 0; q.Enqueue(r0 * Cols + c0);
+        while (q.Count > 0)
+        {
+            int cur = q.Dequeue(), r = cur / Cols, c = cur % Cols;
+            foreach (var (dr, dc) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int nr = r + dr, nc = c + dc;
+                if (!InBounds(nr, nc) || _blocked[nr * Cols + nc] || d[nr * Cols + nc] >= 0) continue;
+                d[nr * Cols + nc] = d[cur] + 1;
+                q.Enqueue(nr * Cols + nc);
+            }
+        }
+        return d;
+    }
     public bool Blocked(int r, int c) => !InBounds(r, c) || _blocked[r * Cols + c];
     private void Mark(int r, int c) { if (InBounds(r, c)) _blocked[r * Cols + c] = true; }
 
@@ -259,7 +301,7 @@ internal sealed class MeshGrid
                 int ni = nr * Cols + nc;
                 if (closed[ni]) continue;
                 if (_blocked[ni] && ni != T) continue;
-                float ng = g[cur] + 1f;
+                float ng = g[cur] + 1f + (_clearanceAware && NearBlocked(nr, nc) ? 0.5f : 0f);   // a tie-breaker: +2 sent the Shrine walk on a detour
                 if (ng < g[ni]) { g[ni] = ng; f[ni] = ng + H(nr, nc, tr, tc); prev[ni] = cur; if (!inOpen[ni]) { open.Add(ni); inOpen[ni] = true; } }
             }
         }
@@ -283,9 +325,37 @@ internal sealed class MeshGrid
         var outp = new List<(int, int)> { path[0] };
         int anchor = 0;
         for (int i = 2; i < path.Count; i++)
-            if (!LineClear(path[anchor], path[i])) { outp.Add(path[i - 1]); anchor = i - 1; }
+            if (!LineClear(path[anchor], path[i]) || (_clearanceAware && !LineRoomy(path[anchor], path[i])))
+            { outp.Add(path[i - 1]); anchor = i - 1; }
         outp.Add(path[^1]);
         return outp;
+    }
+
+    /// <summary>The straight line keeps one cell of clearance: no cell on it touches an obstacle,
+    /// except where the A* path itself already had to (a doorway / narrow gap stays usable).</summary>
+    private bool LineRoomy((int r, int c) a, (int r, int c) b)
+    {
+        int r0 = a.r, c0 = a.c, r1 = b.r, c1 = b.c;
+        int dr = Math.Abs(r1 - r0), dc = Math.Abs(c1 - c0);
+        int sr = r0 < r1 ? 1 : -1, sc = c0 < c1 ? 1 : -1, err = dc - dr, r = r0, c = c0;
+        for (int guard = 0; guard < 4096; guard++)
+        {
+            if ((r != r0 || c != c0) && (r != r1 || c != c1) && NearBlocked(r, c)) return false;
+            if (r == r1 && c == c1) return true;
+            int e2 = 2 * err;
+            if (e2 > -dr) { err -= dr; c += sc; }
+            if (e2 < dc) { err += dc; r += sr; }
+        }
+        return false;
+    }
+
+    /// <summary>World-space line of sight over the grid (no blocked cell between the two points).</summary>
+    public bool LineOfSight(float x0, float z0, float x1, float z1)
+    {
+        WorldToCell(x0, z0, out int r0, out int c0);
+        WorldToCell(x1, z1, out int r1, out int c1);
+        if (!InBounds(r0, c0) || !InBounds(r1, c1)) return true;   // off-grid: no evidence of a wall
+        return LineClear((r0, c0), (r1, c1));
     }
 
     private bool LineClear((int r, int c) a, (int r, int c) b)

@@ -73,7 +73,7 @@ internal sealed unsafe class EnemyActionHook
         }
         string tname = target != 0 ? Battle.UnitDisplayName(target) : null;
 
-        string msg = string.IsNullOrWhiteSpace(sname) || sname == "Attack"
+        string msg = string.IsNullOrWhiteSpace(sname) || skill == 0 || sname == Skill.GetName(0) || sname == "Attack"
             ? $"{name} attacks"
             : $"{name} uses {sname}";
         Log($"[EnemyAction] actor=0x{actor:X} skill={skill}(\"{sname}\") target=0x{target:X}(\"{tname}\") -> \"{msg}\"");

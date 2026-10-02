@@ -58,9 +58,23 @@ internal static class GridWalk
     internal static bool Connected(int row, int col, int dRow, int dCol)
     {
         if (!IsWalkable(row + dRow, col + dCol)) return false;
+        // STAIRS BLOCKS (2026-09-29, Castle 1F): the 3×3 stairs prefab is ONE roomId but
+        // three spaces — a corridor strip, the room, and the staircase footprint — and its
+        // edge bits are COMPLETE (strip↔room closed except the door cell, staircase cells
+        // 0x00). The roomId shortcut walked the planner from the room straight through its
+        // wall into the strip → 5 reroutes → "Couldn't get through" (twice). Inside a stairs
+        // block, trust the edge bits (either side's).
+        if (IsStairCell(row, col) && IsStairCell(row + dRow, col + dCol))
+            return EdgeOpen(row, col, dRow, dCol) || EdgeOpen(row + dRow, col + dCol, -dRow, -dCol);
         if (EdgeOpen(row, col, dRow, dCol)) return true;
         ushort a = RoomIdOf(row, col), b = RoomIdOf(row + dRow, col + dCol);
         return a != 0 && a == b;
+    }
+
+    private static bool IsStairCell(int row, int col)
+    {
+        _raw ??= new byte[MinimapTracker.CELL_SIZE];
+        return MinimapTracker.ReadCellRawBytes(row, col, _raw) && _raw[0] == 1 && GridRouter.IsStairSprite(_raw[4]);
     }
 
     /// <summary>A* over walkable cells (edge-bit OR same-room connected). outPath =

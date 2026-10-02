@@ -111,6 +111,7 @@ internal unsafe class SkillReplaceMenu : IDisposable
     private int _resolvedIncoming;                                 // what this prompt announced — re-entering the slot repeats it
     private int _holdFirstLvlNext;                                 // +0x6E as seen on the FIRST held frame (staleness diag)
     private static Dictionary<string, int>? _nameToId;             // EXACT name -> id, lazy
+    private bool _wantNames;                                       // capture drawn names only during the incoming-skill hold
 
     private nint OnUiText(nint p1, byte p2, byte p3, uint p4, byte p5, nint p6)
     {
@@ -120,11 +121,14 @@ internal unsafe class SkillReplaceMenu : IDisposable
         {
             if (!RecentlyActive)
             {
-                if (_capWasActive) { _capWasActive = false; _drawnSkills.Clear(); _resolvedIncoming = 0; }
+                if (_capWasActive) { _capWasActive = false; _drawnSkills.Clear(); _resolvedIncoming = 0; _wantNames = false; }
                 return ret;
             }
             _capWasActive = true;
-            if (p6 != 0) return ret;
+            // Only while an incoming name is being WAITED for (2026-10-02): this hook sees every
+            // drawn string (~3000/s on this screen) and decoding them all cost the game thread
+            // ~2.4s of every 3s for as long as the screen was up.
+            if (p6 != 0 || !_wantNames) return ret;
             string s = ReadCString(p1, 48).Trim();
             if (s.Length < 3 || s.Length > 32) return ret;
             if (_nameToId == null) PerfDiag.Bump(PerfDiag.B.EnsureNamesLoop);
@@ -190,6 +194,7 @@ internal unsafe class SkillReplaceMenu : IDisposable
         string body;
         if (cursor < count)
         {
+            _wantNames = false;
             // A current skill (the 8-slot array: id at 0x0A + i*0xC).
             if (!IsReadable(menu + 0x0A + cursor * 0xC, 2)) return;
             int id = *(short*)(menu + 0x0A + cursor * 0xC);
@@ -260,8 +265,15 @@ internal unsafe class SkillReplaceMenu : IDisposable
                 { best = kv.Value; bestId = kv.Key; }
             }
             string via;
-            if (bestId == 0)
+            // HOT SPRING / regain flow (player report 2026-10-02: "it shows the incorrect skill
+            // when trying to forget the new skill"): the skill being learned is the one picked on
+            // the regain list, which stays open under this screen. The drawn-name pool can't
+            // answer here — that list draws EVERY forgotten skill's name.
+            int regainId = SkillRegainMenu.ActiveSkillId();
+            if (regainId != 0) { nid = regainId; via = "regain list"; }
+            else if (bestId == 0)
             {
+                _wantNames = true;   // start capturing drawn names for the hold
                 // FIRST-FRAME RACE (user 2026-07-06): the menu opens with the cursor already
                 // ON this slot, before the panel name has been drawn/captured even once.
                 // HOLD: re-enter next render until the drawn name lands; fall back to lvlNext
@@ -292,6 +304,7 @@ internal unsafe class SkillReplaceMenu : IDisposable
                     ? $" ⚠ +0x6E CHANGED during the hold: first frame {_holdFirstLvlNext}({Skill.GetName(_holdFirstLvlNext)})" : ""));
             _poolFloorMs = now;   // everything drawn so far belongs to THIS prompt — fence it off for the next one
             _pendingIncomingSince = 0;
+            _wantNames = false;
             if (nid < 1 || nid > 1024) return;
             string nm = Skill.GetName(nid);
             string desc = Skill.GetDescription(nid);

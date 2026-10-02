@@ -117,6 +117,29 @@ internal sealed class BeaconVoice : ISampleProvider
     }
 
     /// <summary>
+    /// Make a LOOPED sample seamless: crossfade its last <paramref name="fadeFrames"/> into its
+    /// first ones (equal-power) and drop that tail, so the end flows into the start with no jump.
+    /// The wall WAVs are 2.2 s loops whose last sample ≠ first (wallSouth −0.73 → −0.16): the raw
+    /// loop CLICKED and dipped every 2.2 s — measured by loopback recording, 2026-09-29 (Haru's
+    /// "wall/door stutter"). Returns the input unchanged when it is too short to fade.
+    /// </summary>
+    public static float[] MakeSeamless(float[] mono, int fadeFrames)
+    {
+        int n = mono.Length;
+        if (fadeFrames <= 0 || n < fadeFrames * 3) return mono;
+        int len = n - fadeFrames;
+        var r = new float[len];
+        Array.Copy(mono, fadeFrames, r, fadeFrames, len - fadeFrames);
+        for (int i = 0; i < fadeFrames; i++)
+        {
+            float t = (i + 0.5f) / fadeFrames;
+            float gin = MathF.Sin(t * MathF.PI * 0.5f), gout = MathF.Cos(t * MathF.PI * 0.5f);
+            r[i] = mono[i] * gin + mono[len + i] * gout;
+        }
+        return r;
+    }
+
+    /// <summary>
     /// Load a WAV from database/sounds, downmix to mono at the mixer rate.
     /// Handles the path quirk (database is in the nested "Persona 4 golden"
     /// subfolder, not under the game-exe CurrentDirectory).

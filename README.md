@@ -5,7 +5,7 @@ A screen-reader accessibility mod for the Steam version of **Persona 4 Golden**,
 user's screen reader (NVDA / SAPI via Tolk) and adds blind-playable navigation, so the game can be
 played without sight.
 
-**Latest release: v2.0.0.**
+**Latest release: v2.2.0.**
 
 ## What it does
 
@@ -25,7 +25,7 @@ played without sight.
 | Path | What it is |
 |---|---|
 | `p4g64.accessibility-master/` | The mod source — a .NET (`net9.0-windows`) Reloaded II mod. The active project (entry point `Mod.cs`; features under `Components/`; native data accessors under `Native/`). |
-| `database/` | The per-system **source-of-truth docs** (`*.md`), the derived data files the mod loads at runtime (`*.json`, `P4.tsv`, sounds), and the Python data-generators under `tools/`. |
+| `database/` | The per-system **source-of-truth docs** (`*.md`), the derived data files the mod loads at runtime (`*.json`, the five per-language glyph tables `P4G_EFIGS/JP/CHS/CHT/Korean.tsv`, sounds), and the Python data-generators under `tools/`. |
 
 **Where to start:** this README for the overview, then the source-of-truth docs in `database/` —
 `BATTLE_SYSTEM.md`, `OVERWORLD.md` + `OVERWORLD_AUTOWALK.md`, `DUNGEON_AUTOWALK.md`, `SHOP_SYSTEM.md`,

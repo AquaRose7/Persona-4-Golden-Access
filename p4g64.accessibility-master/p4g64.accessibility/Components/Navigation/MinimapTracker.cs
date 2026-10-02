@@ -85,6 +85,26 @@ internal static unsafe class MinimapTracker
                IsReadable(ADDR_DIV_Z, 4) && IsReadable(ADDR_SCL_Z, 4) &&
                IsReadable(ADDR_OFF_Z, 4) && IsReadable(ADDR_CORR, 4));
 
+#if DEBUG
+    // A/B TEST SWITCH (2026-09-29): a flag file restores the pre-fix 333u-offset mapping so
+    // a floor can be compared old-vs-new. Debug builds only.
+    // flag file %TEMP%\p4g_grid_old.flag toggles it live (checked every 2 s)
+    private static bool _oldGrid; private static long _oldGridCheckMs;
+    private static bool OldGridMapping
+    {
+        get
+        {
+            long now = Environment.TickCount64;
+            if (now - _oldGridCheckMs > 2000)
+            {
+                _oldGridCheckMs = now;
+                try { _oldGrid = System.IO.File.Exists(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "p4g_grid_old.flag")); } catch { }
+            }
+            return _oldGrid;
+        }
+    }
+#endif
+
     public static bool WorldToCell(float wx, float wz, out int row, out int col)
     {
         row = -1; col = -1;
@@ -101,10 +121,23 @@ internal static unsafe class MinimapTracker
         float corr = *(float*)ADDR_CORR;
         if (!float.IsFinite(divX) || divX == 0f || !float.IsFinite(divZ) || divZ == 0f) return false;
 
-        float sx = ((wx + bias) / divX) * sclX + offX - corr;
-        float sz = ((wz + bias) / divZ) * sclZ + offZ - corr;
-        col = (int)MathF.Round((sx - 200f) / 18f);
-        row = (int)MathF.Round((sz - 6f)   / 18f);
+        // THE GRID-CENTER FIX (2026-09-29, renderer FUN_1402C16B0 + live proof): the renderer
+        // draws cell TILES with their top-left at (200+18c, 6+18r) — an 18px tile, so its CENTER
+        // is +9px — and draws icons at P − corr where corr (4px) is HALF THE ICON, i.e. the
+        // icon's top-left. So a world point sits at the tile CENTER when P = 209+18c, which
+        // works out to cell = round(world / 1200) exactly (chests/stairs sit at k*1200, doors at
+        // k*1200 ± 600 — every object on Marukyu 1F + Bathhouse). The old formula subtracted
+        // corr but forgot the +9 → every cell was 333u off in −X/−Z: waypoints hugged corridor
+        // walls (the "corridor tiles sit ~350u off center" / LaneSearch-332u symptoms) and
+        // ~28% of positions mapped to the neighbouring cell.
+        float sx = ((wx + bias) / divX) * sclX + offX;
+        float sz = ((wz + bias) / divZ) * sclZ + offZ;
+        float cx0 = 209f, cz0 = 15f;
+#if DEBUG
+        if (OldGridMapping) { cx0 = 200f + corr; cz0 = 6f + corr; }   // A/B test only
+#endif
+        col = (int)MathF.Round((sx - cx0) / 18f);
+        row = (int)MathF.Round((sz - cz0) / 18f);
         return row >= 0 && row < ROWS && col >= 0 && col < COLS;
     }
 
@@ -130,13 +163,17 @@ internal static unsafe class MinimapTracker
         float corr = *(float*)ADDR_CORR;
         if (!float.IsFinite(sclX) || sclX == 0f || !float.IsFinite(sclZ) || sclZ == 0f) return false;
 
-        // Inverse of: sx = ((wx + bias) / divX) * sclX + offX - corr
-        //             col = round((sx - 200) / 18)
+        // Inverse of: sx = ((wx + bias) / divX) * sclX + offX
+        //             col = round((sx - 209) / 18)   (tile top-left 200 + half tile 9 — see WorldToCell)
         // Recover the cell's screen-pixel center, then unwind the world transform.
-        float sx = col * 18f + 200f;
-        float sz = row * 18f + 6f;
-        wx = ((sx + corr - offX) / sclX) * divX - bias;
-        wz = ((sz + corr - offZ) / sclZ) * divZ - bias;
+        float cx0 = 209f, cz0 = 15f;
+#if DEBUG
+        if (OldGridMapping) { cx0 = 200f + corr; cz0 = 6f + corr; }   // A/B test only
+#endif
+        float sx = col * 18f + cx0;
+        float sz = row * 18f + cz0;
+        wx = ((sx - offX) / sclX) * divX - bias;
+        wz = ((sz - offZ) / sclZ) * divZ - bias;
         return float.IsFinite(wx) && float.IsFinite(wz);
     }
 

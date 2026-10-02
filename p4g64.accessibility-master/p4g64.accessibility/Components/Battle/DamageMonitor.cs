@@ -331,7 +331,10 @@ internal sealed unsafe class DamageMonitor
         try { sname = Skill.GetName(skill); } catch { }
         string tname = target != 0 && IsReadable(target, 0xCF8) ? Battle.UnitDisplayName(target) : null;
 
-        string msg = string.IsNullOrWhiteSpace(sname) || sname == "Attack"
+        // The plain attack: skill 0 AND the enemy skill 365 are both named "Attack" ("Attaque" in French —
+        // init_free.bin tables), so compare with the game's OWN name for skill 0 in the current language;
+        // the English literal alone made French read "Shadow uses Attaque" (2026-10-02 language audit).
+        string msg = string.IsNullOrWhiteSpace(sname) || skill == 0 || sname == Skill.GetName(0) || sname == "Attack"
             ? $"{name} attacks"
             : $"{name} uses {sname}";
         Log($"[EnemyAction] poll: unit=0x{unit:X} skill={skill}(\"{sname}\") target=0x{target:X}(\"{tname}\") -> \"{msg}\"");
