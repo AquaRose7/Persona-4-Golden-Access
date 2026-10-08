@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using DavyKager;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using static p4g64.accessibility.Utils;

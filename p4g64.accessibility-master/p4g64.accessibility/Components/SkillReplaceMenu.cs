@@ -270,21 +270,30 @@ internal unsafe class SkillReplaceMenu : IDisposable
             // the regain list, which stays open under this screen. The drawn-name pool can't
             // answer here — that list draws EVERY forgotten skill's name.
             int regainId = SkillRegainMenu.ActiveSkillId();
+            // S.LINK / BOOK / SCOOTER learns (2026-10-08, a player's Chie rank 8: "Tomoe learned Bufula!" was
+            // announced as Power Charge, her next LEVEL skill — the drawn-name pool stayed empty): these run
+            // the game's own learn task cmp_skill_add_proc, and its work u16 +0x28 IS the skill being taught.
+            // The task names it for "X learned Y!" (FUN_1400d59b0) and adds it with that id (task update
+            // FUN_14017E710; created by FUN_14017ED60 from the S.Link table / the learn-skill script call).
+            int taskId = regainId == 0 && !battle ? LearnTaskSkill(current) : 0;
             if (regainId != 0) { nid = regainId; via = "regain list"; }
+            else if (taskId != 0) { nid = taskId; via = "learn task"; }
+            // BATTLE level-up (2026-10-08, Haru: "a little late"): +0x6E is the truth there — it advances per
+            // prompt on multi-learns and never once changed during a hold across 20 logged prompts — and the
+            // battle screen never draws the name, so the 450 ms hold only ever delayed the same answer.
+            else if (battle && bestId == 0) { nid = lvlNext; via = "battle level-up +0x6E"; }
             else if (bestId == 0)
             {
                 _wantNames = true;   // start capturing drawn names for the hold
                 // FIRST-FRAME RACE (user 2026-07-06): the menu opens with the cursor already
                 // ON this slot, before the panel name has been drawn/captured even once.
                 // HOLD: re-enter next render until the drawn name lands; fall back to lvlNext
-                // only after ~0.45s.
+                // only after ~1s.
                 if (_pendingIncomingSince == 0) { _pendingIncomingSince = now; _holdFirstLvlNext = lvlNext; }
                 // Deadline, not a delay: the announce fires the moment the drawn name lands.
-                // FIELD flows get 1s (2026-09-04): the drawn name is the ONLY truth there, and
-                // slower PCs missed the old 450ms window → spoke the wrong (+0x6E) skill — the
-                // players' "ally skill reads wrong" reports; the user's fast PC never saw it.
-                // Battle never draws the name (log-proven, pool always empty) so it keeps 450ms.
-                if (now - _pendingIncomingSince < (battle ? 450 : 1000))
+                // FIELD flows without the learn task get 1s (2026-09-04: slower PCs missed the old
+                // 450ms window). Battle no longer holds at all (above).
+                if (now - _pendingIncomingSince < 1000)
                 {
                     _lastCursor = -1;   // reprocess this slot next frame
                     return;
@@ -313,6 +322,51 @@ internal unsafe class SkillReplaceMenu : IDisposable
         }
 
         Speech.Say(body, interrupt: true);
+    }
+
+    // ── the learn task (cmp_skill_add_proc) ─────────────────────────────────
+    private static readonly nint[] TaskHeads =
+    {
+        unchecked((nint)0x1462486F8L),
+        unchecked((nint)0x1462486A8L),
+        unchecked((nint)0x146248768L),
+    };
+    private static readonly byte[] LearnTaskName = System.Text.Encoding.ASCII.GetBytes("cmp_skill_add_proc");
+
+    /// <summary>The skill the game's learn task (cmp_skill_add_proc, work +0x28) is teaching, or 0 when that task
+    /// isn't running (battle level-ups, the hot spring's regain list) or holds no usable id.</summary>
+    private static int LearnTaskSkill(HashSet<int> current)
+    {
+        nint node = FindTask(LearnTaskName);
+        if (node == 0) return 0;
+        nint work; ushort id;
+        if (!Utils.TryReadRaw(node + 0x48, &work, 8) || work <= 0x10000) return 0;
+        if (!Utils.TryReadRaw(work + 0x28, &id, 2)) return 0;
+        if (id < 1 || id > 1024 || current.Contains(id)) return 0;
+        string nm = Skill.GetName(id);
+        return string.IsNullOrEmpty(nm) || nm.StartsWith("?") ? 0 : id;
+    }
+
+    /// <summary>A named task's node (name @+0x00, work @+0x48, next @+0x50). The name ends in any non-printable
+    /// byte, not always NUL (the work-offset anchors rule).</summary>
+    private static nint FindTask(byte[] name)
+    {
+        byte* hdr = stackalloc byte[0x58];
+        foreach (nint head in TaskHeads)
+        {
+            nint node;
+            if (!Utils.TryReadRaw(head, &node, 8)) continue;
+            for (int i = 0; i < 512 && node != 0; i++)
+            {
+                if (!Utils.TryReadRaw(node, hdr, 0x58)) break;
+                bool match = true;
+                for (int j = 0; j < name.Length && match; j++) match = hdr[j] == name[j];
+                byte end = hdr[name.Length];
+                if (match && (end < 0x20 || end > 0x7E)) return node;
+                node = *(nint*)(hdr + 0x50);
+            }
+        }
+        return 0;
     }
 
     // Guarded C-string read — RPM-based since 2026-07-27 (menu-heaviness fix): the

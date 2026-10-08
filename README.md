@@ -2,10 +2,10 @@
 
 A screen-reader accessibility mod for the Steam version of **Persona 4 Golden**, built as a
 [Reloaded II](https://reloaded-project.github.io/Reloaded-II/) mod. It speaks the game through the
-user's screen reader (NVDA / SAPI via Tolk) and adds blind-playable navigation, so the game can be
-played without sight.
+user's screen reader (NVDA, JAWS and others, or a Windows voice, via Prism) and adds blind-playable
+navigation, so the game can be played without sight.
 
-**Latest release: v2.2.0.**
+**Latest release: v2.2.1.**
 
 ## What it does
 
@@ -50,7 +50,8 @@ There are no automated tests; verify a change by launching the game and exercisi
 
 The mod loads under Reloaded II and requires these other Reloaded II mods (declared in `ModConfig.json`):
 **File Emulation Framework (BF Emulator)** and **`p4g64.customSubMenu`** are load-bearing for navigation;
-without them the FlowScript-based features silently no-op. NVDA (or a SAPI voice) provides speech.
+without them the FlowScript-based features silently no-op. Speech goes through **Prism** (`prism.dll`,
+shipped beside the mod DLL) to the running screen reader, or a Windows voice when none runs.
 
 ## Platform notes
 
@@ -61,7 +62,7 @@ without them the FlowScript-based features silently no-op. NVDA (or a SAPI voice
 ## Credits
 
 - Mod by **Haru**, built on AnimatedSwine37's accessibility mod template.
-- Speech via **Tolk** (NVDA / SAPI); audio cues via **NAudio**.
+- Speech via **Prism** (MPL-2.0, github.com/ethindp/prism); audio cues via **NAudio**.
 - Runs on **Reloaded II** and the **File Emulation Framework** by Sewer56 and contributors, and
   **Custom Sub Menu** by AnimatedSwine37, Tekka, and ShrineFox.
 

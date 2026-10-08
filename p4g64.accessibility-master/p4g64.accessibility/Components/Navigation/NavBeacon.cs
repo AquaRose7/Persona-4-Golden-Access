@@ -15,6 +15,11 @@ namespace p4g64.accessibility.Components.Navigation;
 ///   • muffle = target AHEAD (bright) vs BEHIND (low-passed) via <see cref="BeaconVoice.Openness"/>,
 ///   • volume = distance (steep falloff — quiet far, loud near).
 /// Shares the one <see cref="DungeonAudio"/> output with the other beacons. Off by default; dungeon-only.
+///
+/// ROUTE (v2.2.1, Haru: "other than pointing at the thing it routes you now"): the sound no longer sits on the target
+/// but on the auto-walk's own route a little ahead of you (<see cref="RouteGuide"/>, planned by
+/// <see cref="AutoWalk.StairsPlan.TryPlanTo"/> like a Backspace walk), and its distance is the walking distance left.
+/// Lobbies and the TV hub (no floor grid — the walk goes straight there) and a failed plan keep the old straight line.
 /// </summary>
 internal sealed class NavBeacon
 {
@@ -43,8 +48,10 @@ internal sealed class NavBeacon
     private bool _hasTarget;
     private float _targetX, _targetZ;
     private bool _targetIsShadow;
+    private bool _targetIsDoor;          // the route ends centred in front of the door, like the walk
     private float _trackX, _trackZ;      // shadow-follow running position
     private int _beaconFloor = int.MinValue;
+    private readonly RouteGuide _route = new();
 
     public NavBeacon()
     {
@@ -84,7 +91,7 @@ internal sealed class NavBeacon
         // The fixed target belongs to ONE floor: stop if we leave the dungeon or change floors.
         if (!InDungeon() || FloorKey() != _beaconFloor)
         {
-            _active = false; _hasTarget = false;
+            _active = false; _hasTarget = false; _route.Clear();
             _voice.Playing = false; DungeonAudio.SetWant(this, false);
             return;
         }
@@ -113,7 +120,16 @@ internal sealed class NavBeacon
             tx = _trackX; tz = _trackZ;
         }
 
-        float dx = tx - px, dz = tz - pz;
+        // ROUTE (v2.2.1): the sound sits on the walk's route a little ahead of you; the distance is the walking
+        // distance left. Planned again only when you are well off the route or a shadow walked away from its end
+        // — never while an auto-walk runs (it plans for itself). No route → straight at the target, as before.
+        long now = Environment.TickCount64;
+        if (!AutoWalk.AutoWalker.IsActive && _route.ShouldReplan(px, pz, tx, tz, now)) PlanRoute(px, pz, tx, tz, now);
+        float ax = tx, az = tz;
+        float far = MathF.Sqrt((tx - px) * (tx - px) + (tz - pz) * (tz - pz));
+        if (_route.HasRoute) { (ax, az) = _route.Carrot(px, pz); far = _route.Remaining; }
+
+        float dx = ax - px, dz = az - pz;
         float dist = MathF.Sqrt(dx * dx + dz * dz);
 
         // CAMERA-relative: forward = the way the camera faces (= the way W moves).
@@ -129,7 +145,7 @@ internal sealed class NavBeacon
         }
 
         // Volume + tick rate from distance (overworld model): louder + faster ticks as you close in.
-        float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist;   // 1 near … 0 far
+        float prox = 1f - Math.Clamp(far, 0f, FarDist) / FarDist;    // 1 near … 0 far
         float gain = (FarGain + (NearGain - FarGain) * prox) * SoundSettings.NavVol;
         int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));
 
@@ -144,25 +160,46 @@ internal sealed class NavBeacon
         _voice.Playing = true;
     }
 
-    /// <summary>What P would target RIGHT NOW: the H-cursor cell if the cursor is in Look mode (a
-    /// deliberately marked place), else the current browser selection. Doesn't store anything.</summary>
-    private static bool TryComputeCandidate(out float x, out float z, out bool isShadow)
+    /// <summary>The route a Backspace walk to (tx,tz) would take — the same planner (the prefab planner, then the minimap
+    /// grid; doors woven, locked doors routed around). Lobbies and the TV hub have no floor grid (the walk goes straight
+    /// there), so the beacon points straight too.</summary>
+    private void PlanRoute(float px, float pz, float tx, float tz, long now)
     {
-        x = 0; z = 0; isShadow = false;
-        if (DungeonCursor.IsActive && DungeonCursor.TryGetMarkTarget(out float cx, out float cz, out _))
-        { x = cx; z = cz; return true; }
-        return DungeonNav.TryGetSelectionTarget(out x, out z, out isShadow);
+        if (!AutoWalk.GridRouter.HasGrid() || DungeonNav.IsLobby) { _route.Failed(px, pz, now); return; }
+        var res = AutoWalk.StairsPlan.TryPlanTo(px, pz, tx, tz, new HashSet<int>(), stopAtTargetRoomDoor: false,
+                                                doorTarget: _targetIsDoor, out var wps, out _);
+        if (res == AutoWalk.StairsPlan.Result.Ok && wps.Count > 0)
+        {
+            _route.Set(wps, px, pz, tx, tz, now);
+            Log($"[NavBeacon] route: {_route.Count} points, {_route.Length:F0}u to ({tx:F0},{tz:F0})");
+        }
+        else
+        {
+            _route.Failed(px, pz, now);
+            Log($"[NavBeacon] no route to ({tx:F0},{tz:F0}) ({res}) — straight at it");
+        }
     }
 
-    private void SetTarget(float x, float z, bool isShadow)
+    /// <summary>What P would target RIGHT NOW: the H-cursor cell if the cursor is in Look mode (a
+    /// deliberately marked place), else the current browser selection. Doesn't store anything.</summary>
+    private static bool TryComputeCandidate(out float x, out float z, out bool isShadow, out bool isDoor)
     {
-        _targetX = x; _targetZ = z; _targetIsShadow = isShadow; _trackX = x; _trackZ = z;
+        x = 0; z = 0; isShadow = false; isDoor = false;
+        if (DungeonCursor.IsActive && DungeonCursor.TryGetMarkTarget(out float cx, out float cz, out _))
+        { x = cx; z = cz; return true; }
+        return DungeonNav.TryGetSelectionTarget(out x, out z, out isShadow, out isDoor);
+    }
+
+    private void SetTarget(float x, float z, bool isShadow, bool isDoor)
+    {
+        _targetX = x; _targetZ = z; _targetIsShadow = isShadow; _targetIsDoor = isDoor; _trackX = x; _trackZ = z;
         _hasTarget = true; _beaconFloor = FloorKey(); _grace = 0;
+        _route.Clear();
     }
 
     private void StopBeacon()
     {
-        _active = false; _hasTarget = false;
+        _active = false; _hasTarget = false; _route.Clear();
         _voice.Playing = false; DungeonAudio.SetWant(this, false);
         Speech.Say("Beacon off.", true); Log("[NavBeacon] OFF");
     }
@@ -176,7 +213,7 @@ internal sealed class NavBeacon
         // announcing an error here would talk over it. Just do nothing.
         if (!InDungeon()) return;
 
-        if (!TryComputeCandidate(out float cx, out float cz, out bool isShadow))
+        if (!TryComputeCandidate(out float cx, out float cz, out bool isShadow, out bool isDoor))
         {
             if (_active) StopBeacon();
             else Speech.Say("Select something to beacon first.", true);
@@ -187,13 +224,13 @@ internal sealed class NavBeacon
         {
             float ddx = cx - _trackX, ddz = cz - _trackZ;
             if (ddx * ddx + ddz * ddz < SameTargetUnits * SameTargetUnits) { StopBeacon(); return; }  // same → off
-            SetTarget(cx, cz, isShadow);                                    // different → retarget
+            SetTarget(cx, cz, isShadow, isDoor);                                  // different → retarget
             Speech.Say("Beacon moved.", true);
             Log("[NavBeacon] retarget");
             return;
         }
 
-        SetTarget(cx, cz, isShadow);
+        SetTarget(cx, cz, isShadow, isDoor);
         _active = true;
         Speech.Say("Beacon on.", true);
         Log("[NavBeacon] ON");

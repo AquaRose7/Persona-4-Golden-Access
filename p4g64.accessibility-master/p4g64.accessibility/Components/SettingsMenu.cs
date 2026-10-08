@@ -287,6 +287,22 @@ internal sealed class SettingsMenu
                     Get = () => MovieDescription.Enabled ? 1 : 0,
                     Set = v => { MovieDescription.Enabled = v == 1; ModSettings.SetBool("movie_descriptions", v == 1); },
                 },
+                new Row
+                {
+                    Name = "Camera directions", Key = "camera_compass",
+                    Desc = "When you turn the camera in the school or in a dungeon, the direction it now faces is spoken: north, northeast, and so on.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.CameraCompass ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => Navigation.CameraCompass.Enabled ? 1 : 0,
+                    Set = v => { Navigation.CameraCompass.Enabled = v == 1; ModSettings.SetBool("camera_compass", v == 1); },
+                },
+                new Row
+                {
+                    Name = "Windows voice", Key = "windows_voice",
+                    Desc = "When no screen reader is running, the mod speaks with a Windows voice. Off means the mod stays silent without a screen reader.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.WindowsVoice ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => ModSettings.GetBool("windows_voice", Defaults.WindowsVoice) ? 1 : 0,
+                    Set = v => { ModSettings.SetBool("windows_voice", v == 1); Voice.PrismOutput.SetWindowsVoice(v == 1); },
+                },
             },
         },
     };

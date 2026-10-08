@@ -1,5 +1,4 @@
 ﻿using BF.File.Emulator.Interfaces;
-using DavyKager;
 using p4g64.accessibility.Components;
 using p4g64.accessibility.Components.Battle;
 using p4g64.accessibility.Components.Navigation;
@@ -103,6 +102,7 @@ public class Mod : ModBase // <= Do not Remove.
     private EnemyRadar? _enemyRadar;
     private AmbushCue? _ambushCue;
     private Components.Navigation.CameraNorth? _cameraNorth;
+    private Components.Navigation.CameraCompass? _cameraCompass;
     private ExitBeacon? _exitBeacon;
     private ChestBeacon? _chestBeacon;
     /// <summary>SettingsMenu access to the beacon toggles (2026-08-27).</summary>
@@ -181,20 +181,9 @@ public class Mod : ModBase // <= Do not Remove.
         Persona.Initialise();
         var modDir = _modLoader.GetDirectoryForModId(_modConfig.ModId);
 
-        // Add the mod's folder to the path so tolk will load screen reader dlls
-        Environment.SetEnvironmentVariable("PATH", Environment.GetEnvironmentVariable("PATH") + ";" + modDir,
-            EnvironmentVariableTarget.Process);
-
-        Log("Loading tolk");
-        Tolk.Load();
-
-        if (!Tolk.IsLoaded())
-        {
-            LogError("Tolk failed to load, your mod files may be corrupted!");
-            return;
-        }
-
-        Log($"Tolk loaded. IsLoaded={Tolk.IsLoaded()}, HasSpeech={Tolk.HasSpeech()}, ScreenReader={Tolk.DetectScreenReader() ?? "none"}");
+        // Speech through Prism (v2.2.1, replaced Tolk): prism.dll from the mod folder. A failure is logged and the
+        // mod keeps running (silent) instead of stopping here like the Tolk check did.
+        Components.Voice.PrismOutput.Open(modDir, ModSettings.GetBool("windows_voice", Defaults.WindowsVoice));
         Speech.Say("Accessibility mod loaded", true);
 
         // Announce restored NON-default toggles — otherwise the silence looks like a bug.
@@ -325,8 +314,9 @@ public class Mod : ModBase // <= Do not Remove.
         //   / (slash)  = exit/stairs beacon toward the next-floor stairs.
         //   , (comma)  = chest beacon toward the nearest chest.
         _enemyRadar = new EnemyRadar();
-        _ambushCue = new AmbushCue();
+        _ambushCue = new AmbushCue(_hooks!);
         _cameraNorth = new Components.Navigation.CameraNorth();
+        _cameraCompass = new Components.Navigation.CameraCompass();   // turning the camera speaks its direction (v2.2.1)
         _exitBeacon = new ExitBeacon();
         _chestBeacon = new ChestBeacon();
         ExitBeaconInst = _exitBeacon; ChestBeaconInst = _chestBeacon;

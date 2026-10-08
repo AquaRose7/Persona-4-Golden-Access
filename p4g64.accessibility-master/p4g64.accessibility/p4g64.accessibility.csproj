@@ -63,9 +63,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="TolkDotNet">
-      <HintPath>..\Submodules\Tolk\TolkDotNet.dll</HintPath>
-    </Reference>
     <!-- BF Emulator interface. Reference the DLL shipped by the BF emulator mod
          itself (declared as a dependency in ModConfig.json). Same assembly the
          BF emulator registers its controller under, so type identity matches
@@ -78,7 +75,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Submodules\Tolk\*">
+    <!-- Speech (v2.2.1): Prism replaced Tolk; prism.dll is the only native speech DLL (no NVDA client / SAAPI). -->
+    <Content Include="..\Submodules\Prism\prism.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

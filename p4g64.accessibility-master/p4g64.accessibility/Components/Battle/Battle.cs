@@ -1,5 +1,4 @@
 ﻿using System.Runtime.InteropServices;
-using DavyKager;
 using p4g64.accessibility.Native;
 using p4g64.accessibility.Native.Text;
 using Reloaded.Hooks.Definitions;

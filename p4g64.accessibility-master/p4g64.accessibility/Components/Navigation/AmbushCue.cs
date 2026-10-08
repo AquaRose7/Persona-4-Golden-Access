@@ -1,3 +1,4 @@
+using Reloaded.Hooks.Definitions;
 using p4g64.accessibility.Components.Navigation.AutoWalk;
 using static p4g64.accessibility.Utils;
 
@@ -61,8 +62,18 @@ internal sealed class AmbushCue
     private (long ms, float d, float face, float back, bool ready)? _press;
 #endif
 
-    internal AmbushCue()
+    internal AmbushCue(IReloadedHooks hooks)
     {
+        // WHO STRUCK FIRST, at the game's own moment (2026-10-08): reading the value once at the battle's first
+        // poll missed Haru's ambush (it read 0 before the game had set it). The game's advantage effect
+        // FUN_1400DE4A0 runs every frame of the red/blue flash — only for an advantage start — and plays its sound
+        // when its work's int +0x08 goes 0 → 1, reading the same *(short*)(ctx+0x1E) (1 = blue = you, else red).
+        try
+        {
+            _advHook = hooks.CreateHook<AdvEffectDelegate>(OnAdvantageEffect, AdvEffectVA).Activate();
+            Log("[Ambush] advantage-effect hook active");
+        }
+        catch (Exception e) { Log($"[Ambush] advantage-effect hook failed ({e.Message}) — reading at battle start instead"); }
         new Thread(Loop) { IsBackground = true, Name = "AmbushCue" }.Start();
         Log("[Ambush] ready (sneak ticks, turning warning, swing-now chime, battle-start advantage)");
     }
@@ -175,8 +186,37 @@ internal sealed class AmbushCue
 #endif
     }
 
+    // The advantage effect (FUN_1400DE4A0, work = 2nd arg: u16 +0x00 bit 1 = running, int +0x08 = its sound played).
+    // Four pass-through args + a returned value so nothing the caller passes or reads is lost.
+    private delegate nint AdvEffectDelegate(nint p1, nint p2, nint p3, nint p4);
+    private static readonly nint AdvEffectVA = unchecked((nint)0x1400DE4A0L);
+    private IHook<AdvEffectDelegate>? _advHook;
+
+    private unsafe nint OnAdvantageEffect(nint p1, nint p2, nint p3, nint p4)
+    {
+        int before = 0;
+        bool ok = p2 != 0 && TryReadRaw(p2 + 8, &before, 4);
+        nint r = _advHook!.OriginalFunction(p1, p2, p3, p4);
+        try
+        {
+            int after = 0;
+            ushort flags = 0;
+            if (!ok || before != 0 || !TryReadRaw(p2 + 8, &after, 4) || after != 1) return r;   // not the sound frame
+            if (!TryReadRaw(p2, &flags, 2) || (flags & 1) == 0) return r;
+            nint ctx = 0;
+            short adv = 0;
+            if (!TryReadRaw(BattleCtxPtr, &ctx, 8) || ctx == 0 || !TryReadRaw(ctx + 0x1E, &adv, 2)) return r;
+            Log($"[Ambush] advantage effect: value {adv}");
+            Speech.Say(adv == 1 ? "You struck first!" : "Ambushed!", false);
+        }
+        catch { /* never let a hook throw */ }
+        return r;
+    }
+
+    /// <summary>Fallback when the effect hook could not be installed: the old one-time read at battle start.</summary>
     private unsafe void AnnounceAdvantage(long now)
     {
+        if (_advHook != null) return;
         bool inBattle = FieldTracker.InBattle;
         if (inBattle && !_wasInBattle) { _battleSinceMs = now; _advSpoken = false; }
         _wasInBattle = inBattle;

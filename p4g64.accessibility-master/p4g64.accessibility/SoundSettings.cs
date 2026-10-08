@@ -39,6 +39,8 @@ internal static class Defaults
     public const bool DialogueReader = true;
     public const bool SubtitleReader = false;   // game's own subtitles are off by default too
     public const bool MovieDescriptions = true;
+    public const bool WindowsVoice = true;      // Prism falls back to a Windows voice when no screen reader runs (v2.2.1)
+    public const bool CameraCompass = true;     // turning the camera speaks the direction it faces (v2.2.1)
 }
 
 /// <summary>

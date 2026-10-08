@@ -22,7 +22,7 @@
             },
             {
               "name": "B",
-              "text": "Turns the camera to face north, using the game's own smooth camera turn. Works in dungeons and anywhere the camera can rotate; says so if the camera is fixed."
+              "text": "Turns the camera to face north, using the game's own smooth camera turn. Works in dungeons and anywhere the camera can rotate; says so if the camera is fixed. When you turn the camera yourself, the mod says each new direction it faces, like Northeast."
             },
             {
               "name": "Shift and slash",
@@ -50,7 +50,7 @@
             },
             {
               "name": "P",
-              "text": "Sound beacon toward the selected navigation target, in dungeons and in town."
+              "text": "Sound beacon that guides you along the walking route to the selected navigation target, in dungeons and in town."
             },
             {
               "name": "Minus and Equals",
@@ -212,7 +212,7 @@
             },
             {
               "name": "Left trigger and B",
-              "text": "Sound beacon toward the selected target."
+              "text": "Sound beacon that guides you along the walking route to the selected target."
             },
             {
               "name": "Left trigger and Y",
@@ -260,7 +260,7 @@
         },
         {
           "name": "Beacons",
-          "text": "The stairs beacon, the chest beacon and the navigation beacon each loop a sound toward their target. Closer means louder and faster ticks. When the target is behind you the sound is muffled and slightly lower. The stairs beacon needs the stairs discovered on your map first, so explore a little if it is silent."
+          "text": "The stairs beacon, the chest beacon and the navigation beacon each loop a sound toward their target. The navigation beacon, P, follows the same route an auto walk would take: the sound sits a little ahead of you on that route, so follow it around corners and through doors. Closer means louder and faster ticks. When the target is behind you the sound is muffled and slightly lower. The stairs beacon needs the stairs discovered on your map first, so explore a little if it is silent."
         },
         {
           "name": "The mapping cursor",

@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using DavyKager;
 using static p4g64.accessibility.Utils;
 
 namespace p4g64.accessibility.Components.Navigation;
@@ -365,10 +364,11 @@ internal class DungeonNav
     // NavBeacon reads it (live-follows the selection) to beacon whatever you're browsing.
     private static volatile bool _selHasPos;
     private static volatile bool _selIsShadow;   // shadows MOVE → NavBeacon live-tracks them
+    private static volatile bool _selIsDoor;     // a door: the beacon's route ends centred in front of it (like the walk)
     private static float _selX, _selZ;
-    internal static bool TryGetSelectionTarget(out float x, out float z, out bool isShadow)
+    internal static bool TryGetSelectionTarget(out float x, out float z, out bool isShadow, out bool isDoor)
     {
-        x = _selX; z = _selZ; isShadow = _selIsShadow; return _selHasPos;
+        x = _selX; z = _selZ; isShadow = _selIsShadow; isDoor = _selIsDoor; return _selHasPos;
     }
     private void UpdateSelectionTarget()
     {
@@ -376,6 +376,8 @@ internal class DungeonNav
         {
             _selX = _entries[_cursor].TX; _selZ = _entries[_cursor].TZ;
             _selIsShadow = _entries[_cursor].Label is "Shadow" or "Strong shadow" or "Golden hand";
+            var cats = Categories;
+            _selIsDoor = _catIndex < cats.Length && cats[_catIndex] is Cat.Doors or Cat.AllDoors;
             _selHasPos = true;
         }
         else _selHasPos = false;

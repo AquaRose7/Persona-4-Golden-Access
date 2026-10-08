@@ -1,10 +1,8 @@
-using DavyKager;
-
 namespace p4g64.accessibility;
 
 /// <summary>
 /// Central speech output + history (2026-06-20). Every mod announcement goes through
-/// <see cref="Say"/> (was <c>Tolk.Output</c> everywhere) so the last N lines are kept in a ring
+/// <see cref="Say"/> (was <c>Tolk.Output</c> everywhere; Prism since v2.2.1) so the last N lines are kept in a ring
 /// buffer the player can repeat / scroll back through. <see cref="Record"/> stores a line WITHOUT
 /// speaking it — used by the dialogue reader when its auto-read is toggled off, so the text is
 /// still available to repeat while the game's voice plays.
@@ -67,7 +65,7 @@ internal static class Speech
         return s;
     }
 
-    /// <summary>Speak a line AND record it to history. Drop-in for the old <c>Tolk.Output</c>.</summary>
+    /// <summary>Speak a line AND record it to history. Drop-in for the old <c>Tolk.Output</c>; the screen reader is reached through <see cref="Components.Voice.PrismOutput"/>.</summary>
     internal static void Say(string text, bool interrupt = true,
         [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "")
     {
@@ -90,7 +88,7 @@ internal static class Speech
             }
             Utils.Log($"[Speech] {src}: {text}{(downgraded ? "  (queued: grace)" : interrupt ? "" : "  (queued)")}");
         }
-        // TEMP perf shim (heaviness diag 2026-07-27): measures the full cost incl. Tolk IPC.
+        // TEMP perf shim (heaviness diag 2026-07-27): measures the full cost incl. the screen-reader IPC.
         long t0 = Components.PerfDiag.Begin();
         try { SayCore(text, interrupt); }
         finally { Components.PerfDiag.End(Components.PerfDiag.B.SpeechSay, t0); }
@@ -120,7 +118,7 @@ internal static class Speech
             }
         }
         Record(text);
-        Tolk.Output(text, interrupt);
+        Components.Voice.PrismOutput.Output(text, interrupt);
     }
 
     /// <summary>Record a line to history WITHOUT speaking it (e.g. dialogue while auto-read is off).</summary>
@@ -142,9 +140,9 @@ internal static class Speech
     {
         lock (_lock)
         {
-            if (_hist.Count == 0) { Tolk.Output("No history.", true); return; }
+            if (_hist.Count == 0) { Components.Voice.PrismOutput.Output("No history.", true); return; }
             _navIdx = _hist.Count;
-            Tolk.Output(_hist[^1], true);
+            Components.Voice.PrismOutput.Output(_hist[^1], true);
         }
     }
 
@@ -153,13 +151,13 @@ internal static class Speech
     {
         lock (_lock)
         {
-            if (_hist.Count == 0) { Tolk.Output("No history.", true); return; }
+            if (_hist.Count == 0) { Components.Voice.PrismOutput.Output("No history.", true); return; }
             if (_navIdx < 0 || _navIdx > _hist.Count - 1) _navIdx = _hist.Count;  // start from newest
             int next = _navIdx + dir;
-            if (next < 0) { _navIdx = 0; Tolk.Output("Start of history. " + _hist[0], true); return; }
-            if (next > _hist.Count - 1) { _navIdx = _hist.Count - 1; Tolk.Output("Newest. " + _hist[^1], true); return; }
+            if (next < 0) { _navIdx = 0; Components.Voice.PrismOutput.Output("Start of history. " + _hist[0], true); return; }
+            if (next > _hist.Count - 1) { _navIdx = _hist.Count - 1; Components.Voice.PrismOutput.Output("Newest. " + _hist[^1], true); return; }
             _navIdx = next;
-            Tolk.Output(_hist[_navIdx], true);
+            Components.Voice.PrismOutput.Output(_hist[_navIdx], true);
         }
     }
 }

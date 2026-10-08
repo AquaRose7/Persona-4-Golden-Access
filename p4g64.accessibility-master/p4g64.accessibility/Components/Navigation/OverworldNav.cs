@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using DavyKager;
 using p4g64.accessibility.Native.Text;
 using static p4g64.accessibility.Utils;
 
@@ -1534,14 +1533,18 @@ internal class OverworldNav
     private const float FrontSign = -1f;                // north = bright (matches flipped overworld Z + compass)
 
     /// <summary>
-    /// STEREO positional beacon: the sound sits at the TARGET's location relative
-    /// to the CAMERA (which is locked per area, so it doesn't swing as the player
-    /// turns — far less confusing than facing-relative). Pan = target left/right on
-    /// screen; pitch = up/down (into the view = higher, toward the camera = lower);
-    /// ticks faster as you approach. Trill on arrival / CHECK prompt.
+    /// STEREO positional beacon: the sound sits relative to the CAMERA (which is locked per
+    /// area, so it doesn't swing as the player turns — far less confusing than facing-relative).
+    /// Pan = left/right on screen; ticks faster as you approach. Trill on arrival / CHECK prompt.
+    /// ROUTE (v2.2.1, Haru: "other than pointing at the thing it routes you now"): the sound sits
+    /// on the auto-walk's own route a little ahead of you (<see cref="RouteGuide"/>,
+    /// <see cref="PlanBeaconRoute"/>), not on the target, and the tick rate follows the walking
+    /// distance left. Where the walk would go in a straight line (no walk grid), so does the beacon.
     /// </summary>
     private void BeaconLoop()
     {
+        var route = new RouteGuide();
+        (ushort person, float bx, float bz, string name) routeFor = default;
         try
         {
             _voice.Playing = true;
@@ -1560,8 +1563,7 @@ internal class OverworldNav
                     t.X = lx; t.Z = lz;
                 }
 
-                float dx = t.X - px, dz = t.Z - pz;
-                float dist = MathF.Sqrt(dx * dx + dz * dz);
+                float dist = MathF.Sqrt((t.X - px) * (t.X - px) + (t.Z - pz) * (t.Z - pz));
 
                 // Arrival = CHECK prompt inside THIS target's box, or on the centre.
                 // Only the cramped fridge + sofa (which sit right next to other checks)
@@ -1583,6 +1585,31 @@ internal class OverworldNav
                     return;
                 }
 
+                // ── route (v2.2.1) ──
+                // A new selection starts a new route; otherwise it is planned again only when you are well off it
+                // or a person walked away from its end — never while an auto-walk runs (it plans for itself).
+                var key = (t.PersonId, t.BX, t.BZ, t.Name);
+                if (key != routeFor) { route.Clear(); routeFor = key; }
+                long now = Environment.TickCount64;
+                if (!_walking && route.ShouldReplan(px, pz, t.X, t.Z, now))
+                {
+                    var pts = PlanBeaconRoute(t, px, pz);
+                    if (pts != null)
+                    {
+                        route.Set(pts, px, pz, t.X, t.Z, now);
+                        Log($"[OverworldNav] beacon route to {t.Name}: {route.Count} points, {route.Length:F0}u");
+                    }
+                    else
+                    {
+                        route.Failed(px, pz, now);
+                        Log($"[OverworldNav] beacon: no route to {t.Name} here — straight at it");
+                    }
+                }
+                float ax = t.X, az = t.Z, far = dist;
+                if (route.HasRoute) { (ax, az) = route.Carrot(px, pz); far = route.Remaining; }
+                float dx = ax - px, dz = az - pz;
+                float aimDist = MathF.Sqrt(dx * dx + dz * dz);
+
                 // ── direction ──
                 // TOWN (2.5D, fixed camera): FIXED WORLD frame — the sound sits at the
                 // interactable's world position (east/west = pan, north/south = muffle),
@@ -1593,8 +1620,8 @@ internal class OverworldNav
                 // user 2026-07-03) → use the dungeon NavBeacon's CAMERA-relative math
                 // (same CameraForward3D the school auto-walker steers by, same
                 // user-verified pan sign).
-                float ux = dist > 1e-3f ? dx / dist : 0f;
-                float uz = dist > 1e-3f ? dz / dist : 0f;
+                float ux = aimDist > 1e-3f ? dx / aimDist : 0f;
+                float uz = aimDist > 1e-3f ? dz / aimDist : 0f;
                 // TOWN SCREEN MODE (2026-09-30, nav pt2 item 16 — Haru: "the beacon in 2.5D maps is not
                 // working really good"): the fixed world frame ignores which way each fixed camera looks
                 // (a south-looking camera turns it into a mirror). The LIVE camera (CameraForward3D — the
@@ -1604,7 +1631,7 @@ internal class OverworldNav
                 // world frame below is only the fallback while the camera is unreadable.
                 float pan, openness;
                 var (cfx, cfz) = FieldTracker.CameraForward3D();
-                if ((cfx != 0f || cfz != 0f) && dist > 1f)
+                if ((cfx != 0f || cfz != 0f) && aimDist > 1f)
                 {
                     float fwd = ux * cfx + uz * cfz;              // ahead(+1) … behind(-1)
                     float rgt = ux * cfz + uz * (-cfx);           // right = (fz,-fx)
@@ -1616,7 +1643,7 @@ internal class OverworldNav
                     pan = Math.Clamp(ux * PanSign, -1f, 1f);
                     openness = Math.Clamp((uz * FrontSign + 1f) * 0.5f, 0f, 1f);
                 }
-                float prox = 1f - Math.Clamp(dist, 0f, FarDist) / FarDist; // 1 near … 0 far
+                float prox = 1f - Math.Clamp(far, 0f, FarDist) / FarDist;  // 1 near … 0 far (walking distance)
                 float gain = (FarGain + (NearGain - FarGain) * prox) * SoundSettings.NavVol; // louder as you approach
                 int gap = NearGap + (int)((1f - prox) * (FarGap - NearGap));
 
@@ -1632,6 +1659,61 @@ internal class OverworldNav
         }
         catch (Exception ex) { Log($"[OverworldNav] beacon error: {ex.Message}"); }
         finally { _beacon = false; _voice.Playing = false; DungeonAudio.SetWant(this, false); }
+    }
+
+    /// <summary>
+    /// The route the P beacon follows (v2.2.1): what a Backspace walk would plan from here — the prebuilt walk grid, the
+    /// learned spot (with the walk's exit / outside-the-box rules), the static trigger stamps with the walk's retry without
+    /// them, and the target snapped to a walkable cell inside its box (else the nearest walkable cell). Not the walk's
+    /// live-people stamps or per-walk learned walls: they come from bumping into things. Null where the walk would go in a
+    /// straight line (no-route areas, no grid, the player off the grid).
+    /// </summary>
+    private List<(float x, float z)>? PlanBeaconRoute(Target t, float px, float pz)
+    {
+        string area = $"{FieldTracker.CurrentMajor}_{FieldTracker.CurrentMinor}";
+        if (_noRouteAreas.Contains(area)
+            || (_noRouteUntil.TryGetValue(area, out long nrUntil) && nrUntil > Environment.TickCount64)) return null;
+
+        float calX = 0f, calZ = 0f;
+        bool calib = t.PersonId == 0 && TryGetCalib(t, out calX, out calZ, out _, out _);
+        if (calib && IsExit(t) && (t.ExtX != 0 || t.ExtZ != 0)) calib = false;
+        if (calib && (t.ExtX != 0 || t.ExtZ != 0) && FieldTracker.CurrentMajor != 6)
+        {
+            float hx = MathF.Abs(t.ExtX) * 0.5f, hz = MathF.Abs(t.ExtZ) * 0.5f;
+            float ox = MathF.Max(0f, MathF.Abs(calX - t.BX) - hx), oz = MathF.Max(0f, MathF.Abs(calZ - t.BZ) - hz);
+            if (ox * ox + oz * oz > 400f * 400f) calib = false;
+        }
+        if (calib) { t.X = calX; t.Z = calZ; }
+
+        var staticObs = new List<(float x, float z)>();
+        var ar = CurrentArea();
+        if (ar != null)
+            foreach (var ot in ar.Targets)
+            {
+                float ddx = ot.X - t.X, ddz = ot.Z - t.Z;
+                if (ddx * ddx + ddz * ddz > 70f * 70f) staticObs.Add((ot.X, ot.Z));
+            }
+
+        List<(float x, float z)>? partial = null;
+        foreach (bool withStatic in new[] { true, false })
+        {
+            if (!withStatic && staticObs.Count == 0) break;
+            var g = PrebuiltGrid(area);
+            if (g == null) return null;
+            g.WorldToCell(px, pz, out int gr, out int gc);
+            if (!g.InBounds(gr, gc)) return null;   // a mis-framed grid — the walk skips it too
+            if (withStatic) foreach (var o in staticObs) g.StampObstacle(o.x, o.z, 1);
+            g.ClearAround(px, pz, 0);
+            if (calib) g.ClearAround(calX, calZ, 0);
+            float ptx = t.X, ptz = t.Z;
+            g.WorldToCell(t.X, t.Z, out int tr, out int tc);
+            if (!NearestFreeInBox(g, in t, out ptx, out ptz, calib ? float.NaN : px, pz)
+                && g.NearestFree(tr, tc, out int fr, out int fc)) g.CellToWorld(fr, fc, out ptx, out ptz);
+            var path = g.PlanWorld(px, pz, ptx, ptz);
+            if (path != null && g.LastReachedTarget) return path;
+            partial = path ?? partial;   // a partial route ends at the reachable spot nearest the target (the walk keeps it too)
+        }
+        return partial;
     }
 
     private void Arrive(string say)

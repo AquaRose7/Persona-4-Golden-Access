@@ -395,6 +395,7 @@ internal class ControllerInput
             *(byte*)(nint)0x15E3FD671L = (byte)(ds >> 8);
         }
         FishingReader.OnInputFrame();     // keyboard → virtual stick while reeling (no-op otherwise)
+        Navigation.CameraCompass.OnInputFrame();   // notes the player's camera-turn inputs (v2.2.1)
         if (!_modHeldShared && !SettingsMenu.CaptureKeys) return;   // cheap volatile reads; the poll thread does the XInput work
         // While an auto-walk is running, DON'T clear — the walker drives the player with
         // synthesized W/A/S/D, which feeds this same unified bitfield. Clearing it (because the

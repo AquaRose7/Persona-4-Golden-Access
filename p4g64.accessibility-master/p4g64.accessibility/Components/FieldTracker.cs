@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
-using DavyKager;
 using Reloaded.Hooks.Definitions;
 using Reloaded.Hooks.Definitions.Enums;
 using p4g64.accessibility.Components.Navigation;
@@ -3393,7 +3392,9 @@ internal unsafe class FieldTracker
                     if (!IsBattleMajor(major)) _lastDungeonFloorName = null;
                     var name = GetAreaName(major, minor);
                     Log($"[FieldTracker] Area -> major={major} minor={minor}: {name}");
-                    Speech.Say(name, true);
+                    // Battles start SILENT (v2.2.1, Haru: "in every battle we say battle floor one, no need for
+                    // this"): the battle music says it, and AmbushCue speaks who struck first when someone did.
+                    if (!IsBattleMajor(major)) Speech.Say(name, true);
                 }
                 _npcCountdown = 4;  // announce NPC count after ~2s (4 × 500ms poll ticks)
 
@@ -3682,12 +3683,12 @@ internal unsafe class FieldTracker
             string weather = ReadWeatherName();
             var msg = date.Length > 0 ? $"{date}, {time}" : time;
             if (weather.Length > 0) msg = $"{msg}, {weather}";
-            msg = $"{msg}, {area}";
+            if (area.Length > 0) msg = $"{msg}, {area}";
             Speech.Say(msg, true);
         }
         else
         {
-            Speech.Say(area, true);
+            Speech.Say(area.Length > 0 ? area : "No name for this place.", true);
         }
     }
 
@@ -5894,80 +5895,13 @@ internal unsafe class FieldTracker
 
     // ── Name tables ───────────────────────────────────────────────────────
 
-    /// <summary>The spoken name of the CURRENT area ("Tatsuhime Shrine", "Dojima Residence, Living
-    /// Room") — CheckLabel rejects a drawn "label" that is this banner (2026-09-29).</summary>
+    /// <summary>The spoken name of the CURRENT area ("Tatsuhime Shrine", "Living Room"; "" for an
+    /// unnamed map) — CheckLabel rejects a drawn "label" that is this banner (2026-09-29).</summary>
     internal static string CurrentAreaName() => GetAreaName(CurrentMajor, CurrentMinor);
 
     private static string GetAreaName(int major, int minor) => major switch
     {
-        // The travel/destination-select field you pass through when riding to
-        // Okina City etc. (seen live as 1/1 right before Okina 11/1, 2026-07-03).
-        // Announced as a prompt, per user request — this is where you pick a stop.
-        1 => "Choose where to go",
-        6 => minor switch
-        {
-            1  => "School, Front Entrance",
-            3  => "School Hallway",
-            4  => "School Hallway, Second Floor",
-            5  => "School Courtyard",
-            6  => "Classroom 2-2",
-            7  => "Classroom 2-1",
-            8  => "Classroom 2-3",
-            10 => "School Library",
-            11 => "School Gym",
-            12 => "Home Economics Room",
-            13 => "Practice Building",
-            14 => "School Rooftop",
-            15 => "School Gate",
-            _  => $"Yasogami High, Area {minor}",
-        },
-        7 => minor switch
-        {
-            1 => "Dojima Residence",
-            2 => "Dojima Residence, Living Room",
-            3 => "Your Room",
-            4 => "Dojima Residence, Hallway",
-            _ => $"Dojima Residence, Area {minor}",
-        },
-        8 => minor switch
-        {
-            1 => "Shopping District, North",
-            2 => "Shopping District, South",
-            3 => "Velvet Room", // user-confirmed 2026-06-14 (was mislabeled "Souzai Daigaku")
-            4 => "Daidara Metalworks, Outside",
-            5 => "Daidara Metalworks, Inside",
-            6 => "Shopping District, Side Alley",
-            // confirmed via call_street2shrine → CALL_FIELD(8, 9) in f008.bf
-            9 => "Tatsuhime Shrine",
-            _ => $"Shopping District, Area {minor}",
-        },
-        9 => minor switch
-        {
-            1 => "Junes, Food Court",
-            2 => "Junes, Entrance",
-            3 => "Junes, Electronics Department",
-            4 => "Junes, West Side",
-            _ => $"Junes, Area {minor}",
-        },
-        10 => minor switch
-        {
-            1 => "Samegawa Flood Plain",
-            2 => "Samegawa Riverbank",
-            _ => $"Samegawa Area {minor}",
-        },
-        // AUDIT 2026-06-12 (overworld phase): majors 11/17/18 were WRONG —
-        // identified from each major's decompiled field-script proc names
-        // (fd0XX flows): 11 has city_station/city_theater/city_cafe = OKINA
-        // CITY (was "Samegawa Riverbank"); 18 has entrance_lodge/
-        // snowmountain_* = the ski-trip area (was "Moel Gas Station" — Moel
-        // is inside the shopping district map, not its own major); 17 has
-        // farmshop (was "Tatsuhime Shrine" — the shrine is field 8/9).
-        11 => "Okina City",
-        12 => "Shiroku Store",
-        13 => "Daidara Metalworks",
-        15 => "Hanamura Residence",
-        17 => $"Farm area {minor}",
-        18 => minor == 1 ? "Ski Lodge" : "Snow Mountain",
+        > 0 and < 20 => TownAreaName(major, minor),
         // Dungeon 2 = Steamy Bathhouse. Entrance/changing area = (24,1); the in-binary names are
         // "Steamy Bathhouse, Bath #N" + "Bathhouse, Changing Area" (latter would strip to just
         // "Bathhouse"), so a major fallback keeps every floor consistent as "Steamy Bathhouse" when
@@ -5985,6 +5919,77 @@ internal unsafe class FieldTracker
         >= 60 and <= 69 => "???",   // scripted/event floors show "???" on screen when they have no banner
         _ => GetDungeonAreaName(major, minor),
     };
+
+    /// <summary>
+    /// Town and school maps (majors 1..19), v2.2.1. The name is the game's OWN map name — the one its
+    /// location banner shows: FUN_140307ff0 reads a u16 label id from the per-major table
+    /// <c>*(0x140910690 + major*8)[minor]</c> and the text from the check-label table
+    /// (<see cref="Native.Text.GameText.FieldLabel"/>), so it follows the game's language. The ids are
+    /// copied here from the exe (the tables are packed back to back and an out-of-range minor reads the
+    /// next one's garbage). The game names only some maps; the rest are mostly event stages — those
+    /// were identified from the scene's own opening caption or greeting in the logs ("Central shopping
+    /// district, Chinese Diner Aiya...", "Yasogami High, Library...", Old Lady Shiroku's welcome) and
+    /// use the matching label when one exists. Every other map says NOTHING — the old placeholders
+    /// ("Farm area 7", "Yasogami High, Area 9", "Samegawa Area 3") were the mod's own and are gone,
+    /// as are the guessed names for majors 12/13/15. A wrong game id is overridden: 6/7 points at
+    /// "Daidara Metalworks" but is the Music Room (Ayane's band scenes). The list Haru checked for
+    /// spoilers: D:\Downloads\P4G map names.txt.
+    /// </summary>
+    private static readonly Dictionary<(int major, int minor), (int label, string english)> _townAreaNames = new()
+    {
+        // the game's own table
+        [(6, 1)]  = (1,   "Classroom Building, 1F"),
+        [(6, 2)]  = (2,   "Classroom Building, 2F"),
+        [(6, 3)]  = (3,   "Classroom Building, 3F"),
+        [(6, 4)]  = (4,   "Practice Building, 1F"),
+        [(6, 5)]  = (5,   "Practice Building, 2F"),
+        [(6, 6)]  = (18,  "Class 2-2"),
+        [(6, 14)] = (33,  "Roof"),
+        [(6, 15)] = (68,  "Yasogami Front Gate"),
+        [(7, 1)]  = (45,  "Dojima Residence"),
+        [(7, 2)]  = (46,  "Living Room"),
+        [(7, 3)]  = (47,  "Your Room"),
+        [(8, 1)]  = (48,  "Shopping District, North"),
+        [(8, 2)]  = (49,  "Shopping District, South"),
+        [(8, 9)]  = (61,  "Tatsuhime Shrine"),
+        [(9, 1)]  = (66,  "Food Court"),
+        [(9, 4)]  = (64,  "Junes, West Entrance"),
+        [(10, 1)] = (67,  "Samegawa Flood Plain"),
+        [(10, 2)] = (67,  "Samegawa Flood Plain"),   // the game names both halves the same; English adds "riverbank"
+        [(11, 1)] = (110, "Okina Station Front"),
+        [(17, 1)] = (100, "School Zone"),
+        [(17, 4)] = (139, "Shichiri Beach"),
+        [(18, 1)] = (134, "Mountain Road"),          // the game's English text spells it "Mountian"
+        [(18, 3)] = (132, "Cottage"),
+        // event stages identified from their scenes, named with the game's own label for the place
+        [(6, 7)]  = (39,  "Music Room"),
+        [(6, 13)] = (24,  "Library"),
+        [(8, 3)]  = (52,  "Velvet Room"),             // user-confirmed 2026-06-14
+        [(8, 4)]  = (53,  "Daidara Metalworks"),
+        [(8, 5)]  = (57,  "Chinese Diner Aiya"),
+        [(8, 6)]  = (55,  "Shiroku Store"),
+        [(11, 2)] = (112, "Croco Fur"),
+        // places the game has no label for (English only)
+        [(1, 1)]  = (0,   "Choose where to go"),      // the travel stop picker (user request: a prompt)
+        [(6, 9)]  = (0,   "Yasogami High field"),
+        [(9, 3)]  = (0,   "Junes grocery department"),
+        [(10, 3)] = (0,   "Road to school"),
+        [(17, 3)] = (0,   "Yasoinaba Station"),
+        [(17, 7)] = (0,   "Hot springs"),
+    };
+
+    /// <summary>The map's name, or "" when the game has none for it (nothing is spoken).</summary>
+    private static string TownAreaName(int major, int minor)
+    {
+        if (!_townAreaNames.TryGetValue((major, minor), out var e)) return "";
+        string name = (e.label > 0 ? Native.Text.GameText.FieldLabel(e.label) : null) ?? e.english;
+        if (Native.Text.GameText.LanguageId is 1 or <= 0)
+        {
+            name = name.Replace("Mountian", "Mountain");
+            if (major == 10 && minor == 2) name += ", riverbank";
+        }
+        return name;
+    }
 
     /// <summary>
     /// Dungeon-area name resolver. The game's field MAJOR numbers don't
@@ -6024,7 +6029,7 @@ internal unsafe class FieldTracker
         // Unknown dungeon floor: the game itself shows "???" on screen for these
         // (hidden/mystery floors), so match it instead of speaking a major/minor
         // pair or a stale dungeon name. Non-dungeon areas keep the raw pair.
-        return major >= 20 ? "???" : $"Area {major}-{minor}";
+        return major >= 20 ? "???" : "";
     }
 
     // Last dungeon NAME announced (used by the M-key re-read). We announce the
