@@ -1,16 +1,8 @@
-00:00 - 00:04
-A bright, hazy yellow scene shows three figures falling through a foggy space and landing on a metallic-looking platform.
-00:05 - 00:06
-A hand stretches out and touches the ground.
-00:07 - 00:09
-Three young people sit on the ground, looking disoriented. They are in a strange, brightly lit, yellow-hued environment.
-00:10 - 00:14
-One young man, wearing headphones around his neck, rubs his back while looking at his wallet. A girl in a green jacket looks up at him with a confused expression. A tall man in a dark suit stands nearby.
-00:15 - 00:22
-The three characters stand up and look around the vast, hazy, yellow room. They discuss where they are, with the girl looking particularly unsettled.
-00:23 - 00:26
-A close-up of the young man with headphones shows him looking puzzled. He glances toward his companion.
-00:27 - 00:29
-The man in the suit turns his head to look over his shoulder, his expression serious.
-00:30 - 00:33
-The scene ends with a close-up of the girl's face, showing her looking around in dismay before the screen fades to black.
+# P4CT004 (0:34): falling through the TV into a foggy yellow world with Yosuke and Chie.
+0:00 A white flash, then yellow haze. {player}, Yosuke and Chie tumble through the air and crash onto the ground, one after another.
+0:07.9 {player} sits up in the thick yellow fog, grey eyes wide, stunned.
+0:09.9 Yosuke slumps beside him, eyes shut, hand at his side, headphones askew, while Chie in green looks around in alarm.
+0:13.9 The three pick themselves up: {player} rises tall, Yosuke crouches, Chie kneels.
+0:19.9 All three stand in a row in the empty yellow space, looking around.
+0:22.9 Close on Yosuke, uneasy, eyes darting, as {player} stands with his back to us.
+0:28.9 {player} glances back over his shoulder, calm and watchful; Chie turns, eyes wide.

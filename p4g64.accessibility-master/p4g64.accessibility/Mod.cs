@@ -81,6 +81,8 @@ public class Mod : ModBase // <= Do not Remove.
     private DifficultyMenu _difficultyMenu;
     private EarlyMenu _earlyMenu;
     private Components.TvListingsReader? _tvListingsReader;
+    private Components.StartupLogos? _startupLogos;
+    private Components.NewGameDisclaimer? _newGameDisclaimer;
     private Components.SocialLinkRankUp? _slRankUp;
     private Components.SocialLinkBond? _slBond;
     private Components.SkillRegainMenu? _skillRegain;
@@ -257,6 +259,10 @@ public class Mod : ModBase // <= Do not Remove.
         // players (music/anime) speak the game's own text draws (hook on
         // FUN_140450C60) because their lists hide locked entries.
         _tvListingsReader = new Components.TvListingsReader(_hooks!);
+        // Startup ATLUS / P-Studio logos (2026-10-15): task logoDrawProc; the thread ends after them.
+        _startupLogos = new Components.StartupLogos();
+        // New-game "work of fiction" disclaimer (2026-10-15): task mode_init state 12.
+        _newGameDisclaimer = new Components.NewGameDisclaimer();
         // Social Link "Rank up!!" banner (2026-07-07): task-registry based —
         // cmmRankUp task = the banner, SCR_COMMU_* task = which link.
         _slRankUp = new Components.SocialLinkRankUp();

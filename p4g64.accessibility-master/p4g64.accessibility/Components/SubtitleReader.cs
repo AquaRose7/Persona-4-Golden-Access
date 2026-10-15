@@ -80,7 +80,8 @@ internal unsafe class SubtitleReader : IDisposable
         _lastShown = text;
 
         Log($"[Subtitle] -> \"{text}\"");
-        if (ReaderEnabled && Utils.GameHasFocus()) Speech.Say(text, true);
+        // Queued, like the scene descriptions: neither cuts the other (Haru 2026-10-14).
+        if (ReaderEnabled && Utils.GameHasFocus()) Speech.Say(text, false);
     }
 
     // 2026-09-07: the source text is in the game's ATLUS GLYPH ENCODING, not UTF-8 — the

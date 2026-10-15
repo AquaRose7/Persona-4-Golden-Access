@@ -1,30 +1,41 @@
 HOW TO WRITE CUTSCENE DESCRIPTIONS
 ==================================
 
-Two ways, both keyed by the cutscene CODE (e.g. P4CT001 = first scene after the
-opening). The mod announces a cutscene's code when it has no description, so you
-always know which one you're on.
+One file per movie, keyed by the cutscene CODE: <CODE>/seen.txt (P4CT001/seen.txt). The mod says
+"Cutscene P 4 C T 0 0 X, no description" for a movie without a file, so you always know which one you're on.
+Every movie the game has is described (2026-10-14). P4CT013 is one blank frame: its file has no lines, which
+keeps it silent.
 
-TEXT (recommended — NVDA reads it):
------------------------------------
-Make one file named  <CODE>.txt  in this folder (or inside a <CODE>/ subfolder).
-Each line:   <time>  <description>
+TEXT (NVDA reads it):
+---------------------
+Each line:   <minutes>:<seconds> <description>
 
-  # P4CT001 — first scene after the opening   <- '#' line = comment, ignored
-  0:00   The opening fades. A foggy town comes into view.
-  0:12   A man in a dark suit turns to face the protagonist.
-  1:45   The screen cuts to the inside of a train.
+  # P4CT001 (0:54): the Velvet Room limousine     <- '#' line = comment, ignored
+  0:06 A long blue limousine glides out of the fog, headlights glowing.
+  1:05.5 Tenths of a second are fine.
 
-Time formats accepted:  M:SS   MM:SS   MMSS    (0:12  /  1:45  /  0012)
-Blank lines are ignored. NVDA speaks each line when the movie reaches that time.
+- Times are the movie's own clock (the frames), from the movie's start. No offset is added.
+- {player} = the first name the player typed. Before there is one (the opening at a new game) it says Yu.
+- Lines are QUEUED: a line never cuts the one before it, and the game's subtitles queue too. Lines run at the
+  FE3H speed: about 14 words, one line per 4-8 seconds of picture, about 260 words a minute.
+  Check a file with:   python database/tools/check_descriptions.py <CODE> -v
+  It flags any line that would start more than 2 seconds late.
+- The full recipe (frames, writing rules, the cast guide, every scene's story position): database/SCENE_DESCRIPTIONS.md
+- Blank lines are ignored. The old layouts still load: SRT blocks (00:00:03,800 --> ...) and MMSS (0012).
+- The "_E" English-audio twins (P4CT017_E, P4CT042_E, P4CTOP3_E) are the same picture and read the base file.
 
-AUDIO (optional — your own recordings):
----------------------------------------
-Drop clips named  <NN>_<MMSS>.mp3  in a  <CODE>/  subfolder
-  P4CT001/01_0000.mp3   plays at 0:00
-  P4CT001/02_0012.mp3   plays at 0:12
-or flat:  <CODE>_<MMSS>.mp3   (.wav also works)
+WRITING RULES:
+- Only what the screen shows at that moment.
+- Name a character only once the game has named them by then; otherwise describe their look.
+- No spoilers: an unrevealed figure stays "a man", "a figure", "a woman in tall heels".
 
-Times are measured from the moment the cutscene STARTS in-game.
-The "_E" English-audio variant of a movie is merged to the base code, so one
-description covers both (P4CT001 covers P4CT001 and P4CT001_E).
+HOW THEY ARE MADE (2026-10-15):
+- database/tools/movie_sheets.py unpacks the video from the USM files (data_movie.cpk, unpacked to
+  database/extract/movies/) and makes the writing sheets: movie_sheets.py --shots <CODE> (every shot + every 2 s,
+  16 time-stamped frames per sheet).
+- database/tools/movie_captions.py pulls the game's own English subtitles out of P4G.exe for context.
+
+AUDIO (optional, your own recordings):
+--------------------------------------
+Drop clips named  <NN>_<MMSS>.mp3  in the  <CODE>/  folder (P4CT001/01_0012.mp3 plays at 0:12),
+or flat  <CODE>_<MMSS>.mp3  (.wav also works).

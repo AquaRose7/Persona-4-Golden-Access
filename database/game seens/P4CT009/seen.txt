@@ -1,18 +1,7 @@
-1
-00:00:00,000 --> 00:00:04,500
-A television screen displaying gray static in a dark room.
-2
-00:00:04,500 --> 00:00:11,500
-A close up shows a persons hands feverishly writing in a lined notebook with a mechanical pencil.
-3
-00:00:11,500 --> 00:00:16,500
-A newspaper on the floor shows photos of men in suits.
-4
-00:00:16,500 --> 00:00:22,500
-The man is seen from behind sitting on the floor at a small table. The room is cluttered with trash and bottles.
-5
-00:00:22,500 --> 00:00:27,000
-A newspaper on the floor shows a photo of a deceased woman.
-6
-00:00:27,000 --> 00:00:32,000
-The man sits motionless in the dark. The television static glows in front of him before the screen fades to black.
+# P4CT009 (0:31): an unknown man alone in a dark room, writing, TV static. Never named.
+0:00 In a dark room, a TV glows with grey-blue static, its screen flickering.
+0:04 Dark close-ups: a hand, in shadow, writes slowly in a lined notebook with a pencil, row after row of small handwriting.
+0:08.5 A newspaper spread: photographs of men in suits, one with a startled, open-mouthed face; then the hand scribbles on in the notebook again.
+0:15.5 Pulling back: a man hunches over a low round table in a cluttered, dim room, a bottle and glass beside him, the TV glowing behind.
+0:20.5 Open newspaper pages lie across the floor, with torn scraps and crumpled paper scattered around them.
+0:25.5 He sits motionless, a dark silhouette with his back to us, facing the hissing static of the TV.

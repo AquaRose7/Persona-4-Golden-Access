@@ -1,3 +1,25 @@
-1
-00:00:01 --> 00:00:04
-.
+# P4CTOP1 (1:24): the original Persona 4 opening song, a montage of the hero, his friends and the case.
+0:02 A heap of old TVs glows in the dark, yellow Persona 4 logos flickering between static.
+0:08.9 On yellow, {player}, silver-grey hair over calm grey eyes, looks straight at us, then puts on black-rimmed glasses.
+0:12.6 A lone armchair sits in an empty blue room.
+0:15.7 {player} sprints toward us as a giant orange eye reveals a masked Persona behind him.
+0:19.5 He runs on as a sword-wielding Persona rises behind him.
+0:24.6 Black silhouettes on yellow: Yosuke, headphones on, flicks a knife before a giant bicycle wheel.
+0:26.5 Chie leaps in her track jacket.
+0:29.2 Yukiko, long hair flowing, sweeps a fan and a pink umbrella.
+0:32.2 Tall Kanji leaps before a giant skull.
+0:34.6 Rise spreads her arms before a pink stage light.
+0:36.6 Short Naoto in a cap points a pistol ahead.
+0:38.6 From behind, a blue and red bear costume, its zipper tab sliding: Teddie.
+0:40.9 Yasogami High at morning, students streaming in beneath a racing clock.
+0:44.9 A figure in heels hangs upside down from an antenna.
+0:48.9 A tarot card floats on yellow; then, in red light, two men in suits, one lighting the other's cigarette.
+0:53 A stack of TVs; static becomes a spinning spiral.
+0:58.5 Through a camcorder's REC display, blond Kanji swings a fist.
+1:00.7 In a dim room, Chie in green looks up, then shouts.
+1:02.5 Yukiko in a pink kimono stands under a red umbrella, eyes closed.
+1:05.1 On a LIVE stage, Rise crawls forward, mic out.
+1:07.7 On a TV screen, Naoto shouts; Teddie runs in and falls flat.
+1:12.8 {player} crosses his arms; the card at his collar shatters into his Persona.
+1:14.9 In an old TV, the lone chair.
+1:21 The words Presented by ATLUS appear, and the TV shuts off.

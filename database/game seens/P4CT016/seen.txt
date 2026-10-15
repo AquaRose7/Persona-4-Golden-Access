@@ -1,36 +1,18 @@
-1
-00:00:00,000 --> 00:00:05,000
-A bright glowing yellow light fades into ethereal green grass and glowing flowers.
-2
-00:00:06,000 --> 00:00:15,000
-Misty white fog rolls over a serene lake surrounded by rolling hills and pine trees.
-3
-00:00:16,000 --> 00:00:20,000
-A group of teenagers and a bear mascot stand on a rocky shore beside a cascading waterfall.
-4
-00:00:26,000 --> 00:00:30,000
-The teenagers look around the lush environment. scenery.
-5
-00:00:31,000 --> 00:00:35,000
-A large leafy tree stands in a bright grassy field.
-6
-00:00:36,000 --> 00:00:44,000
-Sparkling lily pads purple petunias and blue hydrangeas glimmer in the light.
-7
-00:00:45,000 --> 00:00:47,000
-A small wooden rowboat gently rocks on the misty lake.
-8
-00:00:48,000 --> 00:00:51,000
-Rise looks out at the landscape.
-9
-00:00:52,000 --> 00:00:54,000
-A vine swing hangs from a giant tree near a child's red tricycle.
-10
-00:00:55,000 --> 00:00:59,000
-Tall white grass sways in the wind. A wooden bench overlooks the calm water.
-11
-00:01:00,000 --> 00:01:03,000
-A bright full moon glows in a pastel rainbow sky.
-12
-00:01:04,000 --> 00:01:13,000
-The group is seen from behind looking out over the tranquil lake as the camera slowly zooms out, And the screen slowly fades to black.
+# P4CT016 (1:17): the fog lifts from the TV world, revealing meadows, waterfalls and a lake; the friends look on.
+0:00 The screen glows a soft, warm yellow, like sunrise seen through mist.
+0:04 Giant, dewy blades of grass sway into view, pale light filtering down through them.
+0:08 A white lily opens wide across the frame, then a pink cosmos appears, its petals beaded with dew.
+0:12 A white water lily floats on misty water, then the view opens onto rolling green hills beside a still lake.
+0:16 The mist thins: tiny figures stand on rocks among stepped waterfalls, with dark pines and mountains behind.
+0:20 The little group stands small against the shining cascades, looking out over the wide, open land.
+0:25.3 Close on the friends side by side, gazing up at the falls: Yukiko, {player}, Rise, Naoto, Yosuke, Teddie.
+0:29.3 Teddie's round white face turns toward us as Kanji and Chie join the row, Rise smiling with her eyes closed.
+0:33.2 In a sunlit meadow, a tree heavy with white blossoms stands over a small, old wooden cart.
+0:37.2 Sparkling water lilies float on a dark pond, then blue flowers and a white hydrangea, beaded with dew, drift by.
+0:45.2 The flowers dissolve into a misty lake shore, the cart in the grass, snow-capped mountains beyond.
+0:48.2 In profile, {player}, Naoto, Kanji, Yukiko, Rise, Yosuke and Chie stare out awed, Teddie's blue bulk at the edge.
+0:53 A rope swing hangs from a great tree over bright grass; white grass plumes ripple in the wind.
+0:58.5 A wooden bench by the lake, then a huge full moon glowing in violet, pink and green haze.
+1:04 From behind, eight line the rocky shore: Chie, Kanji, Yosuke, Teddie, Naoto, Rise, {player} and Yukiko, facing a snowy peak.
+1:08 The view glides along the shore, and the figures slide out of frame one by one.
+1:12 At last only {player} and Yukiko remain, side by side, gazing over the still lake.

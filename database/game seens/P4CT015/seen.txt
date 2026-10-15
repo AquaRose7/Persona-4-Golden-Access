@@ -1,27 +1,10 @@
-1
-00:00:00,000 --> 00:00:03,000
-Three teenagers stand in a thick white fog.
-2
-00:00:03,000 --> 00:00:07,000
-The rest of their group appears alongside them as the fog begins to part.
-3
-00:00:07,000 --> 00:00:14,000
-A massive floating figure is revealed. It wears a white dress and has a featureless red face with thick black tendrils for hair.
-4
-00:00:14,000 --> 00:00:18,000
-The giant entity hovers above the group on a circular red platform surrounded by glowing red arches.
-5
-00:00:18,000 --> 00:00:22,000
-Yosuke steps forward.
-6
-00:00:22,000 --> 00:00:26,000
-Rise, Kanji, and Naoto stand their ground and glare at the enemy.
-7
-00:00:26,000 --> 00:00:29,000
-Yu, Yukiko, and Teddie stare ahead without backing down.
-8
-00:00:29,000 --> 00:00:32,000
-Yosuke grits his teeth.
-9
-00:00:32,000 --> 00:00:36,000
-Yu looks up at the monster and smiles.
+# P4CT015 (0:40): a towering giant in a pink fog.
+0:00 White light dissolves into drifting pink and red fog.
+0:06 Chie, Naoto in a blue cap and skull-shirted Kanji peer through the haze, grumbling.
+0:08.5 The friends' silhouettes line up in thick fog, Teddie's blue head at left.
+0:14.5 A vast dark shape looms in the fog, arms wide, then appears as a giant with a red head, white winged body and black stitched strands.
+0:19.5 Far below, the friends stand in a row on a round stage ringed by red arches.
+0:23.5 Yosuke, in glasses and headphones, gapes up in awe, Chie turning beside him, confident.
+0:27 Rise, Kanji in sunglasses and Naoto face the giant, Kanji shouting with a fierce grin.
+0:31 {player} stands calm beside Yukiko and a scowling Teddie, eyes fixed on the foe.
+0:34.5 Yosuke turns to the others, determined, calling the finale. {player}, calm behind his glasses, stares straight ahead.

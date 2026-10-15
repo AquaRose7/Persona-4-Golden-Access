@@ -281,6 +281,9 @@ internal sealed unsafe class PartyStatus
         return full.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)[0];
     }
 
+    /// <summary>The first name the player typed (any language), or null before one is set.</summary>
+    internal static string ProtagonistFirstName() => FirstName(DecodeAtlusName(McNameAddr));
+
     private static string DecodeAtlusName(nint addr)
     {
         if (!IsReadable(addr, 0x40)) return null;

@@ -1,30 +1,8 @@
-1
-00:00:00,500 --> 00:00:02,500
-Bright, colorful fireworks launch into the dark night sky.
-2
-00:00:02,600 --> 00:00:05,200
-A group of young characters watches in awe.
-3
-00:00:05,300 --> 00:00:08,000
-A young girl wearing a pink kimono looks up with wide, shining eyes.
-4
-00:00:08,100 --> 00:00:11,500
-She smiles joyfully as the colorful lights reflect on her face.
-5
-00:00:11,600 --> 00:00:14,500
-A girl with short hair cheers and point at the sky.
-6
-00:00:14,600 --> 00:00:17,500
-A blonde boy joins in, enthusiastically shouting and waving his hands.
-7
-00:00:17,600 --> 00:00:20,500
-The rest of the group laughs.
-8
-00:00:20,600 --> 00:00:24,500
-An older man in a collared shirt smiles warmly as he watches them.
-9
-00:00:24,600 --> 00:00:28,000
-He places a gentle, comforting hand on the girl's shoulder.
-10
-00:00:28,100 --> 00:00:33,000
-They all look back up together as a massive finale of vibrant fireworks fills the sky.
+# P4CT031 (0:36): Golden, summer: the festival fireworks night with the friends, Dojima and Nanako.
+0:02 Chie, Rise, Yukiko and stern Kanji gaze up at the night sky; Yukiko smiles.
+0:05.2 Nanako, in a pink checkered yukata, smiles shyly, then looks up in awe.
+0:10.5 Yosuke grins skyward, arms crossed, as Chie and Yukiko press their hands together.
+0:14.5 Teddie cups his hands round his mouth and shouts at the sky, Yosuke leaning in beside him.
+0:17.2 Dojima, Teddie, laughing Nanako, {player}, Yosuke and Chie stand in a row looking up; a friend waves a hand in protest and Teddie laughs.
+0:22.7 Dojima watches with a faint smile as Chie, Yukiko, {player}, Kanji and Rise gaze up at the sky.
+0:28.2 Seen from behind, all stand along a fence as colorful fireworks bloom across the sky.

@@ -1,9 +1,3 @@
-2
-00:00:00,500 --> 00:00:07,000
-A view from a window shows a quiet suburban street shrouded in a thick, hazy, yellowish fog.
-3
-00:00:07,000 --> 00:00:15,000
-The camera focuses on a utility pole with tangled wires and a transformer, silhouetted against the hazy, yellow-tinted sky.
-4
-00:00:15,000 --> 00:00:16,000
-The scene fades to black.
+# P4CT019 (0:16): a body in the fog, hanging from a power pole. The victim is not named.
+0:00 In thick yellow-green haze, a blurred fold of dark cloth fills the right of the frame, with a quiet town and hills behind.
+0:08 The picture clears on a utility pole: a figure in dark clothes hangs limp against it, tangled among the wires above a grey transformer.

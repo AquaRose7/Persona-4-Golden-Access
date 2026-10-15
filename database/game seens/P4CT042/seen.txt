@@ -1,3 +1,30 @@
-1
-00:00:00,000 --> 00:06:12,000
-The game credits roll on the left side of the screen over a blurred and colorful sunset background. Silhouettes of the main characters and their Personas fade in and out on the right side.
+# P4CT042 (6:13): the Golden epilogue credits. Each friend appears as a dark silhouette that fills with colour, then their Persona, with small clips between.
+0:00 A hazy golden sky over distant power pylons. The Persona 4 Golden logo fades in, its letters edged in black and gold.
+0:22 A silhouette rises on the right and turns into a smiling young man with short, messy brown hair, winking at the viewer. He is Yosuke.
+0:38 His Persona appears instead: a masked figure with long wind-tossed hair, white feathered scarves and a long pole across its shoulders.
+0:50 Small clips: Yosuke in a white helmet, headphones round his neck. Then a boy in a white cap and red jacket points ahead, smiling.
+1:00 A bob-haired silhouette becomes Chie, short brown hair, a frilled jacket with a ribbon at her throat, smiling warmly at the camera.
+1:14 Her Persona shimmers in: a slim armoured knight in a visored helmet, holding a long staff upright, white ribbons streaming.
+1:28 Clips: Chie in her green jacket against a pink checkered backdrop, then Chie and Yukiko side by side, then a masked close-up and a faded group sketch.
+1:37 A short-haired silhouette becomes Yukiko, now with her hair cut short, head tilted and a gentle, knowing smile, fingers resting at her chest.
+1:51 Her Persona unfolds: a pale figure holding a huge golden fan of blades like a sunburst, glowing white behind it.
+2:03 Clips: fireworks bursting. Chie and Yukiko lean out together, one holding a microphone. A crowd of friends looks on. A bright snowy ski slope.
+2:14 A silhouette becomes a tall young man with dark hair and thin glasses, shirt collar open, giving a serious sidelong look. He is Kanji, grown up.
+2:30 His Persona fills the frame: a bulky armoured giant, rounded gold shoulders, a ball for a head, and two long blades crossing above like horns.
+2:42 Clips: Kanji, blond, drums with a skull on his shirt. Kanji scowls in a dark beanie in the snow. Then, red-faced and angry, he stands beside {player}.
+2:50 A silhouette with long wavy hair becomes Rise, sunglasses pushed up on her head, a cheerful, playful smile, hair curling round her shoulders.
+3:06 Her Persona stands tall: a slender, armoured, doll-like figure with a huge dish-like frame fanning out above its head.
+3:18 Clips: Rise rides a scooter in her white helmet. Rise sings on stage in her school uniform. Then Rise gasps beside a girl in snow goggles.
+3:28 A short-haired silhouette becomes Naoto, a confident half-smile, her short dark hair framing her face, collar turned up.
+3:42 Her Persona crouches mid-air: a dark armoured figure with great bat-like wings, a sword at its side, eyes on the viewer.
+3:56 Clips: Naoto smiles in her dark cap by a vehicle. Skiers wait in the snow. Then Naoto looks wide-eyed and blushing, flakes flying round her.
+4:04 A silhouette in a ruffled breeze becomes Teddie in human form, blond hair blowing, a striped shirt, smiling softly.
+4:18 His Persona appears: a round gold robot with a cone nose, big circular eyes and a wide smile, fading in over the sky.
+4:32 Clips: two girls watch something together, a boy beside them. A skier in a red suit leaps through spraying snow. Then purple boots stand on skis.
+4:42 Another short-haired silhouette becomes Marie: a short bob, a red choker and a loosened tie, head slightly tilted, a calm half-smile.
+4:56 A figure rises behind her: a slim pale woman with long antennae, ringed by huge moth-like wings with swirling patterns.
+5:10 Clips: a dark-haired profile, sparkles around him. A shirtless boy in a library with a startled friend. Then a close-up of eyes under a streak of blue light.
+5:18 The last silhouette becomes {player}: silver-grey bowl cut, calm grey eyes, head slightly lowered, looking steadily at the viewer, collar raised.
+5:32 His Persona breaks into view: a figure in a long white coat, tall pointed hood and a belted waist, face hidden.
+5:46 Clips: a person in a cap sits on a bicycle by a stone wall. {player} stands with a bass on his back beside a girl. Then {player} stares seriously, books behind him.
+5:54 The picture drifts back to a golden sky, which brightens to solid yellow and fades slowly to black.

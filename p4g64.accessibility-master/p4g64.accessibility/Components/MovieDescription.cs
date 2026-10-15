@@ -13,8 +13,12 @@ namespace p4g64.accessibility.Components;
 /// English-audio variant is merged to the base):
 ///   • TEXT (preferred) — a script file "CODE.txt" (in "game seens"/ or in a
 ///     per-scene folder "game seens"/CODE/). Each line: "&lt;time&gt; &lt;text&gt;",
-///     time = M:SS / MM:SS / MMSS. The text is spoken via NVDA at that movie time.
-///     Lines starting with # and blank lines are ignored.
+///     time = M:SS / MM:SS / MMSS, seconds may carry tenths (1:05.5). The text is
+///     spoken via NVDA at that movie time, QUEUED (a line never cuts the one before
+///     it — Haru 2026-10-14, slow screen readers). "{player}" = the first name the
+///     player typed ("Yu", the canon name, before one exists). Lines starting with #
+///     and blank lines are ignored. A file with no lines marks a movie that needs
+///     none (P4CT013 is one blank frame) — it stays silent.
 ///   • AUDIO — clip files played at a time: flat "CODE_MMSS.mp3" / "CODE.mp3"
 ///     (start), or in a folder "CODE"/ named "NN_MMSS.mp3".
 /// A cutscene with NO description makes the mod SPEAK its code (so the author
@@ -41,9 +45,12 @@ internal unsafe class MovieDescription : IDisposable
         Speech.Say(Enabled ? "Descriptions on." : "Descriptions off.", true);
     }
 
-    /// <summary>Seconds added to every description cue's time, to account for the
-    /// black-screen lead-in before a movie's visible content starts. Tunable.</summary>
-    internal static double StartupOffsetSeconds = 1.0;
+    /// <summary>Seconds added to every description cue's time. 0 since the 2026-10-14
+    /// rewrite: the files are timed from the movie's own frames, the same clock this
+    /// reads (the old hand-timed files needed 1.0 for the black-screen lead-in).</summary>
+    internal static double StartupOffsetSeconds = 0.0;
+
+    private const string CanonName = "Yu";
 
     private readonly Thread _poll;
     private bool _running = true;
@@ -86,10 +93,14 @@ internal unsafe class MovieDescription : IDisposable
             string name = MovieName(obj);
             if (name.Length == 0) return;       // path not populated yet → retry next poll
             _lastObj = obj;
-            _cues = LoadCues(name);
+            _cues = LoadCues(name, out bool hasFile);
             _nextIdx = 0;
             Log($"[Movie] started: {name} ({_cues.Count} description cue(s))");
-            if (_cues.Count == 0 && Enabled)
+#if DEBUG
+            Log($"[MovieNameDiag] record='{Battle.PartyStatus.ProtagonistFirstName()}' saveBlock='{ShopMenu.ProtagonistName()}' " +
+                $"table={Native.Text.GameLanguage.ActiveTable} -> '{PlayerName()}'");
+#endif
+            if (!hasFile && Enabled && !TvListingsReader.AnimePreviewShowing())
                 Speech.Say($"Cutscene {SpellCode(name)}, no description.", true);
             return;
         }
@@ -98,13 +109,35 @@ internal unsafe class MovieDescription : IDisposable
         if (!Enabled || _cues == null || _nextIdx >= _cues.Count) return;
         double now = CurrentSeconds();
         if (now < 0) return;
+        // TV Listings' episode list plays the highlighted episode as a silent-for-us PREVIEW behind the
+        // menu (Haru 2026-10-15: descriptions spoke while moving between scenes): pass its cues by unspoken.
+        bool preview = TvListingsReader.AnimePreviewShowing();
         while (_nextIdx < _cues.Count && _cues[_nextIdx].t + StartupOffsetSeconds <= now)
         {
             var c = _cues[_nextIdx];
-            if (c.text != null) Speech.Say(c.text, true);
+            if (preview) { }
+            else if (c.text != null) Speech.Say(WithName(c.text), false);
             else if (c.path != null) PlayFile(c.path);
             _nextIdx++;
         }
+    }
+
+    // Read at speak time: the opening plays before the player has typed a name.
+    private static string WithName(string text)
+        => text.Contains("{player}") ? text.Replace("{player}", PlayerName()) : text;
+
+    // The typed first name, or the canon name when there is none. With no save loaded (TV Listings
+    // on the title screen) the name record holds the game's placeholder, which the European glyph
+    // table decodes to a stray kanji ("公", Haru 2026-10-14): a European game has no CJK names, so
+    // any CJK character there means no name yet.
+    private static string PlayerName()
+    {
+        string name = Battle.PartyStatus.ProtagonistFirstName();
+        if (string.IsNullOrWhiteSpace(name)) return CanonName;
+        if (Native.Text.GameLanguage.ActiveTable.StartsWith("P4G_EFIGS", StringComparison.OrdinalIgnoreCase)
+            && name.Any(c => c >= '⺀'))
+            return CanonName;
+        return name;
     }
 
     private double CurrentSeconds()
@@ -133,10 +166,11 @@ internal unsafe class MovieDescription : IDisposable
     }
 
     // Gather text + audio cues for a cutscene from the first descriptions dir
-    // that has any, sorted by time.
-    private static List<(double, string?, string?)> LoadCues(string code)
+    // that has any, sorted by time. hasFile = a script exists, even an empty one.
+    private static List<(double, string?, string?)> LoadCues(string code, out bool hasFile)
     {
         var cues = new List<(double, string?, string?)>();
+        hasFile = false;
         foreach (var dir in DescDirs())
         {
             if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir)) continue;
@@ -146,12 +180,12 @@ internal unsafe class MovieDescription : IDisposable
             foreach (var ext in new[] { ".txt", ".srt" })
             {
                 string flat = System.IO.Path.Combine(dir, code + ext);
-                if (System.IO.File.Exists(flat)) ParseScript(flat, cues);
+                if (System.IO.File.Exists(flat)) { ParseScript(flat, cues); hasFile = true; }
             }
             if (System.IO.Directory.Exists(sub))
             {
-                foreach (var t in System.IO.Directory.GetFiles(sub, "*.txt")) ParseScript(t, cues);
-                foreach (var t in System.IO.Directory.GetFiles(sub, "*.srt")) ParseScript(t, cues);
+                foreach (var t in System.IO.Directory.GetFiles(sub, "*.txt")) { ParseScript(t, cues); hasFile = true; }
+                foreach (var t in System.IO.Directory.GetFiles(sub, "*.srt")) { ParseScript(t, cues); hasFile = true; }
             }
 
             // (2) AUDIO clips:  <dir>/<CODE>/<NN_MMSS>.{mp3,wav}  +  flat CODE_MMSS / CODE
@@ -175,7 +209,7 @@ internal unsafe class MovieDescription : IDisposable
                     cues.Add((t, null, f));
             }
 
-            if (cues.Count > 0) break;
+            if (cues.Count > 0 || hasFile) break;
         }
         cues.Sort((a, b) => a.Item1.CompareTo(b.Item1));
         return cues;
@@ -266,15 +300,18 @@ internal unsafe class MovieDescription : IDisposable
         return false;
     }
 
-    // "1:45" / "01:45" → 105s; "0145" → 1:45 → 105s; "0012" → 0:12 (MMSS).
+    // "1:45" / "01:45" → 105s; "1:05.5" → 65.5s; "0145" → 1:45 → 105s; "0012" → 0:12 (MMSS).
     private static bool TryParseTime(string s, out double seconds)
     {
         seconds = 0;
         int c = s.IndexOf(':');
         if (c >= 0)
         {
-            if (int.TryParse(s.Substring(0, c), out int mm) &&
-                int.TryParse(s.Substring(c + 1), out int ss)) { seconds = mm * 60 + ss; return true; }
+            string sec = s.Substring(c + 1);
+            if (int.TryParse(s.Substring(0, c), out int mm) && sec.Length > 0 && char.IsDigit(sec[0]) &&
+                double.TryParse(sec, System.Globalization.NumberStyles.AllowDecimalPoint,
+                                System.Globalization.CultureInfo.InvariantCulture, out double ss))
+            { seconds = mm * 60 + ss; return true; }
             return false;
         }
         if (int.TryParse(s, out int n) && n >= 0) { seconds = (n / 100) * 60 + (n % 100); return true; }

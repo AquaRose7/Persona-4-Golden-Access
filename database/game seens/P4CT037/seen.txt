@@ -1,39 +1,14 @@
-1
-00:00:00,500 --> 00:00:04,500
-Four girls relax in a steamy outdoor hot spring.
-2
-00:00:04,500 --> 00:00:10,000
-Chie laughs while soaking. A stack of wooden buckets rests on a nearby rock.
-3
-00:00:10,000 --> 00:00:19,000
-Rise smiles playfully. Marie sits on a small stool and washes her hair.
-4
-00:00:19,000 --> 00:00:30,000
-Yukiko watches her gently. Marie rinses her shoulder. Her skin glows softly in the thick steam.
-5
-00:00:30,000 --> 00:00:38,000
-On the other side of a tall bamboo fence, Yosuke and Teddie balance on Kanji to peek over.
-6
-00:00:38,000 --> 00:00:48,000
-Kanji struggles to hold their weight while Yu stands nearby. Yosuke grabs the top of the fence.
-7
-00:00:48,000 --> 00:00:53,000
-Yosuke accidentally knocks a wooden bucket over the edge.
-8
-00:00:53,000 --> 00:01:00,000
-The bucket splashes into the bath. The girls gasp as the boys tumble over the fence and fall into the water.
-9
-00:01:00,000 --> 00:01:07,000
-The girls glare angrily. Naoto blushes deeply and turns away to cover herself.
-10
-00:01:07,000 --> 00:01:12,000
-Yosuke and Teddie look terrified.
-11
-00:01:12,000 --> 00:01:16,500
-Marie stands up. Intense blue electricity crackles around her body.
-12
-00:01:16,500 --> 00:01:21,000
-Marie screams as a massive bolt of blue lightning explodes outward.
-13
-00:01:21,000 --> 00:01:25,000
-The lightning blasts from the inn building and lights up the dark night sky.
+# P4CT037 (1:26): the ski lodge hot spring at night: the girls, the boys peeking over the fence, Marie's lightning.
+0:00 Water pours into a steaming night spring where four girls sit shoulder-deep: Yukiko, Chie, a short dark-haired girl and Rise, smiling.
+0:09.7 Wooden buckets sit in the steam. Rise, red-brown hair loose and wet, glances back over her shoulder with a blushing, playful smile.
+0:14.5 On a stool in thick steam, Marie lathers up, then lifts a foam-piled head, grey-green eyes wide, flushed and wary.
+0:26.2 Marie closes her eyes in profile as she rinses, golden sparkles glittering over her skin.
+0:34.2 Beyond the steam, pale fingers curl over a tall bamboo fence top, and a blond head rises behind it.
+0:37.5 Towelled boys crowd the fence: blond Kanji braces while Yosuke and Teddie climb his back, as {player} stands apart, silver-grey bowl cut, arms folded, glaring.
+0:48.7 Yosuke grips the fence top, teeth clenched, then he and blue-eyed Teddie peer over, gasping, eyes huge.
+0:52.0 They flinch, eyes shut, as a giant golden wave surges over the fence and crashes down on {player} and Kanji, sweeping Yosuke under the foam.
+0:58.9 Teddie stands dripping, eyes shut, an arm across his shoulder, as the girls' bare feet pad through the mist.
+1:02.9 The girls glare through steam, blushing: Rise, Chie, the short dark-haired girl, Yukiko; Chie squeezes her eyes shut.
+1:07.2 Teddie and Yosuke sit stiff in the water, staring at the girls; lightning crackles above Yosuke, who leans back, mouth open.
+1:15.7 Blue lightning wraps Marie between Rise, Chie and Yukiko, her eyes wet, face flushed, teeth clenched, until she shrieks.
+1:19.9 Bolts fill the black sky. A huge blue bolt crashes onto the snowy lodge roof, then it goes dark and quiet.

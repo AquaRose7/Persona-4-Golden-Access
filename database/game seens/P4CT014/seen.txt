@@ -1,21 +1,14 @@
-1
-00:00:00,000 --> 00:00:05,000
-A dark silhouette stands enveloped in a roaring fire.
-2
-00:00:05,000 --> 00:00:14,000
-A group of teenagers stand on a platform facing a dark shadowy mass that forms under a blood red sky.
-3
-00:00:14,000 --> 00:00:26,000
-The teenagers look on intently. The ground around them is covered in a thick yellow green fog with bubbles rising from it.
-4
-00:00:26,000 --> 00:00:33,000
-A massive dark dome with a colorful grid pattern emerges from the fog.
-5
-00:00:33,000 --> 00:00:39,000
-The dome opens to reveal a gigantic eye with a bright green iris and a golden pupil.
-6
-00:00:39,000 --> 00:01:05,000
-The teenagers look up at the massive floating eye.
-7
-00:01:05,000 --> 00:01:12,000
-The teenagers stand ready to fight the giant eye as the screen fades to white.
+# P4CT014 (1:11): a dark burning figure falls; a giant eye rises from the fog.
+0:00 A dark, hulking silhouette with glowing violet eyes writhes inside a roaring wall of flames, a red streak slashing across it.
+0:06 On a cracked shore under a blood-red sky, the friends and Teddie watch fire burn at the horizon.
+0:10 The dark figure collapses into a black heap as the fire dies and the sky fades to orange.
+0:15 Rise, glasses on, stares ahead beside {player}, silver-grey hair and checkered collar.
+0:19 The black ground ripples as bubbles rise and burst under a hard wind.
+0:26 Thick yellow clouds roll in, and a huge dark dome rises behind them, lit by a web of rainbow lines.
+0:35 A great lid peels back from the dome to reveal a giant eye, green and red with an orange pupil, while the friends stand tiny below.
+0:45 Yosuke, in orange-framed glasses, grits his teeth and snarls his defiance beside a glaring Kanji.
+0:51 Naoto, in a blue cap and blue glasses, stares coolly. Chie, in yellow glasses, calls out sharply.
+0:54 Teddie scowls hard beside Yukiko, in glasses and red uniform, who speaks her resolve.
+0:58.6 Rise, pink-rimmed glasses, brow furrowed, calls out her promise of support.
+1:02.8 {player} watches the eye in profile, jaw set, calm and determined.
+1:04.8 From above the wire dome, the tiny friends stand firm in the mist until a white flash takes everything.

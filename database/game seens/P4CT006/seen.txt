@@ -1,30 +1,13 @@
-1
-00:01:00,000 --> 00:00:06,000
-In a dimly lit, blue-toned room, an aggressive version of a young man with glowing yellow eyes laughs mockingly.
-2
-00:00:06,000 --> 00:00:11,500
-The real young man, wearing glasses, winces and yells back in frustration.
-3
-00:00:11,500 --> 00:00:17,500
-Nearby, a teenage boy in glasses and a large bear-like character watch intently.
-4
-00:00:17,500 --> 00:00:20,500
-The yellow-eyed double smiles confidently, standing with his arms open.
-5
-00:00:20,500 --> 00:00:24,000
-The young man with glasses looks panicked as sweat pours down his face.
-6
-00:00:24,000 --> 00:00:26,500
-Swirling dark red and purple mist suddenly surrounds him.
-7
-00:00:26,500 --> 00:00:30,500
-A bright white light erupts from the center of the room, forcing the onlookers to shield their eyes.
-8
-00:00:30,500 --> 00:00:35,000
-The young man screams in agony as the intense light and red energy consume him.
-9
-00:00:35,000 --> 00:00:39,000
-The swirling energy thickens, moving past the silhouettes of his friends.
-10
-00:00:39,000 --> 00:00:46,000
-Out of the smoke, a massive, powerful figure appears wearing a red cape and large yellow gloves, reaching forward as the scene fades to white.
+# P4CT006 (0:44): in the foggy liquor store, Yosuke's yellow-eyed double changes shape.
+0:00 Close on Yosuke's double, teeth gritted, then head tilted back, eyes burning yellow, laughing wildly.
+0:06 The real Yosuke, glasses on, sweating, clenches his teeth beside a glowing fridge of bottles.
+0:10.3 {player}, calm in his glasses, stands by Teddie, whose round face scowls.
+0:12.3 In the dim shop, {player} stands between Yosuke and his double as they square off, Teddie beside him.
+0:16.7 The yellow-eyed double smiles, cold and smug.
+0:19.8 Yosuke, glasses flashing white, gapes in horror, sweating.
+0:24.1 Black-and-red tendrils swirl across his face.
+0:25.8 A burst of white light throws {player}, Teddie and Yosuke back as silhouettes.
+0:27.8 Yosuke shouts into the white glare, face twisting, as red swirls drift past.
+0:33.3 Yosuke yells again in profile, light flooding around him.
+0:37.8 Teddie and a tall figure stand silhouetted against the glare.
+0:39.8 Atop a giant striped beast, a dark figure in a red scarf spreads huge yellow hands.

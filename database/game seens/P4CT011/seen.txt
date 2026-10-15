@@ -1,18 +1,11 @@
-1
-00:00:00,000 --> 00:00:05,000
-A man with slicked back hair grimaces in intense pain. A swirling purple and black aura surrounds his body as he struggles.
-2
-00:00:05,000 --> 00:00:10,000
-A blonde young man in a skull shirt and a girl with black hair watch in shock. The man in pain is lifted off the ground by the dark energy.
-3
-00:00:10,000 --> 00:00:23,000
-The dark aura thickens around the floating man.
-4
-00:00:23,000 --> 00:00:33,000
-The man is completely engulfed in shadows. The group of young people including a boy with grey hair protecting a young girl watch anxiously.
-5
-00:00:33,000 --> 00:00:43,000
-A bright white light flashes. The scene transitions to a surreal pink and orange sky with massive red spiral structures.
-6
-00:00:43,000 --> 00:00:58,000
-A giant figure in a white robe descends. It has a dark red face small red wings and a large red halo featuring peace signs. It hovers above the group flanked by stone angel statues.
+# P4CT011 (0:57): December, Namatame is swallowed by Shadows and becomes a giant robed being; Nanako is there, unconscious.
+0:00 Namatame, a dark-haired man in a green jacket, cries out and clutches his head as a dark mass swallows him.
+0:04.7 Kanji flings an arm out to shield Yukiko beside him, her hair streaming back, while Naoto, in a blue cap, braces against the wind.
+0:10.5 In blinding white light, a figure's legs in red boots stand rooted in glowing purple haze.
+0:16.8 Teddie, the round bear, glares upward with a fierce scowl, fists clenched, before a bed of flowers.
+0:22.8 A huge dark shape with glowing yellow eyes rears up, jaws gaping.
+0:25.8 Chie in green and {player} stand tense, {player} cradling Nanako, a small girl, limp and unconscious.
+0:28.3 Yosuke shouts upward while Rise, pigtails flying, stares up in dread.
+0:34.3 White light fades into a pink and gold sky with a red spiralling walkway.
+0:42.3 From above, the friends run down a tiled staircase flanked by flowers as a white robe sweeps in.
+0:49.8 A giant in a flowing white robe floats above stone angel statues, a dark striped mask for a face, arms spread, as the tiny friends and Teddie stand firm below.

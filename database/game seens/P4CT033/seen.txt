@@ -1,27 +1,14 @@
-1
-00:00:00,000 --> 00:00:05,000
-Steam fills the room as a girl steps onto the stone floor.
-2
-00:00:05,000 --> 00:00:10,000
-Wooden buckets sit by the faucets. Hot water pours from a stone spout.
-3
-00:00:10,000 --> 00:00:16,000
-Rise wears a white towel. She gasps and runs toward the large outdoor hot spring.
-4
-00:00:16,000 --> 00:00:23,000
-Yukiko Nanako and Chie also wear white towels. They step outside and look around.
-5
-00:00:23,000 --> 00:00:31,000
-Nanako looks up at the starry night sky. The others smile at the view.
-6
-00:00:31,000 --> 00:00:37,000
-Rise turns around. She notices someone is missing.
-7
-00:00:37,000 --> 00:00:45,000
-Naoto stands nervously inside the doorway. The girls look back at her.
-8
-00:00:45,000 --> 00:00:50,000
-Rise walks behind Naoto and gently pushes her outside to join them.
-9
-00:00:50,000 --> 00:01:08,000
-Naoto blushes deeply as the girls gather around her. They look surprised by her figure. Naoto crosses her arms defensively while the group giggles.
+# P4CT033 (1:06): Golden. A night at the hot spring: the girls enjoy the open-air bath, then Rise drags a shy Naoto in.
+0:00 Steam drifts over wet stone as bare feet step out; wooden buckets, taps, a waterfall splashing into rocks.
+0:08 Rise, red-brown hair loose, in a white towel, peeks out, flushed and delighted.
+0:10.7 A starry open-air bath; Rise races past, then stands far off, arms spread wide.
+0:14.2 Yukiko, Nanako and Chie step out barefoot in towels, Nanako small and shy between them.
+0:20.7 Nanako blushes, wide-eyed; from behind the three gaze at the stars, and she beams, delighted.
+0:27.7 Yukiko and Chie turn toward each other, smiling softly.
+0:29.7 Rise stands beside Nanako, hand at her chest, looking around for someone, puzzled.
+0:36.5 In the steamy doorway Chie, Nanako and Yukiko wait in towels. Rise strides in, grabbing an unseen arm.
+0:42.7 Chie and Yukiko stare, wide-eyed. Close on Naoto, flushed and anxious, as Rise winks cheerfully.
+0:46.5 Rise's hands push Naoto's back, shoving her toward the bath. Naoto, in a towel, blushes, glancing aside.
+0:53.2 Yukiko, Naoto, Rise and Chie huddle close, whispering; Rise grins, eyes shut, Yukiko's finger at her lips.
+0:57.1 Nanako points at Naoto, who stands rigid, eyes shut, face red, then crosses both arms tight over her chest.
+1:03.1 Naoto, mouth open in alarm, bows her head, flustered, as the others crowd close, teasing.

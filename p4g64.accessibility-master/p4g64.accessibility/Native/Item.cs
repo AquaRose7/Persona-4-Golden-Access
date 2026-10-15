@@ -44,6 +44,7 @@ public unsafe class Item
     // gameItemId=4 ("Imitation Katana") is at 0x1411901C0, stride=0x18 verified
     // by scanning adjacent entries in-game (DiagnoseNameStride, 2026-04-20).
     // Base = 0x1411901C0 - 4*0x18 = 0x141190160.
+    private const long ItemNameTablePtrVA = 0x141165938L;   // → the name array (written by FUN_14019EBF0)
     private const long NATIVE_NAME_BASE   = 0x141190160L;
     private const int  NATIVE_NAME_STRIDE = 0x18;
 
@@ -116,8 +117,15 @@ public unsafe class Item
     {
         if (gameItemId < 0 || gameItemId > 4096) return "";
 
-        nint nativePtr = (nint)NATIVE_NAME_BASE + gameItemId * NATIVE_NAME_STRIDE;
-        string name = ReadAtlusStringRpm(nativePtr, NATIVE_NAME_STRIDE).Trim();
+        // The game's own lookup (FUN_14019ED30, 2026-10-15): *(0x141165938) + id * a LANGUAGE stride
+        // (0x16 jp · 0x18 en · 0x1A kr/cht/chs · 0x1C fr/de/it/es). The fixed English base + 0x18
+        // read misaligned bytes in every other language → "Item 123" in Japanese (Haru 2026-10-15).
+        int stride = Text.GameText.LanguageId switch { 0 => 0x16, 1 => 0x18, 2 or 3 or 4 => 0x1A, 5 or 6 or 7 or 8 => 0x1C, _ => 0 };
+        nint table;
+        if (stride == 0 || !TryReadRaw((nint)ItemNameTablePtrVA, &table, 8) || table == 0)
+        { table = (nint)NATIVE_NAME_BASE; stride = NATIVE_NAME_STRIDE; }   // unreadable → the English layout
+        nint nativePtr = table + gameItemId * stride;
+        string name = ReadAtlusStringRpm(nativePtr, stride).Trim();
         if (name.Length < 1) return "";
         if (name == "Blank" || name == "????" || name.StartsWith("item_") || name.StartsWith("weapon_") || name.StartsWith("armor_"))
             return "";

@@ -29,6 +29,9 @@ internal unsafe class InternetDialog : IDisposable
 
     private IHook<RenderDelegate>? _hook;
     private int _lastCursor = -1;
+    private int _curKey = int.MinValue;                          // the box being read (message index)
+    private readonly Dictionary<int, long> _keySeen = new();     // message index → last render tick
+    private readonly HashSet<int> _announced = new();            // boxes already handled this popup run
     private long _lastRenderTick;
 
     private bool _running = true;
@@ -69,13 +72,40 @@ internal unsafe class InternetDialog : IDisposable
         var cursor = pDialog->Cursor;
         if (cursor < 0 || cursor > 1) return;
 
+        // Several boxes can render in the same frames (loading: "Load this file?" / "Now loading..." /
+        // "Load complete." all at once), each with its own message index at +0x0C.
+        int msgKey = pDialog->LayerId;
+        long now = Environment.TickCount64;
+        _keySeen[msgKey] = now;
+
         // When the popup first appears, read + speak its message, then the
         // current button. Afterwards announce only the button on cursor moves.
         if (_lastCursor == -1)
         {
             _lastCursor = cursor;
+            _curKey = msgKey;
+            _keySeen.Clear();               // render-thread only (the poll thread just resets _lastCursor)
+            _keySeen[msgKey] = now;
+            _announced.Clear();
+            _announced.Add(msgKey);
             var msg = ReadMessage((nint)pDialog);
             Speech.Say(string.IsNullOrEmpty(msg) ? Options[cursor] : $"{msg}. {Options[cursor]}", true);
+            return;
+        }
+
+        // A QUESTION box that REPLACES the previous one with no render gap (New Game Plus: "use the clear
+        // data?" → No → "begin without the bonuses?", silent before — Haru 2026-10-15): announce it once
+        // the old box has stopped drawing. Non-question boxes ("Now loading...") stay with SystemMessage.
+        if (msgKey != _curKey)
+        {
+            if (_announced.Contains(msgKey)) return;
+            if (_keySeen.TryGetValue(_curKey, out long oldSeen) && now - oldSeen < 200) return;
+            _announced.Add(msgKey);
+            var msg = ReadMessage((nint)pDialog);
+            if (msg.Length == 0 || (msg.IndexOf('?') < 0 && msg.IndexOf('？') < 0)) return;
+            _curKey = msgKey;
+            _lastCursor = cursor;
+            Speech.Say($"{msg}. {Options[cursor]}", true);
             return;
         }
 

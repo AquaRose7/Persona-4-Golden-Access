@@ -1,30 +1,15 @@
-1
-00:00:00,000 --> 00:00:02,500
-A stone lion statue sits at the base of a traditional red shrine gate.
-2
-00:00:02,500 --> 00:00:07,500
-a girl with brown hair in twintails rubs her hands together and blows on them.
-3
-00:00:07,500 --> 00:00:15,000
-A group of teenagers stand together in a crowd gathered before a brightly lit wooden shrine.
-4
-00:00:15,000 --> 00:00:19,000
-A girl checks her pink phone. The digital clock on the screen reads 23 59.
-5
-00:00:19,000 --> 00:00:23,000
-A girl in a green coat excitedly waves her hand to signal the countdown.
-6
-00:00:23,000 --> 00:00:32,000
-The friends all throw their arms up and cheer joyfully at midnight.
-7
-00:00:32,000 --> 00:00:48,000
-The friends exchange happy new year wishes. The girl in the green coat suddenly looks up at the sky.
-8
-00:00:48,000 --> 00:00:52,000
-Gentle snowflakes begin to fall softly against the dark night sky.
-9
-00:00:52,000 --> 00:00:59,000
-The entire group gazes up in wonder as the snow drifts down around them.
-10
-00:00:59,000 --> 00:01:16,000
-the snow falls over the tranquil shrine gate.
+# P4CT034 (1:17): Golden. New Year's Eve at the shrine: the friends count down to midnight, then snow begins to fall.
+0:00 Night at a shrine: a stone guardian statue, red torii gate, bare trees.
+0:03 Close on Rise, pink earring, breathing onto cupped hands, eyes shut, breath steaming; Yukiko in a white coat beside her.
+0:07.2 Winter-coated crowds queue before the lit shrine hall, a candle in a window; the friends among them.
+0:15.7 Rise glances back, wide-eyed, near Yosuke; a pink phone screen reads 23:59.
+0:18.2 Naoto in a blue cap stands shyly beside blond, earmuffed Teddie.
+0:20.7 Chie, fur collar, red scarf, smiles and waves; Yukiko and Rise stand close, Rise's fists raised, Yosuke grinning.
+0:27.2 From behind, the whole group cheers, arms raised: {player}, Yosuke, Kanji, Naoto, Teddie, Rise, Yukiko, Chie.
+0:31.7 Chie beams, fists clenched, while Yukiko, eyes shut, smiles happily beside her.
+0:34.3 Kanji scowls at Teddie, who leans toward Rise, laughing eyes shut; Naoto, {player} and Yosuke stand by.
+0:46.5 Chie laughs, eyes closed, then looks up wide-eyed, lips parted, breath steaming.
+0:49 Dark night sky, tiny white specks of snow drifting down.
+0:53 {player} looks up at the falling snow, Yosuke beside him; Rise gazes up, mouth open, Chie smiling.
+0:55.7 Yosuke, Naoto, Rise, Kanji, Chie and Yukiko huddle, faces upturned, snow drifting, Kanji grinning slyly.
+1:02.9 The torii gate and statue in falling snow; the view rises into dark cloud and fades to black.

@@ -1,54 +1,40 @@
-1
-00:00:00,000 --> 00:00:03,500
-A young woman with reddish hair in a bikini is enjoying a refreshing shower under a waterfall.
-2
-00:00:03,500 --> 00:00:09,800
-She smiles and laughs, tilting her head back, clearly enjoying herself while water splashes over her.
-3
-00:00:09,800 --> 00:00:13,200
-She takes a sip from a can of Calorie Magic and winks at the camera with a playful smile.
-4
-00:00:13,200 --> 00:00:23,800
-She holds the can of Calorie Magic, posing against a backdrop of the blue sky, ocean, and fluffy white clouds.
-5
-00:00:23,800 --> 00:00:29,200
-On a television screen, three news anchors sit at a desk and report on a scandal involving the Enkestar, Misuzu Hiiragi.
-6
-00:00:29,200 --> 00:00:46,500
-People stand in a train station, watching the news report on multiple screens. A green and white commuter train pulls up to the platform.
-7
-00:00:46,500 --> 00:00:55,500
-Inside the train, a young man with silver hair and a black school uniform stands, holding onto a strap.
-8
-00:00:55,500 --> 00:01:06,000
-Inside a classroom, an older man with a mustache talks to the students, gesturing towards a young man in a black suit standing next to him.
-9
-00:01:06,000 --> 00:01:12,500
-A train travels on an elevated track over a busy city street with many cars.
-10
-00:01:12,500 --> 00:01:21,500
-The silver-haired young man sits on a train, watching the scenery pass by through the window.
-11
-00:01:21,500 --> 00:01:31,000
-He checks his mobile phone and reads a text message in Japanese. A caption below reads: "Meet us outside Yasoinaba Station at 4PM."
-12
-00:01:31,000 --> 00:01:40,500
-He looks out the window, pulls the curtain aside, and stands up as the train approaches a station.
-13
-00:01:40,500 --> 00:01:51,500
-He steps off the train onto the platform at Yasoinaba Station.
-14
-00:01:51,500 --> 00:02:05,500
-Back in a dimly lit room, a young girl with twin tails and a man are sitting together, watching the same news report about the scandal on television.
-15
-00:02:05,500 --> 00:02:11,000
-The young man is back on the train, gazing out the window at the passing countryside.
-16
-00:02:11,000 --> 00:02:27,500
-A series of quick, flashes alternate between the young man's reflection on the train window and a mysterious young woman with blonde hair.
-17
-00:02:27,500 --> 00:02:33,000
-The train crosses a bridge over a river surrounded by lush, green mountains.
-18
-00:02:33,000 --> 00:02:41,000
-The train arrives at Yasoinaba station, and the young man steps onto the platform, looking around with a calm expression.
+# P4CT002 (2:42): the trip to Inaba. TV adverts and a scandal on the news, the hero rides trains to Yasoinaba. Nobody in Inaba is met yet.
+0:00 Under a rushing waterfall, a young woman with wet red-brown hair in a striped bikini smiles, eyes closed.
+0:03.4 She tips her head back, mouth open, as spray pours over her.
+0:10 Bubbles float over a sparkling blue sea.
+0:12 Beneath a green beach umbrella, the same woman, now in pigtails, tilts back a can and drinks.
+0:14.7 She winks at us, the can against her cheek.
+0:20.7 The can fills the frame: Quelorie Magic. She hugs it to her cheek, beaming.
+0:23.9 A news studio: a short-haired woman and two older men sit at a desk.
+0:27.9 A big headline in Japanese swoops in over the newscast.
+0:29.9 Wall-to-wall screens on a city building show the newscast, a crowd watching below.
+0:36.7 Cherry blossoms frame a giant screen playing the scandal.
+0:39.7 On a city station platform, commuters wait in a row, {player} among them.
+0:43.7 A green commuter train arrives, windows packed.
+0:46.7 Inside, hanging ads in Japanese sway above the packed passengers.
+0:50.7 {player} holds a strap in the packed car: a tall, quiet teen with a straight silver-grey bowl cut, grey eyes and a calm, faraway look.
+0:56.7 Sepia flashback: at his old school, {player} stands head down before his class, a smiling teacher in a vest beside him.
+1:00.7 The teacher pats his shoulder, grinning; {player} keeps his eyes on the floor.
+1:06.7 A green train rolls along an overpass above stopped cars and taxis.
+1:16.7 A cream and red train curves round a bend.
+1:19.2 Behind a train window, {player} gazes out, his reflection faint in the glass.
+1:23.2 He takes out a phone and looks down.
+1:25.2 A text arrives: Meet us outside Yasoinaba Station at 4PM.
+1:30.2 {player} sits by the window in his black school jacket with its checkered collar, watching fields blur past, serious.
+1:37.2 The train pulls into a platform.
+1:40.7 {player} steps through the crowd with a backpack.
+1:43.2 On a television, a woman and a man in glasses read the news.
+1:48 Two portraits: Tarou Namatame in a dark suit and green tie, and the enka singer Misuzu Hiiragi in a red kimono.
+1:51.2 In a dim house, a little girl in pigtails watches TV beside a stubbled man with a cigarette, reading a newspaper.
+1:57.7 The girl turns her head to follow the man's gaze.
+2:01.7 On the TV, Mayumi Yamano, short dark hair, white blouse. Then the TV clicks off.
+2:07.5 Two red lights flash at a railway crossing.
+2:10 {player} sits alone in a nearly empty local train, green hills sliding by.
+2:14.9 Grainy flashes: a spiky-haired dark shape, a glowing lantern, a dim garden.
+2:16.5 {player} closes his eyes, brow tense.
+2:21.9 A white flash. He covers his face, breathing hard, sweat on his cheek.
+2:26 Sunlit hills glide past his window; he stares out, calmer.
+2:26.9 Golden light on a river; a small orange train crosses a bridge.
+2:33 A station sign: Yasoinaba.
+2:35.5 A rust-coloured train door sits in warm sunlight.
+2:37.4 {player} stands in the sunbeams, bag over one shoulder, calm and a little wary.

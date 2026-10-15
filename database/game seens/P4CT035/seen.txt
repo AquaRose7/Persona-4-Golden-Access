@@ -1,30 +1,24 @@
-1
-00:00:00,000 --> 00:00:09,000
-A wide view of a snowy mountain ski resort with a ski lift and a wooden rest house. People are skiing and snowboarding down the slopes.
-2
-00:00:09,000 --> 00:00:20,000
-Chie and Yosuke snowboard down the mountain side by side.
-3
-00:00:20,000 --> 00:00:25,000
-Yu skis past them quickly and confidently.
-4
-00:00:25,000 --> 00:00:32,000
-Rise struggles to keep her balance on her skis. Kanji watches her from a short distance.
-5
-00:00:32,000 --> 00:00:41,000
-Kanji stands awkwardly on his skis, looking nervous. Naoto stops nearby to watch him.
-6
-00:00:41,000 --> 00:00:52,000
-Kanji loses his balance and falls backward, accidentally pulling Naoto down with him into the snow. Kanji blushes and yells.
-7
-00:00:52,000 --> 00:00:57,000
-Teddie loses control on his skis and speeds down the hill as Yukiko watches.
-8
-00:00:57,000 --> 00:01:14,000
-Yu and Rise watch as Teddie flies off a snow ramp, spins in the air, and crashes, forming a giant snowball.
-9
-00:01:14,000 --> 00:01:27,000
-Chie and Yosuke stand at the bottom of the slope. The giant snowball with Teddie inside rolls toward them, hits a bump, and crashes directly into Yosuke.
-10
-00:01:27,000 --> 00:01:44,000
-Yukiko and Chie sigh. The group gathers around Yosuke and Teddie, who are now buried upside down in a snowbank. Rise and Yu laugh together. A small snowman shaped like Teddie sits on the balcony railing of the rest house.
+# P4CT035 (1:42): Golden. The January ski trip: the friends spread across a snowy mountain, Kanji and Naoto crash, and Teddie becomes a giant snowball.
+0:00 A snowy mountain valley, pine slopes, a chairlift climbing to a wooden lodge.
+0:04 Skiers cheer outside the lodge; a sign reads Rest House, Food; chairlift riders glide up, skis dangling.
+0:09 Chie, green jacket, blue overalls, snowboards through snowy pines; Yosuke, red jacket, camouflage pants, slides in beside her.
+0:12.5 Close on Yosuke grinning under a white cap, arm out; he and Chie glide side by side, laughing.
+0:18.6 Chie beams, waving wide; Rise, pink jacket, ponytail streaming, streaks past behind her on skis.
+0:21.5 {player}, white-and-black jacket, black beanie, yellow goggles, crouches down the slope; close on his calm face, eyes closed.
+0:26.5 Rise skis on, ponytail swinging, smiling; {player}'s black beanie slides into the corner.
+0:30.5 Rise and {player} stand side by side; in front, Kanji, grey beanie, red hoodie, glares, teeth clenched.
+0:34.3 Naoto, white cap, blue plaid jacket, wobbles on skis beside Kanji, who watches sternly, arms down.
+0:39.2 Naoto's white cap rushes into Kanji's face; he flinches, flings out an arm, shouting, and they tumble.
+0:44.9 Naoto lands on Kanji, faces pressed close, eyes shut; then sits up, wide-eyed, gasping an apology, while Kanji lies flat.
+0:51.4 Yukiko, red headband flying, races past; Teddie, red ski suit and blue bear head, chases, squinting, boots kicking up snow.
+0:57 {player}, silver-grey hair under his beanie, smiles at Rise; Teddie hurtles toward the camera on skis, scowling.
+1:00.9 Teddie rushes past; Rise gasps, purple gloves at her chin, and {player} leans over her, bracing.
+1:05.3 Teddie tumbles over and over, a red ball in a shower of sparkles; Rise and {player} stare up, astonished.
+1:10 Teddie smiles, arms up, spinning against the sky.
+1:12.4 Teddie spirals down past {player}'s boots, vanishing in white; a giant snowball rolls on, a blue mitten poking out.
+1:15.7 Chie holds her orange snowboard beside Yosuke, bent over fixing his board.
+1:19.5 Yosuke turns, startled, as the huge snowball hits him; he yells, arms flung out, swept away.
+1:22.4 Chie stands alone with her board, blank-faced; skis and a camouflage boot poke from the snow.
+1:27.2 Chie, hands on hips, eyes shut, stands deadpan beside Yukiko, both facing a snowbank where red legs and camouflage trousers poke up.
+1:32.5 Rise, Yukiko, {player} and Chie gather in the snow; Rise and {player} glance aside, wide-eyed.
+1:37.2 A small snowman with round bear ears sits on the lodge railing below the Food sign, snow drifting.

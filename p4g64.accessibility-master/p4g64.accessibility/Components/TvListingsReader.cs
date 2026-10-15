@@ -46,10 +46,24 @@ internal sealed unsafe class TvListingsReader
     // Channel SUBSCREEN tasks (each channel player is its own named task,
     // created on open, destroyed on close — task presence == screen open).
     private static readonly byte[] MusicTaskName = Encoding.ASCII.GetBytes("MUSIC_CHANNEL");
-    private static readonly byte[] AnimeTaskName = Encoding.ASCII.GetBytes("ANIME_CHANNEL");
+    internal static readonly byte[] AnimeTaskName = Encoding.ASCII.GetBytes("ANIME_CHANNEL");
+
+    /// <summary>True while the episode list (Daily Personamations) shows its PREVIEW movie: the
+    /// highlighted episode plays behind the menu, and backing out of a cutscene keeps it running as the
+    /// preview. ANIME_CHANNEL work+0x04 (u16) = 7 while an episode really plays; 12 browsing, 11/14/15/19/21
+    /// transitions (live-probed 2026-10-15). Cutscene descriptions stay silent unless it is 7.</summary>
+    internal static bool AnimePreviewShowing()
+    {
+        nint task = FindTaskByName(AnimeTaskName);
+        if (task == 0 || !IsReadable(task + 0x48, 8)) return false;
+        nint work = *(nint*)(task + 0x48);
+        if (work == 0 || !IsReadable(work + 0x04, 2)) return false;
+        return *(ushort*)(work + 0x04) != 7;
+    }
 
     private bool _active;
     private int _lastId = -1, _lastCh = -1;
+    private int _pendId = -1, _pendCh = -1;
     private long _settleUntil;
 
     // music player (song list): work+0x00 u16 state (12 idle / 13 moving),
@@ -62,6 +76,10 @@ internal sealed unsafe class TvListingsReader
     // work+0x10 u16 cursor. Episode names from catalog "anime_episodes".
     private bool _animeActive;
     private int _lastEpisode = -1;
+    // Episode text by cursor row, kept while the list is open: the first read waits out the carousel
+    // slide (~0.7 s), a revisit speaks at once (Haru 2026-10-15: "TV Listings feels heavy").
+    private readonly Dictionary<int, string> _episodeText = new();
+    private int _animeRetries;
 
     private readonly Dictionary<int, string> _channelNames = new();
     private readonly Dictionary<int, string> _titles = new();
@@ -170,7 +188,7 @@ internal sealed unsafe class TvListingsReader
     {
         while (true)
         {
-            Thread.Sleep(100);
+            Thread.Sleep(50);   // 50 ms: the guide waits one extra poll for a settled program/channel pair
             try
             {
                 if (!GameHasFocus()) continue;
@@ -223,7 +241,11 @@ internal sealed unsafe class TvListingsReader
         }
         if (Environment.TickCount64 < _settleUntil) return;
 
-        if (id == _lastId && ch == _lastCh) return;
+        if (id == _lastId && ch == _lastCh) { _pendId = -1; return; }
+        // A channel change updates the program one frame before the channel: speak only a pair seen
+        // on two polls in a row, or the program is read twice, once without its channel (2026-10-15).
+        if (id != _pendId || ch != _pendCh) { _pendId = id; _pendCh = ch; return; }
+        _pendId = -1;
         bool chChanged = ch != _lastCh;
         _lastId = id; _lastCh = ch;
 
@@ -334,7 +356,7 @@ internal sealed unsafe class TvListingsReader
         nint task = FindTaskByName(AnimeTaskName);
         if (task == 0)
         {
-            if (_animeActive) { _animeActive = false; _lastEpisode = -1; }
+            if (_animeActive) { _animeActive = false; _lastEpisode = -1; _episodeText.Clear(); }
             return false;
         }
         if (!IsReadable(task + 0x48, 8)) return false;
@@ -352,14 +374,22 @@ internal sealed unsafe class TvListingsReader
             Speech.Say("Episode list.", true);
             StartCapture(400, 200);
             _pendingKind = 'a';
+            _animeRetries = 0;
             _announceAt = Environment.TickCount64 + 680;
             return true;
         }
         if (cursor != _lastEpisode)
         {
             _lastEpisode = cursor;
+            if (_episodeText.TryGetValue(cursor, out var known))
+            {
+                _pendingKind = (char)0;
+                Speech.Say(known, true);
+                return true;
+            }
             StartCapture(400, 200);   // wait out the carousel slide + panel repaint
             _pendingKind = 'a';
+            _animeRetries = 0;
             _announceAt = Environment.TickCount64 + 680;
         }
         FlushPending(astate, cursor);
@@ -583,7 +613,18 @@ internal sealed unsafe class TvListingsReader
 
         (string s, byte p2, byte p3, uint p4, bool glyph, long t)[] cap;
         lock (_capLock) cap = _captured.ToArray();
-        if (cap.Length == 0) return;
+        if (cap.Length == 0)
+        {
+            // The list's first frame draws only after the opening slide: an empty capture right after
+            // "Episode list." left the first episode unread — capture again (2026-10-15).
+            if (kind == 'a' && _animeRetries++ < 3)
+            {
+                StartCapture(250, 300);
+                _pendingKind = 'a';
+                _announceAt = Environment.TickCount64 + 600;
+            }
+            return;
+        }
 
 #if DEBUG
         foreach (var c in cap)
@@ -600,16 +641,20 @@ internal sealed unsafe class TvListingsReader
             string? title = null;
             foreach (var c in cap)
                 if (!c.glyph && c.p2 == 1) title = c.s;
-            var sb = new StringBuilder(title ?? "");
+            // The description is ONE paragraph wrapped over several glyph lines: join them with
+            // spaces (a stop after every line read "An invitation to the. mysterious Velvet Room.").
+            var desc = new StringBuilder();
             foreach (var c in cap)
             {
-                if (!c.glyph) continue;
-                if (IsButtonLabel(c.s)) continue;
-                sb.Append(sb.Length > 0 ? " " : "").Append(c.s);
-                char last = c.s[c.s.Length - 1];
-                if (last != '.' && last != '!' && last != '?') sb.Append('.');
+                if (!c.glyph || IsButtonLabel(c.s)) continue;
+                desc.Append(desc.Length > 0 ? " " : "").Append(c.s.Trim());
             }
-            text = sb.ToString().Trim();
+            string d = desc.ToString().Trim();
+            if (d.Length > 0 && !EndsSentence(d)) d += ".";
+            string t = (title ?? "").Trim();
+            if (t.Length > 0 && d.Length > 0 && !EndsSentence(t)) t += ".";
+            text = (t + " " + d).Trim();
+            if (text.Length > 0 && cursor == _lastEpisode) _episodeText[cursor] = text;
         }
         else
         {
@@ -618,6 +663,12 @@ internal sealed unsafe class TvListingsReader
         if (text.Length == 0) return;
         Log($"[TvList] {kind} state={state} cursor={cursor} say: {text}");
         Speech.Say(text, true);
+    }
+
+    private static bool EndsSentence(string s)
+    {
+        char last = s[s.Length - 1];
+        return last == '.' || last == '!' || last == '?' || last == '。' || last == '！' || last == '？';
     }
 
     private static bool IsButtonLabel(string s)
@@ -659,7 +710,7 @@ internal sealed unsafe class TvListingsReader
 
     private nint FindTask() => FindTaskByName(TaskName);
 
-    private static nint FindTaskByName(byte[] name)
+    internal static nint FindTaskByName(byte[] name)
     {
         foreach (nint head in TaskHeads)
         {
@@ -740,8 +791,11 @@ internal sealed unsafe class TvListingsReader
         catch (Exception ex) { Log($"[TvList] catalog load failed: {ex.Message}"); }
     }
 
+    // The glyph decoder returns the game's IDEOGRAPHIC space (U+3000) between words since v2.1.0: the art
+    // vote compared "Yosuke<U+3000>Hanamura" against the caption table and never matched (every read fell
+    // back to the raw text and stuck on one caption, found 2026-10-15) — normalize at the capture.
     /// <summary>ASCII c-string read with full page validation (hook-safe).</summary>
-    private static string ReadCStrSafe(nint p, int maxLen) => ReadCStringRpm(p, maxLen);  // RPM since 2026-07-27 (menu-heaviness fix: VirtualQuery stalls under allocator contention)
+    private static string ReadCStrSafe(nint p, int maxLen) => ReadCStringRpm(p, maxLen).Replace('　', ' ');  // RPM since 2026-07-27 (menu-heaviness fix: VirtualQuery stalls under allocator contention)
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]
     private static extern nint VirtualQuery(nint lpAddress, byte* lpBuffer, nint dwLength);

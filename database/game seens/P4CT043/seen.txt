@@ -1,36 +1,21 @@
-1
-00:00:00,000 --> 00:00:06,000
-A red train sits at a sunny outdoor station platform. The Investigation Team and the Dojima family stand gathered near the train doors.
-2
-00:00:06,500 --> 00:00:10,000
-Yosuke smiles warmly. Yukiko looks on with a soft and tender expression.
-3
-00:00:10,500 --> 00:00:15,000
-Chie speaks with bright and earnest enthusiasm.
-4
-00:00:15,500 --> 00:00:18,000
-Naoto speaks with a gentle smile.
-5
-00:00:18,500 --> 00:00:24,000
-Kanji gives a confident and reassuring nod. Rise smiles sweetly with eager affection.
-6
-00:00:24,500 --> 00:00:31,000
-Teddie speaks with cheerful warmth. Ryotaro Dojima smiles proudly as Nanako gives a happy and excited wave goodbye.
-7
-00:00:31,500 --> 00:00:39,000
-Yu gives a slight smile before turning to board the train. His friends watch him.
-8
-00:00:39,500 --> 00:00:48,000
-The train wheels begin to turn. Yu looks out the window at his friends who walk alongside the glass.
-9
-00:00:49,000 --> 00:01:08,000
-His friends start running down the platform to keep up with the accelerating train. They wave and call out to him with joyful smiles.
-10
-00:01:10,000 --> 00:01:15,000
-The group stops at the end of the platform. They continue waving with bright and hopeful faces as the train pulls away.
-11
-00:01:15,500 --> 00:01:21,000
-Yu watches his friends shrink in the distance through the train door window holding a peaceful and contented look.
-12
-00:01:21,500 --> 00:01:29,000
-The red train travels away down the curving tracks into the distance. The screen fades to black.
+# P4CT043 (1:29): the station farewell without the credits, the same picture as P4CT017's first 1:29 (derived from P4CT017; edit that file, then re-derive).
+0:00 Bright spring morning at Yasoinaba Station. An orange train waits while the friends, Dojima and Nanako stand together in a row at the platform edge.
+0:07 Yosuke smiles warmly, orange headphones at his neck. Yukiko, in a red scarf, smiles gently back.
+0:12.3 Chie grins and calls out cheerfully. Naoto, cap straight, gives a small, sincere smile.
+0:18 Kanji smirks with a rare softness. Rise, beside the red train, beams, teary-eyed.
+0:23.7 Teddie, blond in his frilly shirt and red rose, smiles hopefully. Dojima, stubbled, gives a tender nod.
+0:29 Nanako, brown pigtails bobbing, waves with a bright, eager smile.
+0:31.7 {player} stands among his friends at the train door, calm. Rise leans close, Kanji beside her.
+0:35.7 {player} turns his back and steps toward the train. Rise watches him go, lips trembling, anxious.
+0:38.7 A steel wheel under the train begins to turn.
+0:41.2 Through the train window, Yukiko calls out, crying, Teddie beside her. The back of {player}'s head fills the foreground.
+0:46.5 {player}'s face shows pale in the window glass. He looks out, solemn, then a faint smile.
+0:49 Teddie and Naoto sprint beside the train, Teddie shouting, blond hair streaming, Naoto clutching her cap.
+0:54.2 Kanji and Rise run next, leaning forward. Kanji shouts, jaw set. Rise runs with tears on her cheeks.
+0:59 Chie and Yosuke run side by side. Chie calls out, eyes fixed ahead, as Yosuke keeps pace.
+1:03 Yukiko and Rise join them, fists to chests, hair streaming. Naoto and Kanji run behind, calling.
+1:08 Close on {player} at the window, quietly smiling as he looks out at them.
+1:10.5 All seven friends sprint along the platform. Kanji punches the air as Chie runs out in front.
+1:15.5 At the carriage door, a faint reflection of {player}'s face floats on the glass, beside a destination sign.
+1:19.5 The train pulls away. Far down the empty platform, the seven friends stand tiny and still.
+1:23.5 The orange train rounds a curve and shrinks into the distance, a green signal beside the rails.

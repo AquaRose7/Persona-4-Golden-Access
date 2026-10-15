@@ -47,6 +47,15 @@ internal unsafe class TitleMenu : IDisposable
     // Press-to-continue never sets it; the live menu toggles it every frame.
     private bool _menuActive;
     private bool _promptedContinue;
+    private bool _describeMenu;
+
+    // What the two title screens look like (Haru 2026-10-15: "they both are a little different").
+    internal const string PressScreenText =
+        "Title screen: the Persona 4 Golden logo, ringed in rainbow colours, on bright yellow full of white sparkles. " +
+        "Character silhouettes sweep past, a red ribbon scrolls Press Any Button, and small print reads ATLUS, SEGA, all rights reserved.";
+    internal const string MenuScreenText =
+        "Title menu: the yellow-edged Persona 4 Golden logo on a deep blue sky of twinkling white stars, " +
+        "with six options below it in two columns.";
 
     private delegate void TitleMenuRenderDelegate(nint param1, TitleMenuStruct* pMenu);
 
@@ -80,13 +89,18 @@ internal unsafe class TitleMenu : IDisposable
 
         // Latch active on the first 0x02 frame. On that transition reset the
         // cursor so the highlighted option announces as the menu slides in.
-        if ((state & 2) != 0 && !_menuActive) { _menuActive = true; _lastCursor = -1; }
+        if ((state & 2) != 0 && !_menuActive) { _menuActive = true; _lastCursor = -1; _describeMenu = true; }
 
         // Not navigable yet: the options are drawn but input does nothing
         // ("Press to continue"). Announce a prompt, not a misleading option.
         if (!_menuActive)
         {
-            if (!_promptedContinue) { _promptedContinue = true; Speech.Say("Press any button to continue", true); }
+            if (!_promptedContinue)
+            {
+                _promptedContinue = true;
+                Speech.Say("Press any button to continue", true);
+                Speech.Say(PressScreenText, false);
+            }
             return;
         }
 
@@ -95,6 +109,13 @@ internal unsafe class TitleMenu : IDisposable
 
         _lastCursor = cursor;
         LogDebug($"Title menu: cursor={cursor} -> {MenuItems[cursor]}");
+        if (_describeMenu)
+        {
+            _describeMenu = false;
+            Speech.Say(MenuScreenText, true);
+            Speech.Say(MenuItems[cursor], false);
+            return;
+        }
         Speech.Say(MenuItems[cursor], true);
     }
 

@@ -157,10 +157,16 @@ internal unsafe class LoadScreenTracker : IDisposable
             if (nullIdx >= 0) section = section.Substring(0, nullIdx);
 
             var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string ending = "";
             foreach (var line in section.Split('\n'))
             {
                 var sep = line.IndexOf(':');
-                if (sep < 0) continue;
+                // The line after "Times Cleared" names the ending a clear save finished ("Marie　Ending　Cleared").
+                if (sep < 0)
+                {
+                    if (fields.ContainsKey("Times Cleared") && line.Trim().Length > 0) ending = line.Replace('　', ' ').Trim();
+                    continue;
+                }
                 var key   = line.Substring(0, sep).Trim();
                 var value = line.Substring(sep + 1).Trim();
                 if (key.Length > 0) fields[key] = value;
@@ -188,6 +194,13 @@ internal unsafe class LoadScreenTracker : IDisposable
             var playTime = fields.TryGetValue("Play Time", out var pt)  ? FormatPlayTime(pt) : "";
 
             var parts = new List<string>();
+            // A CLEAR save starts New Game Plus (Haru 2026-10-15: the list never said so): the summary
+            // carries "Times Cleared:N" (0 on ordinary saves) and the ending's name on the next line.
+            if (fields.TryGetValue("Times Cleared", out var tc) && int.TryParse(tc.Trim(), out int cleared) && cleared > 0)
+            {
+                parts.Add($"New Game Plus clear data, cleared {cleared} {(cleared == 1 ? "time" : "times")}");
+                if (ending.Length > 0) parts.Add(ending);
+            }
             if (dateStr.Length    > 0) parts.Add(dateStr);
             if (timeStr.Length    > 0) parts.Add(timeStr);
             if (nameStr.Length    > 0) parts.Add(nameStr);

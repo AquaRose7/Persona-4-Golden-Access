@@ -1,54 +1,18 @@
-1
-00:00:01 --> 00:00:04
-A blue truck drives down a winding road through a lush green forest.
-2
-00:00:04 --> 00:00:07
-A group of teenagers on colorful motor scooters follows the truck.
-3
-00:00:07 --> 00:00:13
-A girl with long dark hair wears an orange dress and talks while riding her pink scooter.
-4
-00:00:13 --> 00:00:19
-Five teenagers ride their scooters side-by-side along the forested road.
-5
-00:00:19 --> 00:00:25
-A blonde girl in a green tank top turns and shouts back to her friends.
-6
-00:00:25 --> 00:00:31
-A boy with brown hair and large headphones around his neck smiles while riding a red scooter.
-7
-00:00:31 --> 00:00:35
-The blonde girl looks back at him with an annoyed expression.
-8
-00:00:35 --> 00:00:43
-The scooters travel along the road beneath a bright blue sky filled with white clouds.
-9
-00:00:43 --> 00:00:49
-Far behind them, a boy in a tank top and a person in a large round mascot suit struggle to pedal bicycles.
-10
-00:00:49 --> 00:00:54
-The boy on the bicycle pedaling furiously complains about their route.
-11
-00:00:54 --> 00:01:00
-The mascot character pants heavily from exhaustion and collapses onto the asphalt.
-12
-00:01:00 --> 00:01:04
-The blonde girl on the scooter looks ahead, gasps, and cheers happily.
-13
-00:01:04 --> 00:01:08
-The road opens up to a sparkling blue ocean running alongside a stone seawall.
-14
-00:01:08 --> 00:01:15
-The teenagers smile and enjoy the breeze as they ride next to the water.
-15
-00:01:15 --> 00:01:18
-A boy looks into his scooter rearview mirror and sees the left-behind friends screaming in the distance.
-16
-00:01:18 --> 00:01:23
-The mascot character suddenly sprints past the scooters on foot at incredible speed.
-17
-00:01:23 --> 00:01:28
-The teenagers stare in complete shock as the mascot races ahead of them.
-18
-00:01:28 --> 00:01:37
-The blonde girl laughs, speeds up, and leads the group as they race down the seaside highway.
+# P4CT032 (1:37): Golden, summer: the friends ride scooters to the beach.
+0:00 Sunlight pours through summer trees on a winding mountain road; scooters curve around the bend in a line, Rise on a pink one.
+0:09.7 Rise, in a white helmet with pink dots and an orange sundress, calls out to the riders ahead.
+0:13.5 Yukiko, Rise, {player} in a goggled helmet and Chie ride side by side; then Chie grins, sure of herself, while Rise looks doubtful.
+0:22 Yukiko's long black hair streams behind her as she and Rise ride, gazing ahead.
+0:26 Yosuke, in a white helmet with orange headphones, rides ahead, then smiles with easy confidence.
+0:30 Chie, annoyed, turns toward Yosuke, who smiles with his eyes closed; Yukiko and Rise ride beside them.
+0:41.7 The road falls quiet. Far behind, a bicycle labors up the slope, and Teddie in his bear costume runs beside it, gasping.
+0:48.7 Kanji, in a grey cap, grips the handlebars, teeth gritted, pedaling hard.
+0:52.4 Teddie jogs on, eyes half-closed, face blank with exhaustion, arms swinging.
+0:58.3 Teddie topples over backward, the orange wheels on his feet flying up; Chie looks back, startled.
+1:01.5 Past the guardrail, the sea glitters bright blue; far off, the scooters ride along a seawall.
+1:07.9 Yosuke and Chie grin, delighted; Yukiko looks back smiling, and Rise cries out happily.
+1:14 {player}, silver-grey hair under his goggled helmet, glances back; in the mirror, tiny and far behind, follow Kanji and Teddie.
+1:19.2 Rise, Yukiko, Yosuke and Chie ride in a line along the seawall as Teddie's costume tumbles head over wheels down the road.
+1:23.3 Facing us: Yosuke, Yukiko, Chie, {player} and Rise; Chie looks startled, then grins, leaning forward.
+1:28.6 Chie surges past the camera on her blue scooter while Yosuke watches, taken aback.
+1:31 From behind, Yosuke rides on as Chie speeds far ahead along the curving seaside road, the ocean sparkling.

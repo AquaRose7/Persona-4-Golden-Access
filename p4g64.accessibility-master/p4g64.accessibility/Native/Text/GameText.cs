@@ -489,6 +489,14 @@ internal static unsafe class GameText
         return s.Length == 0 ? null : s;
     }
 
+    /// <summary>One TYPED name cell (2 bytes, the keyboard's own Shift-JIS codes): the character, or ""
+    /// for an empty slot (fullwidth space 81 40, or zeros).</summary>
+    internal static string NameCellChar(byte hi, byte lo)
+    {
+        if ((hi == 0 && lo == 0) || (hi == 0x81 && lo == 0x40)) return "";
+        return NormalizeFullwidth(DecodeKeyCell(hi, lo)).Trim();
+    }
+
     private static Encoding? _sjis;
     private static bool _sjisTried;
 

@@ -244,7 +244,7 @@
       "items": [
         {
           "name": "Entering your name, new game",
-          "text": "Each name field holds up to 8 letters, and you enter your last name first. Type it, then press E on the keyboard, or the right shoulder button on a controller, to move to the next field. Type your first name the same way. When done, press X on the keyboard, or Start on a controller, to finish. If it will not finish, you typed something the game will not accept. Press Escape to clear the field and start that name over."
+          "text": "Each name field holds up to 8 letters, and you enter your last name first. The mod reads the game's own prompt, in your game's language. Each letter you type is read, then the name so far. C deletes: the first press steps back onto the last letter, the second erases it. Q and E move along the name and read each slot. Press E on the keyboard, or the right shoulder button on a controller, past the last name to move to your first name, and type it the same way. I and K read your last and first name, or RT with up and down on a controller. J and L then step through its letters one by one, or RT with left and right. When done, press X on the keyboard, or Start on a controller, to finish. If it will not finish, you typed something the game will not accept. Press Escape to clear the field and start that name over."
         },
         {
           "name": "Moving in dungeons",

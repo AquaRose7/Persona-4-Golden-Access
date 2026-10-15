@@ -1,24 +1,15 @@
-1
-00:00:02,000 --> 00:00:06,000
-Close up of fingers strumming an electric guitar
-2
-00:00:08,000 --> 00:00:11,000
-Two girls play brass instruments under a blue sky
-3
-00:00:14,000 --> 00:00:18,000
-A girl with long brown twintails sings into the microphone
-4
-00:00:24,000 --> 00:00:27,000
-A smiling bear mascot shakes a tambourine
-5
-00:00:28,000 --> 00:00:31,000
-The full band performs on a bright outdoor stage
-6
-00:00:40,000 --> 00:00:44,000
-A lively crowd watches the concert
-7
-00:00:51,000 --> 00:00:54,000
-Fans point their fingers up to the clouds
-8
-00:01:05,000 --> 00:01:09,000
-The screen slowly fades to bright white
+# P4CT040 (1:08): Golden epilogue: the band concert on the Junes stage, Rise singing.
+0:02.0 Quick close-ups: fingers on a yellow guitar, smiling Chie in green, Yukiko, Rise's pink earring, Naoto's blue cap.
+0:06.3 Teddie's tambourine, {player}'s grey bowl cut from behind, Kanji's drumsticks, Yukiko on sax, Chie on trumpet, bass strings.
+0:13.5 A hand rests on Chie's shoulder as Rise appears; she clasps the mic, wide-eyed, gazing straight out as if at {player}.
+0:19.6 Feet at the mic stand; Rise sings brightly, Yosuke and Teddie playing behind her.
+0:22.9 Yosuke grins over his guitar, Teddie bobs with his tambourine, Kanji drums with a smirk.
+0:26.3 The line-up: Rise at the mic, Chie, Yukiko, Yosuke, {player} on bass, then Naoto at her red keyboard.
+0:30.8 Chie grins, Yukiko smiles beside her sax, and Rise sings with a sidelong glance.
+0:34.8 Rise sings with her eyes shut, then hides a shy smile behind her hands; Yosuke and {player} play on.
+0:38.1 Kanji pounds the drums, then a wide shot shows the Junes stage and its listening crowd.
+0:44.3 Close on Rise, smiling and singing into the mic, eyes on us.
+0:46.3 Rise and Yukiko sing side by side, Naoto beams, and Yosuke and {player} sing along.
+0:50.9 Fans in the crowd thrust their index fingers up at the sky, then we see them from behind.
+0:57.1 Rise watches shyly, hands over her mouth. Kanji drums, Teddie shakes his tambourine, Naoto smiles.
+1:01.9 Chie and Yukiko sing; Rise winks cutely into the camera, as if at {player}, then both raise their arms high as the crowd cheers.

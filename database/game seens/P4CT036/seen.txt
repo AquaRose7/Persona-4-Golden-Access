@@ -1,30 +1,11 @@
-1
-00:00:00,000 --> 00:00:06,000
-A girl touches a television screen. The glass ripples like water beneath her finger.
-2
-00:00:06,000 --> 00:00:11,000
-Her hand sinks into the screen. She gasps as she is pulled forward into the television.
-3
-00:00:11,000 --> 00:00:20,000
-A group of teenagers grab onto her and each other in a frantic chain. They struggle to hold on but are all pulled inside.
-4
-00:00:20,000 --> 00:00:30,000
-They fall through a dizzying tunnel of rotating black and white squares.
-5
-00:00:30,000 --> 00:00:36,000
-A young man lies flat in the snow. He groans in pain and slowly opens his eyes.
-6
-00:00:36,000 --> 00:00:41,000
-A large clay figure with hollow eyes and a hollow mouth looms directly over him. He screams in shock.
-7
-00:00:41,000 --> 00:00:47,000
-Sunlight shines brightly through the tall green stalks of a dense bamboo forest.
-8
-00:00:47,000 --> 00:00:56,000
-The group of friends stands together in the snowy forest. They look bewildered by the strange clay figures surrounding them.
-9
-00:00:56,000 --> 00:01:09,000
-They turn together and gaze up in awe at a massive snow covered structure hidden among the bamboo trees.
-10
-00:01:09,000 --> 00:01:18,000
-A woman wearing purple high heels steps onto the icy ground. She stands quietly behind the distracted group.
+# P4CT036 (1:18): ski trip at night; a TV pulls the friends into a snowy golden bamboo forest of clay figures; a woman in tall heels steps forward at the end.
+0:00 Chie, in her green ski jacket, touches a pink-gloved fingertip to a dark TV. Its screen swirls white and her fingers sink in.
+0:09.2 A pale hand lunges from the swirl. Chie gasps, and friends grab her sleeve.
+0:11.9 Her friends crowd in, faces tense, Teddie's bear head scowling, tugging her sleeve; the huddle is dragged toward the floorboards as Chie shouts.
+0:22.2 Everything flashes white; a spiral of black and white squares fades into blank white.
+0:30 Golden light. An upside-down face with spiky light-brown hair opens brown eyes: Yosuke, waking.
+0:35.4 Yosuke, in white cap, stares up at a giant snow-capped clay figure with hollow eyes, then stands tiny among them in a golden bamboo grove, frozen.
+0:47.4 Yosuke clenches his jaw in alarm; beside him Yukiko, red headband, watches calmly. Chie, Naoto in white cap and plaid, and Teddie huddle behind.
+0:55.4 The friends stand tiny in snow before towering clay figures and a vast half-buried one, a black pole slanting across the frame.
+1:01.4 The line-up gazes up: Teddie, {player} in a dark cap with goggles, Chie, Rise in pink, tall Kanji, Yukiko, Naoto and Yosuke.
+1:11.4 Purple high heels step onto glittering snow. Far back, the friends stand with backs to us, gazing up at a colossal figure as a woman's long legs stride in.
