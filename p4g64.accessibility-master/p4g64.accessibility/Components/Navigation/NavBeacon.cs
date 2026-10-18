@@ -87,6 +87,8 @@ internal sealed class NavBeacon
         _keyWas = k;
 
         if (!_active || !_hasTarget) { _voice.Playing = false; DungeonAudio.SetWant(this, false); return; }
+        // Silent behind the camp menu (Haru 2026-10-18); the target is kept, so it sounds again when the menu closes.
+        if (CommandMenus.PlayerMenu.IsMenuOpen) { _voice.Playing = false; DungeonAudio.SetWant(this, false); return; }
 
         // The fixed target belongs to ONE floor: stop if we leave the dungeon or change floors.
         if (!InDungeon() || FloorKey() != _beaconFloor)
@@ -156,6 +158,7 @@ internal sealed class NavBeacon
         // alone was ambiguous — pitch 1.0 dead ahead easing to ~0.82 (≈3
         // semitones down) directly behind makes front/back unmistakable.
         float rate = 1f - 0.18f * (1f - openness);
+        _voice.Aim(BeaconVoice.Azimuth(pan, 2f * openness - 1f));   // 3D sound: the same direction, behind included
         _voice.Set(gain, pan, rate);
         _voice.Playing = true;
     }

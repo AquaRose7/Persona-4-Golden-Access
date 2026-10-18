@@ -102,6 +102,9 @@ internal sealed class WallHum
             _vBehind = new BeaconVoice(fmt, sMono);  // wallSouth
             _vLeft = new BeaconVoice(fmt, wMono);    // wallWest
             _vRight = new BeaconVoice(fmt, eMono);   // wallEast
+            // 3D sound: each wall straight out its own way (P5R lesson, Haru 2026-10-17: walls placed between the
+            // quarters hid the free way — silence must stay "a free way")
+            _vAhead.Aim(0f); _vBehind.Aim(180f); _vLeft.Aim(-90f); _vRight.Aim(90f);
             DungeonAudio.AddInput(_vAhead); DungeonAudio.AddInput(_vBehind);
             DungeonAudio.AddInput(_vLeft); DungeonAudio.AddInput(_vRight);
             _loaded = true;
@@ -116,6 +119,7 @@ internal sealed class WallHum
             dMono = BeaconVoice.MakeSeamless(dMono, (int)(fmt.SampleRate * SeamFadeSec));
             _vDAhead = new BeaconVoice(fmt, dMono); _vDBehind = new BeaconVoice(fmt, dMono);
             _vDLeft = new BeaconVoice(fmt, dMono); _vDRight = new BeaconVoice(fmt, dMono);
+            _vDAhead.Aim(0f); _vDBehind.Aim(180f); _vDLeft.Aim(-90f); _vDRight.Aim(90f);
             DungeonAudio.AddInput(_vDAhead); DungeonAudio.AddInput(_vDBehind);
             DungeonAudio.AddInput(_vDLeft); DungeonAudio.AddInput(_vDRight);
             _doorLoaded = true;

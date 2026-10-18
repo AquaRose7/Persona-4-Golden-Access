@@ -139,8 +139,21 @@ internal sealed class WallBump
         return major >= 20 && major < 220;   // dungeon floors 20-69; battles (220-299) excluded
     }
 
-    private static void Thud()
-        => ToneCue.PlayTones(0.5f * SoundSettings.BumpVol, (440f, 55), (300f, 85));
+    /// <summary>The thud — with 3D sound on, from the wall you pushed into (Haru 2026-10-18: "the bump sound on 3d we want
+    /// it to sound from the place you bumped on"): the push direction captured at the hit, against the camera now. Pan
+    /// mode keeps it centred, as before.</summary>
+    private void Thud()
+    {
+        float az = float.NaN;
+        var (fx, fz) = FieldTracker.CameraForward3D();
+        if (fx != 0f || fz != 0f)
+        {
+            float ahead = _hitDirX * fx + _hitDirZ * fz;
+            float right = _hitDirX * -fz + _hitDirZ * fx;   // world right of the camera = (-fz, fx), as in TryIntentWorld
+            az = BeaconVoice.Azimuth(right, ahead);
+        }
+        ToneCue.PlayTonesAt(0.5f * SoundSettings.BumpVol, 0f, az, (440f, 55), (300f, 85));
+    }
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;

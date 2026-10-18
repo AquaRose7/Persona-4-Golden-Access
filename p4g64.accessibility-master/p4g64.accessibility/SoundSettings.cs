@@ -41,6 +41,7 @@ internal static class Defaults
     public const bool MovieDescriptions = true;
     public const bool WindowsVoice = true;      // Prism falls back to a Windows voice when no screen reader runs (v2.2.1)
     public const bool CameraCompass = true;     // turning the camera speaks the direction it faces (v2.2.1)
+    public const bool Hrtf3D = false;           // 3D sound through the measured head — OFF (Haru 2026-10-18: an old mod, players must not find it changed)
 }
 
 /// <summary>

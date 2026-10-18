@@ -97,6 +97,97 @@ internal sealed class SettingsMenu
 
     private Category[] BuildCategories() => new[]
     {
+        // General (Haru, 2026-10-18): the old Cursor and Readers sections merged, with 3D sound first; General comes first in the menu.
+        new Category
+        {
+            Name = "General",
+            Desc = "3D sound, the navigation lists and the H mapping cursor, and the spoken readers. The readers' shortcuts keep working and stay in sync.",
+            Rows = new[]
+            {
+                new Row
+                {
+                    Name = "3D sound (HRTF)", Key = DungeonAudio.Hrtf3DKey,
+                    Desc = DungeonAudio.Hrtf != null
+                        ? "For headphones. Every sound that comes from a place, the beacons, the Shadows, the walls and the doors, is heard from its real direction, behind you included, through a measured head (the Neumann KU100 of the SADIE II database). Off: left and right panning as before."
+                        : "3D sound unavailable: the head file is missing from the mod's hrtf folder. Sounds use left and right panning.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.Hrtf3D ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => BeaconVoice.Hrtf3D ? 1 : 0,
+                    Set = v => { if (DungeonAudio.Hrtf == null) return; ModSettings.SetBool(DungeonAudio.Hrtf3DKey, v == 1); BeaconVoice.Hrtf3D = v == 1; },
+                },
+                new Row
+                {
+                    Name = "Navigation sorting", Key = "nav_sort",
+                    Desc = "How the navigation lists are ordered. By distance keeps the nearest first; Alphabetical keeps a stable order. It applies in town and in dungeon lobbies; dungeon floors always stay by distance.",
+                    Kind = Kind.Choice, Options = new[] { "By distance", "Alphabetical" }, Def = Defaults.NavSort, Min = 0, Max = 1, Step = 1,
+                    Get = () => ModSettings.GetInt("nav_sort", Defaults.NavSort),
+                    Set = v => ModSettings.SetInt("nav_sort", v),
+                },
+                new Row
+                {
+                    Name = "Cursor default mode", Key = "cursor_default_mode",
+                    Desc = "What the mapping cursor starts in each time you open it. Walk steps the player; Look surveys without moving.",
+                    Kind = Kind.Choice, Options = new[] { "Walk", "Look" }, Def = Defaults.CursorMode, Min = 0, Max = 1, Step = 1,
+                    Get = () => ModSettings.GetInt("cursor_default_mode", Defaults.CursorMode),
+                    Set = v => ModSettings.SetInt("cursor_default_mode", v),
+                },
+                new Row
+                {
+                    Name = "Cursor default directions", Key = "cursor_default_frame",
+                    Desc = "The direction frame at game start. Compass is fixed north south west east; Camera is ahead behind left right.",
+                    Kind = Kind.Choice, Options = new[] { "Compass", "Camera" }, Def = Defaults.CursorFrame, Min = 0, Max = 1, Step = 1,
+                    Get = () => ModSettings.GetInt("cursor_default_frame", Defaults.CursorFrame),
+                    Set = v => ModSettings.SetInt("cursor_default_frame", v),
+                },
+                new Row
+                {
+                    Name = "Game text language", Key = "text_language",
+                    Desc = "Which script the game's text is decoded with. Auto follows the language set for the game in Steam. Takes effect after restarting the game.",
+                    Kind = Kind.Choice, Options = Native.Text.GameLanguage.ChoiceLabels, Def = Defaults.TextLanguage, Min = 0, Max = 5, Step = 1,
+                    Get = () => ModSettings.GetInt("text_language", Defaults.TextLanguage),
+                    Set = v => { ModSettings.SetInt("text_language", v); Speech.Say("Takes effect after restarting the game.", false); },
+                },
+                new Row
+                {
+                    Name = "Dialogue reader", Key = "dialogue_reader",
+                    Desc = "Automatic reading of dialogue text.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.DialogueReader ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => Dialogue.ReaderEnabled ? 1 : 0,
+                    Set = v => { Dialogue.ReaderEnabled = v == 1; ModSettings.SetBool("dialogue_reader", v == 1); },
+                },
+                new Row
+                {
+                    Name = "Cutscene subtitles", Key = "subtitle_reader",
+                    Desc = "Reading of anime cutscene subtitles. Note: subtitles must also be turned on in the game's own settings for this to read.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.SubtitleReader ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => SubtitleReader.ReaderEnabled ? 1 : 0,
+                    Set = v => { SubtitleReader.ReaderEnabled = v == 1; ModSettings.SetBool("subtitle_reader", v == 1); },
+                },
+                new Row
+                {
+                    Name = "Cutscene descriptions", Key = "movie_descriptions",
+                    Desc = "Hand written descriptions of cutscene visuals.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.MovieDescriptions ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => MovieDescription.Enabled ? 1 : 0,
+                    Set = v => { MovieDescription.Enabled = v == 1; ModSettings.SetBool("movie_descriptions", v == 1); },
+                },
+                new Row
+                {
+                    Name = "Camera directions", Key = "camera_compass",
+                    Desc = "When you turn the camera in the school or in a dungeon, the direction it now faces is spoken: north, northeast, and so on.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.CameraCompass ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => Navigation.CameraCompass.Enabled ? 1 : 0,
+                    Set = v => { Navigation.CameraCompass.Enabled = v == 1; ModSettings.SetBool("camera_compass", v == 1); },
+                },
+                new Row
+                {
+                    Name = "Windows voice", Key = "windows_voice",
+                    Desc = "When no screen reader is running, the mod speaks with a Windows voice. Off means the mod stays silent without a screen reader.",
+                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.WindowsVoice ? 1 : 0, Min = 0, Max = 1, Step = 1,
+                    Get = () => ModSettings.GetBool("windows_voice", Defaults.WindowsVoice) ? 1 : 0,
+                    Set = v => { ModSettings.SetBool("windows_voice", v == 1); Voice.PrismOutput.SetWindowsVoice(v == 1); },
+                },
+            },
+        },
         new Category
         {
             Name = "Sound volumes",
@@ -215,94 +306,6 @@ internal sealed class SettingsMenu
                     "The chime that tells you when to swing the net.", Defaults.BugChimeVol,
                     () => SoundSettings.BugChimeVol, v => SoundSettings.BugChimeVol = v,
                     v => ToneCue.PlayCue("bug_chime.wav", 0.6f * v / 100f, (1760f, 70))),
-            },
-        },
-        new Category
-        {
-            Name = "Cursor",
-            Desc = "How the H mapping cursor starts.",
-            Rows = new[]
-            {
-                new Row
-                {
-                    Name = "Navigation sorting", Key = "nav_sort",
-                    Desc = "How the navigation lists are ordered. By distance keeps the nearest first; Alphabetical keeps a stable order. It applies in town and in dungeon lobbies; dungeon floors always stay by distance.",
-                    Kind = Kind.Choice, Options = new[] { "By distance", "Alphabetical" }, Def = Defaults.NavSort, Min = 0, Max = 1, Step = 1,
-                    Get = () => ModSettings.GetInt("nav_sort", Defaults.NavSort),
-                    Set = v => ModSettings.SetInt("nav_sort", v),
-                },
-                new Row
-                {
-                    Name = "Cursor default mode", Key = "cursor_default_mode",
-                    Desc = "What the mapping cursor starts in each time you open it. Walk steps the player; Look surveys without moving.",
-                    Kind = Kind.Choice, Options = new[] { "Walk", "Look" }, Def = Defaults.CursorMode, Min = 0, Max = 1, Step = 1,
-                    Get = () => ModSettings.GetInt("cursor_default_mode", Defaults.CursorMode),
-                    Set = v => ModSettings.SetInt("cursor_default_mode", v),
-                },
-                new Row
-                {
-                    Name = "Cursor default directions", Key = "cursor_default_frame",
-                    Desc = "The direction frame at game start. Compass is fixed north south west east; Camera is ahead behind left right.",
-                    Kind = Kind.Choice, Options = new[] { "Compass", "Camera" }, Def = Defaults.CursorFrame, Min = 0, Max = 1, Step = 1,
-                    Get = () => ModSettings.GetInt("cursor_default_frame", Defaults.CursorFrame),
-                    Set = v => ModSettings.SetInt("cursor_default_frame", v),
-                },
-            },
-        },
-        new Category
-        {
-            Name = "Readers",
-            Desc = "The spoken reader toggles. Their shortcuts keep working and stay in sync.",
-            Rows = new[]
-            {
-                new Row
-                {
-                    Name = "Game text language", Key = "text_language",
-                    Desc = "Which script the game's text is decoded with. Auto follows the language set for the game in Steam. Takes effect after restarting the game.",
-                    Kind = Kind.Choice, Options = Native.Text.GameLanguage.ChoiceLabels, Def = Defaults.TextLanguage, Min = 0, Max = 5, Step = 1,
-                    Get = () => ModSettings.GetInt("text_language", Defaults.TextLanguage),
-                    Set = v => { ModSettings.SetInt("text_language", v); Speech.Say("Takes effect after restarting the game.", false); },
-                },
-                new Row
-                {
-                    Name = "Dialogue reader", Key = "dialogue_reader",
-                    Desc = "Automatic reading of dialogue text.",
-                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.DialogueReader ? 1 : 0, Min = 0, Max = 1, Step = 1,
-                    Get = () => Dialogue.ReaderEnabled ? 1 : 0,
-                    Set = v => { Dialogue.ReaderEnabled = v == 1; ModSettings.SetBool("dialogue_reader", v == 1); },
-                },
-                new Row
-                {
-                    Name = "Cutscene subtitles", Key = "subtitle_reader",
-                    Desc = "Reading of anime cutscene subtitles. Note: subtitles must also be turned on in the game's own settings for this to read.",
-                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.SubtitleReader ? 1 : 0, Min = 0, Max = 1, Step = 1,
-                    Get = () => SubtitleReader.ReaderEnabled ? 1 : 0,
-                    Set = v => { SubtitleReader.ReaderEnabled = v == 1; ModSettings.SetBool("subtitle_reader", v == 1); },
-                },
-                new Row
-                {
-                    Name = "Cutscene descriptions", Key = "movie_descriptions",
-                    Desc = "Hand written descriptions of cutscene visuals.",
-                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.MovieDescriptions ? 1 : 0, Min = 0, Max = 1, Step = 1,
-                    Get = () => MovieDescription.Enabled ? 1 : 0,
-                    Set = v => { MovieDescription.Enabled = v == 1; ModSettings.SetBool("movie_descriptions", v == 1); },
-                },
-                new Row
-                {
-                    Name = "Camera directions", Key = "camera_compass",
-                    Desc = "When you turn the camera in the school or in a dungeon, the direction it now faces is spoken: north, northeast, and so on.",
-                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.CameraCompass ? 1 : 0, Min = 0, Max = 1, Step = 1,
-                    Get = () => Navigation.CameraCompass.Enabled ? 1 : 0,
-                    Set = v => { Navigation.CameraCompass.Enabled = v == 1; ModSettings.SetBool("camera_compass", v == 1); },
-                },
-                new Row
-                {
-                    Name = "Windows voice", Key = "windows_voice",
-                    Desc = "When no screen reader is running, the mod speaks with a Windows voice. Off means the mod stays silent without a screen reader.",
-                    Kind = Kind.Toggle, Options = new[] { "Off", "On" }, Def = Defaults.WindowsVoice ? 1 : 0, Min = 0, Max = 1, Step = 1,
-                    Get = () => ModSettings.GetBool("windows_voice", Defaults.WindowsVoice) ? 1 : 0,
-                    Set = v => { ModSettings.SetBool("windows_voice", v == 1); Voice.PrismOutput.SetWindowsVoice(v == 1); },
-                },
             },
         },
     };

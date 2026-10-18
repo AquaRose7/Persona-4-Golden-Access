@@ -11,9 +11,19 @@ namespace p4g64.accessibility.Components.Navigation;
 /// smoothed gain + stereo pan (no clicks when it starts, stops, or pans). Shared
 /// by <see cref="ExitBeacon"/> and <see cref="ChestBeacon"/>, mixed through
 /// <see cref="DungeonAudio"/>.
+/// 3D sound (2026-10-18, ported from P5R Access): with <see cref="Hrtf3D"/> on (the settings menu's General → "3D sound
+/// (HRTF)", off by default) the voice goes through the measured head (<see cref="Spatializer"/>) from the direction its
+/// owner gives with <see cref="Aim"/>; off, the pan / inter-aural delay / <see cref="Openness"/> muffle below, unchanged.
 /// </summary>
 internal sealed class BeaconVoice : ISampleProvider
 {
+    /// <summary>3D sound on (the setting, when the head file loaded): every voice goes through the head.</summary>
+    public static volatile bool Hrtf3D;
+
+    private readonly Spatializer? _spatial;
+    private volatile float _tgtAz, _tgtEl;
+    private bool _wasHrtf;
+
     public WaveFormat WaveFormat { get; }
     public volatile bool Playing;
 
@@ -56,20 +66,46 @@ internal sealed class BeaconVoice : ISampleProvider
         }
         _mono = mono;
         _gapFrames = Math.Max(0, gapFrames);
+        if (DungeonAudio.Hrtf is { } head) _spatial = new Spatializer(head);
     }
 
-    /// <summary><paramref name="rate"/> = playback speed = PITCH (1 = natural; &gt;1 higher, &lt;1 lower).</summary>
+    /// <summary><paramref name="rate"/> = playback speed = PITCH (1 = natural; &gt;1 higher, &lt;1 lower).
+    /// A non-finite value is taken as silence (gain), centre (pan) or natural pitch: one NaN would poison the voice for
+    /// good — gain, filter and history all NaN (P5R review, 2026-10-18).</summary>
     public void Set(float gain, float pan, float rate = 1f)
-    { _tgtGain = gain; _tgtPan = pan; _tgtRate = Math.Clamp(rate, 0.4f, 2.2f); }
+    {
+        _tgtGain = float.IsFinite(gain) ? gain : 0f;
+        _tgtPan = float.IsFinite(pan) ? pan : 0f;
+        _tgtRate = float.IsFinite(rate) ? Math.Clamp(rate, 0.4f, 2.2f) : 1f;
+    }
+
+    /// <summary>The 3D DIRECTION: azimuth in degrees CLOCKWISE from the camera's forward (90 = right), elevation up.
+    /// Heard only with <see cref="Hrtf3D"/> on; the pan mode keeps using <see cref="Set"/>'s pan.</summary>
+    public void Aim(float azimuthDeg, float elevationDeg = 0f)
+    {
+        if (!float.IsFinite(azimuthDeg) || !float.IsFinite(elevationDeg)) return;   // keep the last good direction
+        _tgtAz = azimuthDeg; _tgtEl = elevationDeg;
+    }
+
+    /// <summary>The azimuth (degrees clockwise from ahead) of a direction given as its right (+) / left (−) part and its
+    /// ahead (+) / behind (−) part — the pan and the (2 × openness − 1) every beacon already computes.</summary>
+    public static float Azimuth(float right, float ahead) => MathF.Atan2(right, ahead) * (180f / MathF.PI);
 
     public int Read(float[] buffer, int offset, int count)
     {
         int frames = count / 2;
         const float smooth = 0.0009f;
+        bool hrtf = Hrtf3D && _spatial != null;
+        if (hrtf != _wasHrtf) { _wasHrtf = hrtf; _spatial?.Reset(); _lpState = 0f; }
+        if (hrtf) _spatial!.Aim(_tgtAz, _tgtEl);
         for (int n = 0; n < frames; n++)
         {
             float target = Playing ? _tgtGain : 0f;
             _gain += (target - _gain) * smooth;
+            // A fade to silence must END: the wall and door voices stay Playing at gain 0, and a gain that only tends to
+            // 0 kept them computing forever — in 3D never skipped as silent, and sinking into denormals (P5R, +11 % of a
+            // core live, 2026-10-17)
+            if (target == 0f && _gain < 1e-5f) _gain = 0f;
             _pan += (_tgtPan - _pan) * smooth;
             _rate += (_tgtRate - _rate) * smooth;
             _open += (_tgtOpen - _open) * smooth;
@@ -90,9 +126,17 @@ internal sealed class BeaconVoice : ISampleProvider
             }
             else { _posF = 0; _gapLeft = 0; }
 
+            if (hrtf)
+            {
+                // the head places it (with its own tiny back muffle); the Openness muffle is the pan mode's only
+                _spatial!.Process(s, out buffer[offset + n * 2], out buffer[offset + n * 2 + 1]);
+                continue;
+            }
+
             // One-pole low-pass: a≈1 passes everything (bright), small a muffles.
             float a = 0.08f + 0.92f * _open;
             _lpState += a * (s - _lpState);
+            if (MathF.Abs(_lpState) < 1e-15f) _lpState = 0f;   // a dying tail must not turn into denormals
             s = _lpState;
 
             // Inter-aural time delay (ITD): the ear FARTHER from the source hears it

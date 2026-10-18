@@ -111,7 +111,7 @@ internal sealed class AmbushCue
 
         bool anyReady = false;
         int near = -1;
-        float nearD = float.MaxValue, nearBack = 1f, nearFace = 180f, nearPan = 0f;
+        float nearD = float.MaxValue, nearBack = 1f, nearFace = 180f, nearPan = 0f, nearAz = float.NaN;
         var shadows = DungeonNav.ShadowsWithType();
         for (int i = 0; i < shadows.Count; i++)
         {
@@ -130,6 +130,8 @@ internal sealed class AmbushCue
                 // Camera-relative pan, the radar's own math.
                 nearPan = camFx != 0 || camFz != 0
                     ? Math.Clamp(-(dx / d * camFz - dz / d * camFx), -1f, 1f) : 0f;
+                // 3D sound (2026-10-18): the same direction, behind included, through the head
+                nearAz = camFx != 0 || camFz != 0 ? BeaconVoice.Azimuth(nearPan, (dx * camFx + dz * camFz) / d) : float.NaN;
             }
         }
 
@@ -157,7 +159,7 @@ internal sealed class AmbushCue
             else if (_sneaking && nearBack > TurnBack)
             {
                 _sneaking = false;
-                ToneCue.PlayCuePanned("ambush_turn.wav", 0.45f * SoundSettings.AmbushTurnVol, nearPan, (520f, 70), (0f, 30), (390f, 110));
+                ToneCue.PlayCueAt("ambush_turn.wav", 0.45f * SoundSettings.AmbushTurnVol, nearPan, nearAz, (520f, 70), (0f, 30), (390f, 110));
 #if DEBUG
                 Log($"[AmbushDiag] TURNING d={nearD:F0} back={nearBack:F2}");
 #endif
@@ -168,13 +170,13 @@ internal sealed class AmbushCue
             {
                 float k = Math.Clamp((nearD - 300f) / 1200f, 0f, 1f);
                 _nextTickMs = now + (long)(140f + 660f * k);
-                ToneCue.PlayCuePanned("ambush_tick.wav", 0.22f * SoundSettings.AmbushTickVol, nearPan, (1100f, 14));
+                ToneCue.PlayCueAt("ambush_tick.wav", 0.22f * SoundSettings.AmbushTickVol, nearPan, nearAz, (1100f, 14));
             }
         }
 
         if (anyReady && !_ready && now - _notReadySince >= RearmMs)
         {
-            ToneCue.PlayCuePanned("ambush_strike.wav", 0.5f * SoundSettings.AmbushStrikeVol, nearPan, (2093f, 45), (0f, 15), (2637f, 70));
+            ToneCue.PlayCueAt("ambush_strike.wav", 0.5f * SoundSettings.AmbushStrikeVol, nearPan, nearAz, (2093f, 45), (0f, 15), (2637f, 70));
 #if DEBUG
             _chimeMs = now;
             Log($"[AmbushDiag] chime d={nearD:F0} face={nearFace:F0} back={nearBack:F2}");

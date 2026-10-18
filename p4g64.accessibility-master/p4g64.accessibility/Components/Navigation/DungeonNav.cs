@@ -121,6 +121,11 @@ internal class DungeonNav
     private const int CHEST_COUNT = 8, CHEST_STRIDE = 0x190;
     private const int OFF_CHEST_ACTIVE = 0x00, OFF_CHEST_STATE = 0x08;
     private const int OFF_CHEST_X = 0x170, OFF_CHEST_Z = 0x178;
+    // Chest TYPE = *(byte*)(*(nint*)(e+0x180) + 4) — what the script builtin FLD_FUNCTION_0026
+    // (FUN_140322530) returns for the chest you touch (FUN_1402E84E0 sets the current-chest ptr
+    // 0x15E4382A8 to the array entry). dungeon.flow dng_tbox(): 1 = rank box = the LOCKED golden
+    // chest (needs a Chest Key); 10 / 8 / 9 = encounter boxes; anything else opens at once.
+    private const int OFF_CHEST_REC = 0x180, CHEST_REC_TYPE = 0x04, CHEST_TYPE_LOCKED = 1;
 
     // ── Door / interactable scene-actors (Ghidra, corrected by live probe) ──
     private static readonly nint SceneRootPtr = unchecked((nint)0x140AA8098L);
@@ -769,7 +774,7 @@ internal class DungeonNav
 
         if (cat == Cat.Chests)
         {
-            AutoWalk.AutoWalker.WalkTarget("the chest", e.TX, e.TZ, AutoWalk.AutoWalker.TargetKind.Chest);
+            AutoWalk.AutoWalker.WalkTarget($"the {e.Label.ToLowerInvariant()}", e.TX, e.TZ, AutoWalk.AutoWalker.TargetKind.Chest);
             return;
         }
 
@@ -1170,14 +1175,17 @@ internal class DungeonNav
         float px = FieldTracker.LivePlayerX, pz = FieldTracker.LivePlayerZ;
         if (float.IsNaN(px) || float.IsNaN(pz)) return list;
 
-        foreach (var (x, z) in EnumerateChests())
+        foreach (var (x, z, locked) in EnumerateChestsTyped())
         {
             float dx = x - px, dz = z - pz;
             float dist = MathF.Sqrt(dx * dx + dz * dz);
             int steps = Math.Max(1, (int)MathF.Round(dist / WorldPerStep));
             string dir = WorldDirection(dx, dz);   // fixed compass (same as the H cursor)
-            list.Add(new Entry { Say = $"Chest {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
-                                 Label = "Chest", HasPos = true, TX = x, TZ = z });
+            // Golden (locked) chests are told apart — a sighted player sees the difference
+            // (player request 2026-10-18).
+            string label = locked ? "Locked chest" : "Chest";
+            list.Add(new Entry { Say = $"{label} {dir}, {steps} step{(steps == 1 ? "" : "s")}", Dist = dist,
+                                 Label = label, HasPos = true, TX = x, TZ = z });
         }
         list.Sort((a, b) => a.Dist.CompareTo(b.Dist));
         return list;
@@ -1560,21 +1568,37 @@ internal class DungeonNav
     internal static List<(float x, float z, float fx, float fz, int type)> ShadowsWithType()
         => ReadFloorGate() ? EnumerateShadows() : new();
 
-    private static unsafe List<(float x, float z)> EnumerateChests()
+    private static List<(float x, float z)> EnumerateChests()
     {
         var outp = new List<(float, float)>();
+        foreach (var (x, z, _) in EnumerateChestsTyped()) outp.Add((x, z));
+        return outp;
+    }
+
+    private static unsafe List<(float x, float z, bool locked)> EnumerateChestsTyped()
+    {
+        var outp = new List<(float, float, bool)>();
         for (int i = 0; i < CHEST_COUNT; i++)
         {
             nint e = ChestArray + i * CHEST_STRIDE;
-            if (!IsReadable(e + OFF_CHEST_Z, 4)) continue;
+            if (!IsReadable(e + OFF_CHEST_REC, 8)) continue;
             if (*(int*)(e + OFF_CHEST_ACTIVE) == 0) continue;
             // +0x08 state: 0 = unopened. It flips when the chest is opened, so
             // skip those — an opened chest must not keep showing in nav/beacon.
             if (*(int*)(e + OFF_CHEST_STATE) == 1) continue;
             float x = *(float*)(e + OFF_CHEST_X), z = *(float*)(e + OFF_CHEST_Z);
-            if (float.IsFinite(x) && float.IsFinite(z) && (x != 0 || z != 0)) outp.Add((x, z));
+            if (float.IsFinite(x) && float.IsFinite(z) && (x != 0 || z != 0))
+                outp.Add((x, z, ChestType(e) == CHEST_TYPE_LOCKED));
         }
         return outp;
+    }
+
+    /// <summary>The chest's type code (see OFF_CHEST_REC), or -1 when its record is unreadable.</summary>
+    private static unsafe int ChestType(nint e)
+    {
+        nint rec = *(nint*)(e + OFF_CHEST_REC);
+        if (rec == 0 || !IsReadable(rec + CHEST_REC_TYPE, 1)) return -1;
+        return *(byte*)(rec + CHEST_REC_TYPE);
     }
 
     private static unsafe void LogChestArray()
@@ -1583,12 +1607,12 @@ internal class DungeonNav
         for (int i = 0; i < CHEST_COUNT; i++)
         {
             nint e = ChestArray + i * CHEST_STRIDE;
-            if (!IsReadable(e + OFF_CHEST_Z, 4)) { sb.Append($" [{i} unreadable]"); continue; }
+            if (!IsReadable(e + OFF_CHEST_REC, 8)) { sb.Append($" [{i} unreadable]"); continue; }
             int act = *(int*)(e + OFF_CHEST_ACTIVE);
             int st = *(int*)(e + OFF_CHEST_STATE);
             int b04 = *(int*)(e + 0x04), b0c = *(int*)(e + 0x0C), b10 = *(int*)(e + 0x10);
             float x = *(float*)(e + OFF_CHEST_X), z = *(float*)(e + OFF_CHEST_Z);
-            sb.Append($" [{i} act={act} st={st} +4={b04} +C={b0c} +10={b10} @({x:F0},{z:F0})]");
+            sb.Append($" [{i} act={act} st={st} type={ChestType(e)} +4={b04} +C={b0c} +10={b10} @({x:F0},{z:F0})]");
         }
         Log($"[ChestArray]{sb}");
     }

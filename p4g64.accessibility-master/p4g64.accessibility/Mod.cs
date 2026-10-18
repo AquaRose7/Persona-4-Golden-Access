@@ -168,6 +168,11 @@ public class Mod : ModBase // <= Do not Remove.
         Components.SubtitleReader.ReaderEnabled = ModSettings.GetBool("subtitle_reader", Defaults.SubtitleReader);
         Components.MovieDescription.Enabled = ModSettings.GetBool("movie_descriptions", Defaults.MovieDescriptions);
         SoundSettings.Load();
+        // 3D sound (2026-10-18, from P5R Access): the head first — every BeaconVoice and ToneCue voice built after this
+        // makes its own Spatializer from it. Only data is read here; no audio device opens (audio stays lazy).
+        Components.Navigation.DungeonAudio.LoadHrtf();
+        Components.Navigation.BeaconVoice.Hrtf3D = Components.Navigation.DungeonAudio.Hrtf != null
+            && ModSettings.GetBool(Components.Navigation.DungeonAudio.Hrtf3DKey, Defaults.Hrtf3D);
         Components.Navigation.ToneCue.Init();
         {
             int choice = ModSettings.GetInt("text_language", Defaults.TextLanguage);

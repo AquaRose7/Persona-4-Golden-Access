@@ -2560,6 +2560,8 @@ internal class AutoWalker
         // Alt-tabbed away: stop. Synthesized WASD keystrokes go to the FOCUSED
         // window, so continuing would inject movement keys into the other app.
         if (!Utils.GameHasFocus()) { why = "Lost focus."; return true; }
+        // The CAMP MENU opened (Haru 2026-10-18): the walk's held keys would drive its cursor — stop.
+        if (CommandMenus.PlayerMenu.IsMenuOpen) { why = "Walk stopped."; return true; }
         for (int i = 0; i < CancelVKeys.Length; i++)
         {
             bool down = IsKeyDown(CancelVKeys[i]);

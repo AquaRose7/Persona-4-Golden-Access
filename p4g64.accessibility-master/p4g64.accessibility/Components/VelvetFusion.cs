@@ -54,6 +54,7 @@ internal unsafe class VelvetFusion : IDisposable
     private const int  INH_SCROLL  = 0x33F2C;
     private const int  INH_CURSOR  = 0x33F2E;
     private const int  INH_ARRAY   = 0x12D8;
+    private const int  INH_MAX_ROWS = (INH_COUNT - INH_ARRAY) / 4;   // 96
     private delegate void InhDrawDelegate(nint param_1);
     private IHook<InhDrawDelegate>? _inhHook;
     private int _inhLast = -1;
@@ -147,8 +148,9 @@ internal unsafe class VelvetFusion : IDisposable
         // 7=Search, 0=Normal, 1=Triangle, 6=Back. Cross/Pentagon/Hexagon (the
         // spread fusions, unlocked 2026-07-03) = 2/3/4 by the glyph-id sequence —
         // an UNKNOWN id logs itself so a wrong guess is caught in one visit.
-        new(0x001, 0x1F0, 0x1F2, 0x1D0, 4, "method-menu", new[] { 7, 0, 1, 2, 3, 4, 6 },
-            new[] { "Search", "Normal", "Triangle", "Cross", "Pentagon", "Hexagon", "Back" }),
+        // 5 = Dodecagon Spread (the 12-persona Izanagi-no-Okami fusion; live 2026-10-18).
+        new(0x001, 0x1F0, 0x1F2, 0x1D0, 4, "method-menu", new[] { 7, 0, 1, 2, 3, 4, 5, 6 },
+            new[] { "Search", "Normal", "Triangle", "Cross", "Pentagon", "Hexagon", "Dodecagon", "Back" }),
         // L2 fusion facility menu, id-based (ids confirmed live 6/56/61/63 @ +0xFA).
         new(0x400, 0x188, 0x18A, 0x0FA, 0x18, "fuse-menu", new[] { 6, 56, 61, 63 },
             new[] { "Fuse", "Fusion Forecast", "Talk", "Back" }),
@@ -749,7 +751,9 @@ internal unsafe class VelvetFusion : IDisposable
     {
         if (obj == 0 || !IsReadable(obj + INH_COUNT) || !IsReadable(obj + INH_CURSOR)) return;
         int count  = *(ushort*)(obj + INH_COUNT);
-        if (count < 1 || count > 64) { _inhLast = -1; return; }
+        // The row array (+0x12D8, 4 bytes each) ends at the count field +0x1458 = 96 rows —
+        // a Dodecagon fusion (12 materials) offers more than 64 skills (it was silent at 64).
+        if (count < 1 || count > INH_MAX_ROWS) { _inhLast = -1; return; }
         int scroll = *(ushort*)(obj + INH_SCROLL);
         int abs    = scroll + *(ushort*)(obj + INH_CURSOR);
         if (abs < 0 || abs >= count) return;
@@ -814,6 +818,9 @@ internal unsafe class VelvetFusion : IDisposable
     private const int SP_COUNT = 0x10B0, SP_CURSOR = 0x10B2;
     private const int SP_ENTRY = 0x8E2, SP_ENTRY_STRIDE = 0x30;
     private const int SP_PTR = 0xB28, SP_PTR_STRIDE = 0x70, SP_MATS = 0x0C;
+    // Dodecagon (Izanagi-no-Okami) = 12 materials; reading only 6 dropped Orthrus…Legion
+    // (player report 2026-10-18, verified on screen).
+    private const int SP_MAX_MATS = 12;
     private int _spreadLast = -1;
 
     private void ReadSpread(nint obj)
@@ -842,10 +849,10 @@ internal unsafe class VelvetFusion : IDisposable
         if (IsReadable(slot))
         {
             nint blk = *(nint*)slot;
-            if (blk != 0 && IsReadable(blk + 0x20) && *(ushort*)blk == id)
+            if (blk != 0 && IsReadable(blk + SP_MATS + SP_MAX_MATS * 2) && *(ushort*)blk == id)
             {
                 var mats = new List<string>();
-                for (int i = 0; i < 6; i++)
+                for (int i = 0; i < SP_MAX_MATS; i++)
                 {
                     int mid = *(ushort*)(blk + SP_MATS + i * 2);
                     if (mid < 1 || mid > 400) break;
@@ -885,8 +892,9 @@ internal unsafe class VelvetFusion : IDisposable
             ? $"{name}, level {lvl}" : $"{name}, {arc}, level {lvl}");
 
         // Materials (recipe): sub-entries at +0x30 stride; stop at the first invalid id.
+        // The 0x278 entry holds the result + 12 sub-entries (a Dodecagon recipe).
         var mats = new List<string>();
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 12; i++)
         {
             nint sub = e + (nint)(i + 1) * SR_SUB;
             if (!IsReadable(sub + 4)) break;

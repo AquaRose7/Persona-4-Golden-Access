@@ -39,6 +39,12 @@ internal static class ToneCue
     /// <summary>Like <see cref="PlayTones"/>, placed left (-1) … right (+1) (equal-power pan; 2026-10-02, the ambush
     /// sneak ticks).</summary>
     internal static void PlayTonesPanned(float gain, float pan, params (float freq, int ms)[] notes)
+        => PlayTonesAt(gain, pan, float.NaN, notes);
+
+    /// <summary>Like <see cref="PlayTonesPanned"/>, from a 3D DIRECTION too (2026-10-18): with 3D sound on
+    /// (<see cref="BeaconVoice.Hrtf3D"/>) it is heard through the head from <paramref name="azimuthDeg"/> (degrees clockwise
+    /// from the camera's forward); off, at <paramref name="pan"/> as before. NaN = no direction (pan only).</summary>
+    internal static void PlayTonesAt(float gain, float pan, float azimuthDeg, params (float freq, int ms)[] notes)
     {
         try
         {
@@ -63,7 +69,7 @@ internal static class ToneCue
                 }
                 pos += n;   // freq 0 = silence gap (buffer already zeroed)
             }
-            Submit(buf, pan);
+            Submit(buf, pan, azimuthDeg);
         }
         catch { /* a cue must never break its caller */ }
     }
@@ -79,6 +85,10 @@ internal static class ToneCue
         => PlayCuePanned(file, gain, 0f, fallback);
 
     internal static void PlayCuePanned(string file, float gain, float pan, params (float freq, int ms)[] fallback)
+        => PlayCueAt(file, gain, pan, float.NaN, fallback);
+
+    /// <summary>Like <see cref="PlayCuePanned"/>, from a 3D direction too (see <see cref="PlayTonesAt"/>).</summary>
+    internal static void PlayCueAt(string file, float gain, float pan, float azimuthDeg, params (float freq, int ms)[] fallback)
     {
         float[]? mono;
         lock (_cueFiles)
@@ -89,11 +99,11 @@ internal static class ToneCue
                 _cueFiles[file] = mono;
             }
         }
-        if (mono != null) PlayWav(mono, gain, 2000, pan);
-        else PlayTonesPanned(gain, pan, fallback);
+        if (mono != null) PlayWav(mono, gain, 2000, pan, azimuthDeg);
+        else PlayTonesAt(gain, pan, azimuthDeg, fallback);
     }
 
-    internal static void PlayWav(float[] mono, float gain, int maxMs = 2000, float pan = 0f)
+    internal static void PlayWav(float[] mono, float gain, int maxMs = 2000, float pan = 0f, float azimuthDeg = float.NaN)
     {
         try
         {
@@ -107,7 +117,7 @@ internal static class ToneCue
                 float env = i > n - fade ? (n - i) / (float)fade : 1f;
                 buf[i] = mono[i] * gain * env;
             }
-            Submit(buf, pan);
+            Submit(buf, pan, azimuthDeg);
         }
         catch { }
     }
@@ -115,14 +125,14 @@ internal static class ToneCue
     internal static bool TryLoadWav(string fileName, out float[] mono)
         => BeaconVoice.TryLoadMono(fileName, out mono);
 
-    private static void Submit(float[] rendered, float pan = 0f)
+    private static void Submit(float[] rendered, float pan = 0f, float azimuthDeg = float.NaN)
     {
         var pool = _pool!;
         OneShot slot = pool[0];
         foreach (var v in pool) if (v.Idle) { slot = v; break; }   // else steal pool[0]
         _lastPlayTick = Environment.TickCount64;
         DungeonAudio.SetWant(_wantKey, true);
-        slot.Start(rendered, pan);
+        slot.Start(rendered, pan, azimuthDeg);
     }
 
     private static void LingerCheck()
@@ -139,28 +149,45 @@ internal static class ToneCue
         catch { }
     }
 
-    /// <summary>Plays one pre-rendered mono buffer once, centered or panned. Reusable.</summary>
+    /// <summary>Plays one pre-rendered mono buffer once, centered or panned — or, given a direction while 3D sound is on,
+    /// through the head (its own <see cref="Spatializer"/>). Reusable.</summary>
     private sealed class OneShot : ISampleProvider
     {
         public WaveFormat WaveFormat => DungeonAudio.Format;
         private volatile float[]? _buf;
         private int _pos;
         private float _gl = 0.707f, _gr = 0.707f;
+        private readonly Spatializer? _spatial = DungeonAudio.Hrtf is { } head ? new Spatializer(head) : null;
+        private volatile float _az = float.NaN;
+        private volatile int _gen;
+        private int _seenGen;
+        private bool _3d;
         public bool Idle => _buf == null;
 
-        public void Start(float[] buf, float pan = 0f)
+        public void Start(float[] buf, float pan = 0f, float azimuthDeg = float.NaN)
         {
             float a = (Math.Clamp(pan, -1f, 1f) + 1f) * MathF.PI / 4f;   // equal power: centre = 0.707 each
             _gl = MathF.Cos(a);
             _gr = MathF.Sin(a);
+            _az = azimuthDeg;
             _pos = 0;
             _buf = buf;
+            _gen++;   // the audio thread re-aims the head at its next read (the head is never touched from here)
         }
 
         public int Read(float[] buffer, int offset, int count)
         {
             int frames = count / 2;
             var buf = _buf;
+            int gen = _gen;
+            if (gen != _seenGen)
+            {
+                // a new cue: heard from its direction at once (Reset = "silent", so the first sound starts AT the aim)
+                _seenGen = gen;
+                float az = _az;
+                _3d = _spatial != null && BeaconVoice.Hrtf3D && float.IsFinite(az);
+                if (_3d) { _spatial!.Reset(); _spatial.Aim(az, 0f); }
+            }
             for (int n = 0; n < frames; n++)
             {
                 float s = 0f;
@@ -168,6 +195,11 @@ internal static class ToneCue
                 {
                     if (_pos < buf.Length) s = buf[_pos++];
                     else { _buf = null; buf = null; }
+                }
+                if (_3d)
+                {
+                    _spatial!.Process(s, out buffer[offset + n * 2], out buffer[offset + n * 2 + 1]);
+                    continue;
                 }
                 buffer[offset + n * 2] = s * _gl;
                 buffer[offset + n * 2 + 1] = s * _gr;

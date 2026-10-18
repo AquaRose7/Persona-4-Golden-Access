@@ -607,6 +607,8 @@ internal class OverworldNav
         try { LearnNpcNameFromTalk(); } catch (Exception ex) { Log($"[NpcLearn] error: {ex.Message}"); }
         if (!Utils.GameHasFocus()) return;   // don't process hotkeys while alt-tabbed
         if (SettingsMenu.IsOpen) return;     // settings menu owns input
+        // no nav keys behind the camp menu (Haru 2026-10-18: Backspace started a walk with the menu open)
+        if (CommandMenus.PlayerMenu.IsMenuOpen) { _bkWas = IsKeyDown(VK_BACK); return; }
 
         // Shift is the "speech history" modifier (handled by HistoryKeys); when it's
         // held our base [ ] / P shortcuts must NOT fire (Shift+[ = history, not entries).
@@ -1553,6 +1555,8 @@ internal class OverworldNav
             while (_beacon && !_stopped && ActiveHere())
             {
                 if (!Utils.GameHasFocus()) { _voice.Playing = false; DungeonAudio.SetWant(this, false); Thread.Sleep(150); continue; }
+                // silent behind the camp menu (2026-10-18), back when it closes
+                if (CommandMenus.PlayerMenu.IsMenuOpen) { _voice.Playing = false; DungeonAudio.SetWant(this, false); Thread.Sleep(100); continue; }
                 DungeonAudio.SetWant(this, true);   // re-acquire the output when focus returns
                 _voice.Playing = true;
                 if (!TryGetSelection(out var t)) break;
@@ -1651,6 +1655,7 @@ internal class OverworldNav
                 // NavBeacon): fully "closed" (school: behind the camera; town: the muffled
                 // compass side) eases ~3 semitones down, so the two states are unmistakable.
                 float rate = 1f - 0.18f * (1f - openness);
+                _voice.Aim(BeaconVoice.Azimuth(pan, 2f * openness - 1f));   // 3D sound: the same direction, behind included
                 _voice.Set(gain, pan, rate);
                 _voice.Openness = openness;
                 _voice.GapFrames = gap;
@@ -2222,6 +2227,15 @@ internal class OverworldNav
                 {
                     ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
                     Log($"[OverworldNav] walk END (a conversation started) target {t.Name}");
+                    return;
+                }
+                // The CAMP MENU opened (Haru 2026-10-18): the walk's held keys would move its cursor — stop.
+                if (CommandMenus.PlayerMenu.IsMenuOpen)
+                {
+                    ReleaseKeys(held); ControllerInput.ReleaseDriveStick();
+                    _walking = false;
+                    Speech.Say("Walk stopped.", false);
+                    Log($"[OverworldNav] walk END (camp menu opened) target {t.Name}");
                     return;
                 }
                 var (px, _, pz, ok) = FieldTracker.WorldPlayerPos();

@@ -179,7 +179,9 @@ internal class EnemyRadar
         // M is a persistent intent. Audio plays only while a dungeon floor is
         // loaded (InDungeon excludes battle 240) — so a battle PAUSES the radar
         // and it auto-resumes after, instead of toggling the intent off.
-        if (_active && InDungeon() && !FieldTracker.InAreaTransition)   // back off during a transition (crash-safety)
+        // (… and silent behind the camp menu — Haru 2026-10-18; the intent stays, it resumes when the menu closes)
+        if (_active && InDungeon() && !FieldTracker.InAreaTransition   // back off during a transition (crash-safety)
+            && !CommandMenus.PlayerMenu.IsMenuOpen)
         {
             _pauseGrace = 0;
             DungeonAudio.SetWant(this, true);
@@ -300,6 +302,7 @@ internal class EnemyRadar
                 use.Playing = true;
                 float g = vol * WavBoost;
                 if (gold && SoundSettings.RadarVol > 0.01f) g = g / SoundSettings.RadarVol * SoundSettings.GoldVol;
+                use.Aim(BeaconVoice.Azimuth(pan, 2f * openness - 1f));   // 3D sound: the same direction, behind included
                 use.Set(g, pan, rate * (seesYou ? SeesYouRate : 1f));
                 if (!gold && _goldMode) _goldVoices[i].Set(0f, 0f);
                 else if (gold) _wavVoices[i].Set(0f, 0f);

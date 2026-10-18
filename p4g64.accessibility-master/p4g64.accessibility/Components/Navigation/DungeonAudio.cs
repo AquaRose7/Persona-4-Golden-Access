@@ -21,6 +21,28 @@ internal static class DungeonAudio
 {
     public static readonly WaveFormat Format = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
+    /// <summary>The measured head for 3D sound (hrtf\ku100.p5rh, ported from P5R Access 2026-10-18), loaded at startup by
+    /// <see cref="LoadHrtf"/> BEFORE any voice is built (each <see cref="BeaconVoice"/> makes its own
+    /// <see cref="Spatializer"/> from it); null = the file is missing: pan only.</summary>
+    internal static HrtfSet? Hrtf;
+
+    /// <summary>The settings menu's "3D sound (HRTF)" (General; saved, default <c>Defaults.Hrtf3D</c> = off).</summary>
+    internal const string Hrtf3DKey = "hrtf_3d";
+
+    internal static void LoadHrtf()
+    {
+        string path = Utils.DataPath(System.IO.Path.Combine("hrtf", "ku100.p5rh"));
+        Hrtf = HrtfSet.Load(path);
+        // a head measured at another rate would place every sound wrong (its delays and filters are in samples): pan only
+        if (Hrtf != null && Hrtf.SampleRate != Format.SampleRate)
+        {
+            Utils.Log($"[3D] head NOT used ({path}): measured at {Hrtf.SampleRate} Hz, the mixer runs at {Format.SampleRate} Hz — panning only");
+            Hrtf = null;
+            return;
+        }
+        Utils.Log(Hrtf != null ? $"[3D] head loaded: {path} ({Hrtf.Taps} taps)" : $"[3D] head NOT loaded ({path}): 3D sound unavailable, panning only");
+    }
+
     private static readonly object _lock = new();
     private static MixingSampleProvider? _mixer;
     private static WaveOutEvent? _out;

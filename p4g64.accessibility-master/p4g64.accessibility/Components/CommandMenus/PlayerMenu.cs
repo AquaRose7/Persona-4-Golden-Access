@@ -128,7 +128,11 @@ internal sealed unsafe class PlayerMenu
         // floors, and that garbage can even yield a non-zero mask — so require a SANE submenu mask
         // (only bits 0-8: bit0 = strip, bits 1-8 = the eight submenus). A garbage mask has high bits set
         // and is rejected, so this never wrongly gates the dungeon nav keys.
-        IsMenuOpen = mask != 0 && (mask & ~0x1FF) == 0;
+        // …OR the camp menu's own named task is running (2026-10-18, Haru: "when I open the config menu in the camp
+        // menu … the wall sounds in dungeons continue"): while CONFIG is up the mask reads 0 (258 of 259 samples, live)
+        // although the camp menu is still open behind it; task "cmpMain" (its work = pCamp) exists exactly while the
+        // camp menu is open, Config and every System screen included, and is gone the moment it closes.
+        IsMenuOpen = (mask != 0 && (mask & ~0x1FF) == 0) || CampTaskRunning();
 
         if (pCamp == 0 || mask == 0)
         {
@@ -1052,6 +1056,13 @@ internal sealed unsafe class PlayerMenu
     // MC level +0x34, gear +0x4C/+0x4E/+0x50/+0x52, ally persona id +0x56
     // (level +0x58). DEFERRED: max HP/SP, EXP, and the F social-stats page
     // (those live in the separate status-panel renderer).
+    // The Status screen's PAGE (2026-10-18, snapshot-diffed live): u16 at obj+0x1C — 2 = the "View whose status?"
+    // member list, 4 = the character page (HP/SP of max, next EXP, persona, attack/defense), 6 = the protagonist's
+    // Social Stats (X), 7 = the Persona page (D-pad). LB/RB on a page moves the member cursor +0x3A, so a page is
+    // spoken whole when it opens AND when the member changes on it (Haru: "make it speak the details when you open").
+    private const int StatusPageList = 2, StatusPageMain = 4, StatusPageSocial = 6, StatusPagePersona = 7;
+    private int _statusPage = -1;
+
     private void ReadStatus(nint obj)
     {
         if (!IsReadable(obj, 0x40)) return;
@@ -1059,13 +1070,19 @@ internal sealed unsafe class PlayerMenu
         if (sel < 0 || sel > 9) return;
         int charId = *(ushort*)(obj + 0x24 + sel * 2);
         if (charId < 1 || charId > 16) return;
+        int page = *(ushort*)(obj + 0x1C);
+        // any other value is a frame between pages: wait for the page to settle (no double speech, no lost first read)
+        if (page is not (StatusPageList or StatusPageMain or StatusPageSocial or StatusPagePersona)) return;
 
-        if (sel != _statusSel)
+        if (sel != _statusSel || page != _statusPage)
         {
+            bool selChanged = sel != _statusSel;
             _statusSel = sel;
+            _statusPage = page;
             _stRow = 0; _stItem = -1;
-            Log($"[PlayerMenu][Status] sel={sel} charId={charId}");
-            Speak(StatusVitals(charId));
+            Log($"[PlayerMenu][Status] sel={sel} charId={charId} page={page}");
+            if (page != StatusPageList) Speak(StatusPageText(charId, page));
+            else if (selChanged) Speak(StatusVitals(charId));   // the member list: name, level, HP, SP, as before
         }
 
         // Rows: 0 vitals · 1 atk/def · 2 persona · 3 elements · 4 stats ·
@@ -1185,6 +1202,108 @@ internal sealed unsafe class PlayerMenu
         if (!IsReadable(m, 0x84)) return CharIdName(charId, -1);
         return $"{CharIdName(charId, -1)}, level {StatusLevel(charId, m)}, " +
                $"HP {*(ushort*)(m + 8)}, SP {*(ushort*)(m + 0xA)}";
+    }
+
+    /// <summary>A whole Status page, spoken as it opens (2026-10-18): the character page, the protagonist's Social Stats,
+    /// or the Persona page — what the screen shows, in its order. I/K/J/L still step through the detail rows.</summary>
+    private static string StatusPageText(int charId, int page)
+    {
+        nint m = StatusMember(charId);
+        if (!IsReadable(m, 0x84)) return CharIdName(charId, -1);
+        if (page == StatusPageSocial) return $"Social stats. {string.Join(". ", SocialStats(m))}.";
+        if (page == StatusPagePersona) return StatusPersonaPageText(charId, m);
+
+        // the character page: name, level, HP and SP of their max, next EXP, the persona, attack and defense
+        var sb = new System.Text.StringBuilder($"{CharIdName(charId, -1)}, level {StatusLevel(charId, m)}. ");
+        int hp = *(ushort*)(m + 8), sp = *(ushort*)(m + 0xA);
+        if (Battle.Battle.PartyTrueMax(m, out int maxHp, out int maxSp))
+            sb.Append($"HP {hp} of {maxHp}, SP {sp} of {maxSp}. ");
+        else sb.Append($"HP {hp}, SP {sp}. ");
+        int next = StatusNextExp(charId, m);
+        if (next >= 0) sb.Append($"Next EXP {next}. ");
+        var (_, persona) = StatusRow(charId, 2);
+        if (persona.Length > 0) sb.Append($"Persona {string.Join(", ", persona)}. ");
+        var (_, atkDef) = StatusRow(charId, 1);
+        if (atkDef.Length > 0) sb.Append(string.Join(", ", atkDef)).Append('.');
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>The Persona page: name, arcana, level, next EXP, the affinities that are not normal, the five stats, the
+    /// skills, and the next skill to learn.</summary>
+    private static string StatusPersonaPageText(int charId, nint m)
+    {
+        var (entry, pid) = StatusPersona(charId, m);
+        if (pid < 1 || pid > 512) return "No persona.";
+        var sb = new System.Text.StringBuilder();
+        var (_, persona) = StatusRow(charId, 2);
+        sb.Append(string.Join(", ", persona)).Append(". ");
+        int next = Battle.Battle.PersonaNextExp(entry);
+        if (next >= 0) sb.Append($"Next EXP {next}. ");
+        sb.Append(AffinitySummary(pid)).Append(' ');
+        var (_, stats) = StatusRow(charId, 4);
+        if (stats.Length > 0) sb.Append(string.Join(", ", stats)).Append(". ");
+        var (_, skills) = StatusRow(charId, 5);
+        if (skills.Length > 0) sb.Append("Skills: ").Append(string.Join(", ", skills)).Append(". ");
+        int lvl = IsReadable(entry + 4, 1) ? *(byte*)(entry + 4) : 0;
+        if (lvl > 0 && Battle.Battle.PersonaNextLearn(pid, lvl, out int ll, out int sid))
+        {
+            string sn = null;
+            try { sn = Skill.GetName(sid); } catch { }
+            if (!string.IsNullOrEmpty(sn)) sb.Append($"Next skill at level {ll}: {sn}.");
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>"Weak to Electric. Resists Wind." — only the elements that are not normal, grouped the way the
+    /// screen's row reads at a glance; "No weaknesses or resistances." when every one is normal.</summary>
+    private static string AffinitySummary(int pid)
+    {
+        var groups = new List<(string kind, List<string> names)>();
+        foreach (var (eid, nm) in Battle.Battle.ProfileElements)
+        {
+            string t = Battle.Battle.PersonaElementAffinityText(pid, eid, nm);
+            string kind = t.Length > nm.Length ? t.Substring(nm.Length + 1) : "normal";
+            if (kind is "normal" or "unknown") continue;
+            int g = groups.FindIndex(x => x.kind == kind);
+            if (g < 0) groups.Add((kind, new List<string> { nm }));
+            else groups[g].names.Add(nm);
+        }
+        if (groups.Count == 0) return "No weaknesses or resistances.";
+        var parts = new List<string>();
+        foreach (var (kind, names) in groups)
+        {
+            string list = names.Count == 1 ? names[0] : string.Join(", ", names.GetRange(0, names.Count - 1)) + " and " + names[^1];
+            parts.Add(kind switch
+            {
+                "weak" => $"Weak to {list}.",
+                "resist" => $"Resists {list}.",
+                "null" => $"Nulls {list}.",
+                "drain" => $"Drains {list}.",
+                "repel" => $"Repels {list}.",
+                _ => $"{list} {kind}.",
+            });
+        }
+        return string.Join(" ", parts);
+    }
+
+    // The protagonist's EXP to reach level L = u32 at 0x14090DBF0 + (L − 1) × 4 (level 1 = 0, 2 = 28; found live from
+    // the Status page's "Next EXP 8153" at level 56 = 362992 − 354839); his total EXP = u32 at record +0x40. An ally's
+    // "Next EXP" is their persona's (their level IS their persona's — the page shows the same 2025 on both).
+    private const long McExpTableAddr = 0x14090DBF0;
+
+    private static int StatusNextExp(int charId, nint m)
+    {
+        if (charId != 1)
+        {
+            var (entry, _) = StatusPersona(charId, m);
+            return Battle.Battle.PersonaNextExp(entry);
+        }
+        int lvl = *(byte*)(m + 0x06);
+        if (lvl < 1 || lvl >= 99) return -1;
+        nint t = (nint)(McExpTableAddr + lvl * 4);   // = the entry for level lvl + 1
+        if (!IsReadable(t, 4)) return -1;
+        int need = *(int*)t - *(int*)(m + 0x40);
+        return need < 0 ? 0 : need;
     }
 
     private static (string label, string[] items) StatusRow(int charId, int row)
@@ -1352,6 +1471,33 @@ internal sealed unsafe class PlayerMenu
     }
 
     private long _lastSpokeTick;
+    // The named-task registry (root CLAUDE.md): three list heads; node = name @+0x00, next @+0x50.
+    private static readonly nint[] TaskHeads =
+        { unchecked((nint)0x1462486F8L), unchecked((nint)0x1462486A8L), unchecked((nint)0x146248768L) };
+    private static readonly byte[] CampTaskName = System.Text.Encoding.ASCII.GetBytes("cmpMain");
+
+    /// <summary>True while the camp menu's task "cmpMain" is in the registry. An exact name match = the name followed by
+    /// any NON-printable byte (not necessarily NUL — an ==0 check missed real tasks before).</summary>
+    private static bool CampTaskRunning()
+    {
+        foreach (nint head in TaskHeads)
+        {
+            if (!IsReadable(head, 8)) continue;
+            nint node = *(nint*)head;
+            for (int i = 0; i < 512 && node != 0; i++)
+            {
+                if (!IsReadable(node, 0x58)) break;
+                bool match = true;
+                for (int j = 0; j < CampTaskName.Length; j++)
+                    if (*(byte*)(node + j) != CampTaskName[j]) { match = false; break; }
+                byte after = *(byte*)(node + CampTaskName.Length);
+                if (match && (after < 0x20 || after > 0x7E)) return true;
+                node = *(nint*)(node + 0x50);
+            }
+        }
+        return false;
+    }
+
     private void Speak(string msg)
     {
         // Suppress back-to-back identical announcements (menu close/reopen
@@ -1379,6 +1525,7 @@ internal sealed unsafe class PlayerMenu
         _personaSel = -1;
         _pRow = 0; _pItem = -1;
         _statusSel = -1;
+        _statusPage = -1;
         _stRow = 0; _stItem = -1;
         _systemRow = -1;
         _slinkRow = -1;

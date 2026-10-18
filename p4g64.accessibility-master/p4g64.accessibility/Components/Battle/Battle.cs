@@ -50,6 +50,19 @@ internal unsafe class Battle
     internal static GetMaxDelegate GetMaxSp => _getMaxSp;
     internal delegate int GetMaxDelegate(nint statNode);
 
+    private static GetMaxDelegate _getTrueMaxHp, _getTrueMaxSp;
+
+    /// <summary>A party member's real max HP and SP, as the Status page shows them (see the wrappers in the init).
+    /// <paramref name="record"/> = the persistent party record (0x1451BD9E4 + (charId − 1) × 0x84).</summary>
+    internal static bool PartyTrueMax(nint record, out int maxHp, out int maxSp)
+    {
+        maxHp = maxSp = 0;
+        var fh = _getTrueMaxHp; var fs = _getTrueMaxSp;
+        if (fh == null || fs == null || !IsReadable(record, 0x84)) return false;
+        try { maxHp = fh(record) & 0xFFFF; maxSp = fs(record) & 0xFFFF; } catch { return false; }
+        return maxHp > 0;
+    }
+
     private static GetAffinityDelegate _getAffinity;
     internal static GetAffinityDelegate GetAffinity => _getAffinity;
     internal delegate uint GetAffinityDelegate(nint statNode, int element);
@@ -673,6 +686,7 @@ internal unsafe class Battle
     internal static string ArcanaName(int aid) => aid switch
     {
         >= 1 and <= 22 => _arcana[aid - 1],
+        24 => "World",    // Izanagi-no-Okami's species byte (on screen "World", 2026-10-18)
         25 => "Jester",
         26 => "Hunger",
         27 => "Aeon",
@@ -1686,6 +1700,13 @@ internal unsafe class Battle
         // F12 probe before any always-on use.
         _getMaxHp = hooks.CreateWrapper<GetMaxDelegate>(unchecked((nint)0x1400CF3F0L), out _);
         _getMaxSp = hooks.CreateWrapper<GetMaxDelegate>(unchecked((nint)0x1400CF480L), out _);
+        // TRUE party max HP / SP (2026-10-18): the clean .text thunks 0x1400CF510 → FUN_15ED86D90 and 0x1400CF790 →
+        // FUN_15EDB6D30 (VMProtect) = the level table the two getters above read, PLUS passive skills and permanent
+        // boosts, capped at 999 — what the Status page shows (Yosuke SP 212 where the table says 172) and what the game
+        // fills a member to on a full heal (FUN_1403D7AB0). Arg = the persistent party record. Pure reads, called from
+        // the camp poll like _personaExpForLevel.
+        _getTrueMaxHp = hooks.CreateWrapper<GetMaxDelegate>(unchecked((nint)0x1400CF510L), out _);
+        _getTrueMaxSp = hooks.CreateWrapper<GetMaxDelegate>(unchecked((nint)0x1400CF790L), out _);
         // Affinity classifier GetAffinityResult(statNode, element) — packed u32
         // (low16 = dmg mult%, high bits = null/drain/repel/block). For the enemy
         // profile. Verifying via the F12 probe before always-on use.

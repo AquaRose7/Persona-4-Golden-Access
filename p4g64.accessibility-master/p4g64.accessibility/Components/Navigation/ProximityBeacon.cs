@@ -96,7 +96,8 @@ internal abstract class ProximityBeacon
         // (overworld included, beacon off) — hammering the fieldObj chain
         // through area transitions, which is where the chronic AVE crashes
         // came from (crash-dump stack: ProximityBeacon.Tick → PlayerX2DLive).
-        if (!_active || !InDungeon() || FieldTracker.InAreaTransition)   // back off during a transition
+        if (!_active || !InDungeon() || FieldTracker.InAreaTransition   // back off during a transition
+            || CommandMenus.PlayerMenu.IsMenuOpen)                       // and behind the camp menu (2026-10-18)
         {
             _voice.Playing = false;
             DungeonAudio.SetWant(this, false);
@@ -137,6 +138,7 @@ internal abstract class ProximityBeacon
 
             DungeonAudio.SetWant(this, true);
             _voice.Openness = openness;
+            _voice.Aim(BeaconVoice.Azimuth(pan, 2f * openness - 1f));   // 3D sound: the same direction, behind included
             _voice.Set(gain, pan, rate);
             _voice.Playing = true;
         }
